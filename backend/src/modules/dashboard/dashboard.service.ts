@@ -1,6 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { Apartment } from '../apartments/entities/apartment.entity';
 import { Occupancy } from '../occupancies/entities/occupancy.entity';
 import { Invoice } from '../invoices/entities/invoice.entity';
@@ -10,11 +12,15 @@ import { DashboardStatsDto } from './dto/dashboard-stats.dto';
 /**
  * Dashboard Service
  * Provides statistics and aggregated data for company dashboard
+ * Now with Redis caching for improved performance
  *
  * Author: george1806
  */
 @Injectable()
 export class DashboardService {
+  // Cache TTL: 5 minutes (in milliseconds)
+  private readonly CACHE_TTL = 300000;
+
   constructor(
     @InjectRepository(Apartment)
     private readonly apartmentRepository: Repository<Apartment>,
@@ -24,12 +30,45 @@ export class DashboardService {
     private readonly invoiceRepository: Repository<Invoice>,
     @InjectRepository(Payment)
     private readonly paymentRepository: Repository<Payment>,
+    @Inject(CACHE_MANAGER)
+    private readonly cacheManager: Cache,
   ) {}
 
   /**
    * Get dashboard statistics for a company
+   * Uses Redis cache with 5-minute TTL for improved performance
    */
   async getStats(companyId: string): Promise<DashboardStatsDto> {
+    const cacheKey = `dashboard:stats:${companyId}`;
+
+    // Try to get from cache first
+    const cachedStats = await this.cacheManager.get<DashboardStatsDto>(cacheKey);
+    if (cachedStats) {
+      return cachedStats;
+    }
+
+    // If not in cache, calculate stats
+    const stats = await this.calculateStats(companyId);
+
+    // Store in cache
+    await this.cacheManager.set(cacheKey, stats, this.CACHE_TTL);
+
+    return stats;
+  }
+
+  /**
+   * Invalidate cache for a company's dashboard stats
+   * Call this when data changes (new occupancy, payment, etc.)
+   */
+  async invalidateCache(companyId: string): Promise<void> {
+    const cacheKey = `dashboard:stats:${companyId}`;
+    await this.cacheManager.del(cacheKey);
+  }
+
+  /**
+   * Calculate dashboard statistics (internal method)
+   */
+  private async calculateStats(companyId: string): Promise<DashboardStatsDto> {
     // Get total apartments
     const totalUnits = await this.apartmentRepository.count({
       where: { companyId, isActive: true },

@@ -5,9 +5,11 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
+import { WinstonModule } from 'nest-winston';
 import { redisStore } from 'cache-manager-redis-yet';
 import { RedisClientOptions } from 'redis';
 import { dataSourceOptions } from './database/data-source';
+import { winstonConfig } from './common/logger/winston.config';
 // import { TenantModule } from './common/tenant/tenant.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CompaniesModule } from './modules/companies/companies.module';
@@ -27,6 +29,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { QueueModule } from './common/queue/queue.module';
 import { EmailModule } from './common/email/email.module';
 import { HealthModule } from './common/health/health.module';
+import { MetricsModule } from './common/metrics/metrics.module';
 
 @Module({
   imports: [
@@ -93,11 +96,15 @@ import { HealthModule } from './common/health/health.module';
     // Scheduler for cron jobs
     ScheduleModule.forRoot(),
 
+    // Logging with Winston
+    WinstonModule.forRoot(winstonConfig),
+
     // Common modules
     // TenantModule,
     QueueModule,
     EmailModule,
     HealthModule,
+    MetricsModule,
 
     // Feature modules
     AuthModule,

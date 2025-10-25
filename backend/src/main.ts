@@ -2,20 +2,65 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import helmet from 'helmet';
 import compression from 'compression';
+import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
+import { MetricsInterceptor } from './common/interceptors/metrics.interceptor';
+import { MetricsService } from './common/metrics/metrics.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
-    logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+    bufferLogs: true,
   });
+
+  // Use Winston as the logger
+  app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
 
   const configService = app.get(ConfigService);
 
-  // Security
-  app.use(helmet());
+  // Security Headers - Helmet.js with strict configuration
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          connectSrc: ["'self'"],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          mediaSrc: ["'self'"],
+          frameSrc: ["'none'"],
+        },
+      },
+      crossOriginEmbedderPolicy: true,
+      crossOriginOpenerPolicy: true,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      dnsPrefetchControl: true,
+      frameguard: { action: 'deny' },
+      hidePoweredBy: true,
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true,
+      },
+      ieNoOpen: true,
+      noSniff: true,
+      originAgentCluster: true,
+      permittedCrossDomainPolicies: false,
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+      xssFilter: true,
+    }),
+  );
+
+  // Compression
   app.use(compression());
+
+  // Cookie parser for CSRF protection
+  app.use(cookieParser());
 
   // CORS
   app.enableCors({
@@ -44,6 +89,10 @@ async function bootstrap() {
       },
     }),
   );
+
+  // Global metrics interceptor
+  const metricsService = app.get(MetricsService);
+  app.useGlobalInterceptors(new MetricsInterceptor(metricsService));
 
   // Swagger documentation
   const config = new DocumentBuilder()

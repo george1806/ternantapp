@@ -1,0 +1,55 @@
+# Prometheus configuration for TernantApp monitoring
+global:
+  scrape_interval: 15s # Default scrape interval
+  evaluation_interval: 15s # Evaluate rules every 15 seconds
+  external_labels:
+    cluster: 'ternantapp-production'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+          # - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  # - "alerts.yml"
+
+# Scrape configurations
+scrape_configs:
+  # TernantApp Backend metrics
+  - job_name: 'ternantapp-backend'
+    metrics_path: '/api/v1/metrics'
+    static_configs:
+      - targets: ['backend:3001']
+        labels:
+          app: 'ternantapp'
+          component: 'backend'
+
+  # Node Exporter for system metrics (if installed)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          component: 'node-exporter'
+
+  # MySQL metrics (if mysql-exporter is installed)
+  - job_name: 'mysql'
+    static_configs:
+      - targets: ['mysql-exporter:9104']
+        labels:
+          component: 'mysql'
+
+  # Redis metrics (if redis-exporter is installed)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          component: 'redis'
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
