@@ -1,0 +1,29 @@
+{
+  "name": "apartment-management-saas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multi-tenant apartment management SaaS platform",
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter backend dev\" \"pnpm --filter frontend dev\"",
+    "build": "pnpm --filter backend build && pnpm --filter frontend build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "db:migrate": "pnpm --filter backend migration:run",
+    "db:seed": "pnpm --filter backend seed:run",
+    "db:reset": "pnpm --filter backend db:reset"
+  },
+  "keywords": ["multi-tenant", "apartment-management", "saas", "nextjs", "nestjs"],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.2"
+  }
+}
