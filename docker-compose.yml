@@ -1,0 +1,305 @@
+services:
+  # ================================
+  # Database - MySQL 8.0
+  # ================================
+  mysql:
+    image: mysql:8.0
+    container_name: apartment-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password_dev
+      MYSQL_DATABASE: apartment_management
+      MYSQL_USER: apartment_user
+      MYSQL_PASSWORD: apartment_pass_dev
+    ports:
+      - '3307:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --max_connections=500
+      --innodb_buffer_pool_size=1G
+      --innodb_log_file_size=256M
+      --innodb_flush_log_at_trx_commit=2
+      --slow_query_log=1
+      --long_query_time=2
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-proot_password_dev']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - apartment_network
+
+  # ================================
+  # Cache & Sessions - Redis 7
+  # ================================
+  redis:
+    image: redis:7-alpine
+    container_name: apartment-redis
+    restart: unless-stopped
+    ports:
+      - '6380:6379'
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - apartment_network
+
+  # ================================
+  # Email Testing - Mailpit
+  # ================================
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: apartment-mailpit
+    restart: unless-stopped
+    ports:
+      - '1025:1025'  # SMTP
+      - '8025:8025'  # Web UI
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_DATABASE: /data/mailpit.db
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    volumes:
+      - mailpit_data:/data
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:8025/']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - apartment_network
+
+  # ================================
+  # Backend API - NestJS
+  # ================================
+  backend:
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile
+      target: development
+    container_name: apartment-backend
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      # Application
+      NODE_ENV: development
+      PORT: 3000
+      API_PREFIX: api
+      APP_NAME: Apartment Management SaaS
+      BASE_URL: http://localhost:3000
+      FRONTEND_URL: http://localhost:3001
+
+      # Database - Use service names for container networking
+      DB_TYPE: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: apartment_user
+      DB_PASSWORD: apartment_pass_dev
+      DB_DATABASE: apartment_management
+      DB_LOGGING: "true"
+      DB_SYNCHRONIZE: "false"
+      DB_RUN_MIGRATIONS: "true"
+      DB_MIGRATIONS_RUN: "false"
+
+      # Database Connection Pool
+      DB_POOL_SIZE: 20
+      DB_POOL_ACQUIRE_TIMEOUT: 30000
+      DB_POOL_IDLE_TIMEOUT: 10000
+      DB_POOL_MAX_REUSES: 100
+
+      # Redis - Use service name
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: 0
+      REDIS_TTL: 3600
+
+      # JWT
+      JWT_SECRET: ApartmentMgmt_Prod_Secret_Key_Change_In_Production_2024
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_SECRET: ApartmentMgmt_Refresh_Secret_Key_Change_In_Production_2024
+      JWT_REFRESH_EXPIRES_IN: 7d
+
+      # Session Management
+      SESSION_PREFIX: "session:"
+      SESSION_TTL: 900
+      REFRESH_SESSION_PREFIX: "refresh:"
+      REFRESH_SESSION_TTL: 604800
+
+      # Email - Use service name
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      MAIL_USER: ""
+      MAIL_PASSWORD: ""
+      MAIL_FROM_NAME: Apartment Management
+      MAIL_FROM_EMAIL: noreply@apartment.app
+      MAIL_SECURE: "false"
+
+      # Rate Limiting
+      THROTTLE_TTL: 60
+      THROTTLE_LIMIT: 100
+
+      # Queue (BullMQ) - Use service name
+      QUEUE_REDIS_HOST: redis
+      QUEUE_REDIS_PORT: 6379
+      QUEUE_REDIS_PASSWORD: ""
+      QUEUE_REDIS_DB: 1
+      QUEUE_JOB_ATTEMPTS: 3
+      QUEUE_JOB_BACKOFF_DELAY: 60000
+      QUEUE_COMPLETED_JOB_AGE: 86400
+      QUEUE_FAILED_JOB_AGE: 604800
+
+      # Reminders
+      REMINDER_DUE_SOON_DAYS: 3
+      REMINDER_DUE_SOON_CRON: "0 8 * * *"
+      REMINDER_OVERDUE_CRON: "0 9 * * *"
+      REMINDER_OVERDUE_INTERVAL_DAYS: 7
+      REMINDER_MAX_RETRIES: 3
+
+      # Security
+      CORS_ORIGINS: "http://localhost:3001,http://frontend:3001"
+      CSRF_ENABLED: "true"
+      HELMET_ENABLED: "true"
+
+      # Features
+      FEATURE_TENANT_PORTAL: "true"
+      FEATURE_FILE_UPLOAD: "true"
+      FEATURE_AUDIT_LOG: "true"
+      FEATURE_QUEUE_ENABLED: "true"
+    volumes:
+      # Mount source code for hot-reload in development
+      - ./backend/src:/app/backend/src:cached
+      - ./backend/package.json:/app/backend/package.json:cached
+      # Preserve node_modules - these MUST come after source mounts
+      - /app/backend/node_modules
+      - /app/node_modules
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:3000/api/v1/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - apartment_network
+
+  # ================================
+  # Frontend UI - Next.js 15
+  # ================================
+  frontend:
+    build:
+      context: .
+      dockerfile: ./frontend/Dockerfile
+      target: development
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3000/api/v1
+    container_name: apartment-frontend
+    restart: unless-stopped
+    ports:
+      - '3001:3001'
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:3000/api/v1
+      PORT: 3001
+      HOSTNAME: "0.0.0.0"
+    volumes:
+      # Mount source code for hot-reload in development
+      - ./frontend/src:/app/frontend/src:cached
+      - ./frontend/public:/app/frontend/public:cached
+      - ./frontend/package.json:/app/frontend/package.json:cached
+      - ./frontend/next.config.ts:/app/frontend/next.config.ts:cached
+      - ./frontend/tsconfig.json:/app/frontend/tsconfig.json:cached
+      - ./frontend/tailwind.config.ts:/app/frontend/tailwind.config.ts:cached
+      - ./frontend/postcss.config.mjs:/app/frontend/postcss.config.mjs:cached
+      - ./frontend/eslint.config.mjs:/app/frontend/eslint.config.mjs:cached
+      # Preserve node_modules and .next - these MUST come after source mounts
+      - /app/frontend/node_modules
+      - /app/frontend/.next
+      - /app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:3001']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - apartment_network
+
+  # ================================
+  # Optional: MySQL Admin UI
+  # ================================
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: apartment-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: apartment_user
+      PMA_PASSWORD: apartment_pass_dev
+      UPLOAD_LIMIT: 100M
+    ports:
+      - '8082:80'
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - apartment_network
+
+  # ================================
+  # Optional: Redis Commander
+  # ================================
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: apartment-redis-commander
+    restart: unless-stopped
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - '8081:8081'
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - apartment_network
+
+# ================================
+# Volumes
+# ================================
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  mailpit_data:
+    driver: local
+
+# ================================
+# Networks
+# ================================
+networks:
+  apartment_network:
+    driver: bridge
+    name: apartment_network
