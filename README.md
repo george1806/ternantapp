@@ -465,29 +465,30 @@ pnpm test:cov
 
 ### 📚 Deployment Documentation
 
-TernantApp v1.0.1 includes comprehensive deployment guides for different environments:
+TernantApp v1.0.1 includes comprehensive deployment guides for different environments.
+
+📖 **[View All Documentation](docs/)** - Complete documentation index
 
 **Choose Your Environment:**
-- 📖 **[Deployment Environments Guide](DEPLOYMENT_ENVIRONMENTS.md)** - Compare local dev, staging, and production environments to choose the right one
+- 📖 **[Deployment Environments Guide](docs/DEPLOYMENT_ENVIRONMENTS.md)** - Compare local dev, staging, and production environments to choose the right one
 
 **Staging Deployment:**
-- 🧪 **[Staging Deployment Guide](STAGING_DEPLOYMENT.md)** - Complete guide for deploying to staging environment
+- 🧪 **[Staging Deployment Guide](docs/STAGING_DEPLOYMENT.md)** - Complete guide for deploying to staging environment
   - Server requirements: 2 CPU, 4GB RAM
   - Deployment time: ~90 minutes
   - Purpose: Testing and validation before production
 
 **Production Deployment:**
-- 🚀 **[Production Deployment Guide](PRODUCTION_DEPLOYMENT.md)** - Comprehensive production deployment with security hardening
+- 🚀 **[Production Deployment Guide](docs/PRODUCTION_DEPLOYMENT.md)** - Comprehensive production deployment with security hardening
   - Server requirements: 4 CPU, 8GB+ RAM
   - Deployment time: ~5-6 hours (including monitoring)
   - Includes: SSL setup, firewall configuration, monitoring, rollback procedures
 
 **Additional Resources:**
-- ✅ **[Final Deployment Checklist](FINAL_DEPLOYMENT_CHECKLIST.md)** - Step-by-step checklist with sign-off sheet (40 minutes)
-- 📘 **[Deployment Guide](DEPLOYMENT_GUIDE.md)** - General deployment guide with monitoring setup
-- ⚡ **[Quick Start Production](QUICK_START_PRODUCTION.md)** - 5-minute quick start for experienced users
-- 🔧 **[Production Improvements](PRODUCTION_IMPROVEMENTS.md)** - Detailed v1.0.1 improvements documentation
-- 📋 **[Update Summary](UPDATE_SUMMARY.md)** - Summary of all v1.0.1 deployment updates
+- ✅ **[Final Deployment Checklist](docs/FINAL_DEPLOYMENT_CHECKLIST.md)** - Step-by-step checklist with sign-off sheet (40 minutes)
+- 📘 **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - General deployment guide with monitoring setup
+- ⚡ **[Quick Start Production](docs/QUICK_START_PRODUCTION.md)** - 5-minute quick start for experienced users
+- 🔧 **[Production Improvements](docs/PRODUCTION_IMPROVEMENTS.md)** - Detailed v1.0.1 improvements documentation
 
 ### Quick Deployment (Automated)
 
@@ -582,7 +583,7 @@ tail -f backend/logs/combined.log
 | List apartments | 180ms | 55ms | **69% faster** |
 | Cache hit rate | - | ~85% | **Excellent** |
 
-See **[Production Improvements](PRODUCTION_IMPROVEMENTS.md)** for detailed performance analysis.
+See **[Production Improvements](docs/PRODUCTION_IMPROVEMENTS.md)** for detailed performance analysis.
 
 ## Development Guidelines
 
