@@ -150,6 +150,52 @@ run_migrations() {
   log "✅ Migrations completed"
 }
 
+# Setup logging directories
+setup_logging() {
+  log "Setting up logging directories..."
+
+  mkdir -p backend/logs
+  chmod 755 backend/logs
+
+  log "✅ Logging directories created"
+}
+
+# Verify monitoring endpoints
+verify_monitoring() {
+  log "Verifying monitoring endpoints..."
+
+  # Check health endpoint
+  HEALTH_STATUS=$(curl -s http://localhost:3001/api/v1/health || echo "failed")
+  if echo "$HEALTH_STATUS" | grep -q "ok"; then
+    log "✅ Health endpoint responding"
+  else
+    warning "Health endpoint not responding yet"
+  fi
+
+  # Check metrics endpoint
+  METRICS_STATUS=$(curl -s http://localhost:3001/api/v1/metrics || echo "failed")
+  if echo "$METRICS_STATUS" | grep -q "http_requests_total"; then
+    log "✅ Metrics endpoint responding"
+  else
+    warning "Metrics endpoint not responding yet"
+  fi
+}
+
+# Start monitoring stack (optional)
+start_monitoring() {
+  log "Starting monitoring stack (Prometheus + Grafana)..."
+
+  if [ -f "docker-compose.monitoring.yml" ]; then
+    docker compose -f docker-compose.monitoring.yml up -d || warning "Failed to start monitoring stack"
+    log "✅ Monitoring stack started"
+    log "   Grafana: http://localhost:3002 (admin/admin123)"
+    log "   Prometheus: http://localhost:9090"
+    log "   Metrics: http://localhost:3001/api/v1/metrics"
+  else
+    warning "docker-compose.monitoring.yml not found, skipping monitoring setup"
+  fi
+}
+
 # Display deployment info
 display_info() {
   log "=========================================="
@@ -186,7 +232,7 @@ rollback() {
 main() {
   log "==========================================
 "
-  log "TernantApp Production Deployment"
+  log "TernantApp Production Deployment v1.0.1"
   log "=========================================="
   log "Environment: $ENVIRONMENT"
   log "Started at: $(date)"
@@ -197,11 +243,16 @@ main() {
 
   # Run deployment steps
   preflight_checks
+  setup_logging
   backup_database
   deploy
   run_migrations
+  verify_monitoring
+  start_monitoring
   display_info
 
+  log ""
+  log "🎉 Deployment completed successfully!"
   log "Deployment completed at: $(date)"
 }
 

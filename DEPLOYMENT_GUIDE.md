@@ -1,8 +1,8 @@
 # TernantApp - Production Deployment Guide
 
-**Version:** 1.0.0
+**Version:** 1.0.1
 **Last Updated:** 2025-10-25
-**Status:** Production-Ready
+**Status:** Production-Ready with Enhanced Monitoring & Performance
 
 ---
 
@@ -36,6 +36,11 @@
 - RAM: 8GB
 - Storage: 50GB SSD
 - OS: Ubuntu 22.04 LTS
+
+**With Monitoring Stack:**
+- CPU: 4+ cores
+- RAM: 10GB+
+- Storage: 100GB SSD (for logs and metrics)
 
 ### Software Requirements
 
@@ -148,6 +153,7 @@ Edit `.env.production` and set:
 # Critical - MUST change these!
 JWT_SECRET=your_generated_64_char_secret
 JWT_REFRESH_SECRET=your_different_64_char_secret
+SESSION_SECRET=your_generated_32_char_secret
 DATABASE_PASSWORD=strong_database_password
 MYSQL_ROOT_PASSWORD=strong_root_password
 REDIS_PASSWORD=strong_redis_password
@@ -155,12 +161,30 @@ REDIS_PASSWORD=strong_redis_password
 # Application URLs
 APP_URL=https://your-domain.com
 NEXT_PUBLIC_API_URL=https://api.your-domain.com/api/v1
-CORS_ORIGIN=https://your-domain.com
+CORS_ORIGINS=https://your-domain.com
 
 # Database
 DATABASE_HOST=mysql
 DATABASE_NAME=ternantapp_production
 DATABASE_USER=ternantapp_prod
+
+# Database Pool (NEW v1.0.1)
+DB_POOL_SIZE=20
+DB_POOL_ACQUIRE_TIMEOUT=30000
+
+# Redis Cache (NEW v1.0.1)
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_DB=0
+REDIS_TTL=3600
+
+# Rate Limiting (NEW v1.0.1)
+THROTTLE_TTL=60
+THROTTLE_LIMIT=100
+
+# Logging (NEW v1.0.1)
+LOG_LEVEL=info
+LOG_FILE_PATH=./logs
 
 # Email (Configure your SMTP provider)
 MAIL_HOST=smtp.your-provider.com
@@ -206,13 +230,32 @@ docker exec ternantapp-mysql-prod mysql -u root -p"$MYSQL_ROOT_PASSWORD" ternant
 
 ### Automated Deployment (Recommended)
 
+The deployment script now includes:
+- ✅ Pre-flight checks
+- ✅ Automatic database backup
+- ✅ Docker image building
+- ✅ Service deployment
+- ✅ Database migration (including performance indexes)
+- ✅ Logging setup
+- ✅ Monitoring stack deployment
+- ✅ Health verification
+
 ```bash
 # Make deployment script executable
 chmod +x deploy.sh
 
-# Run deployment
+# Run deployment (includes all improvements)
 ./deploy.sh production
 ```
+
+**What the script does:**
+1. Creates logging directories
+2. Backs up existing database
+3. Builds and starts services
+4. Applies database migrations (including performance indexes)
+5. Verifies health and metrics endpoints
+6. Starts Prometheus + Grafana monitoring stack
+7. Shows deployment summary
 
 ### Manual Deployment
 
@@ -244,7 +287,7 @@ docker compose -f docker-compose.prod.yml ps
 
 ```bash
 # Backend health
-curl https://api.your-domain.com/api/v1/health
+curl http://localhost:3001/api/v1/health
 
 # Expected response:
 {
@@ -253,8 +296,17 @@ curl https://api.your-domain.com/api/v1/health
   "database": "connected"
 }
 
+# Metrics endpoint (NEW v1.0.1)
+curl http://localhost:3001/api/v1/metrics
+
+# Expected: Prometheus metrics text format
+# http_requests_total{...} 0
+# http_request_duration_seconds{...} 0
+# db_connections_active 0
+# ... more metrics
+
 # Frontend health
-curl https://your-domain.com
+curl http://localhost:3000
 
 # Expected: HTTP 200 OK
 ```
@@ -290,11 +342,119 @@ docker compose -f docker-compose.prod.yml logs -f frontend
 
 # Database logs
 docker compose -f docker-compose.prod.yml logs -f mysql
+
+# Application logs (NEW v1.0.1)
+tail -f backend/logs/combined.log
+tail -f backend/logs/error.log
+```
+
+### 5. Verify Monitoring Stack (NEW v1.0.1)
+
+```bash
+# Check Grafana is running
+curl http://localhost:3002
+
+# Check Prometheus is running
+curl http://localhost:9090/-/healthy
+
+# Access Grafana Dashboard
+# URL: http://localhost:3002
+# Username: admin
+# Password: admin123
+
+# Verify metrics are being collected
+curl http://localhost:9090/api/v1/targets
+```
+
+### 6. Verify Performance Improvements (NEW v1.0.1)
+
+```bash
+# Check database indexes were applied
+docker exec ternantapp-mysql-prod mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "SHOW INDEXES FROM occupancies;"
+
+# Expected: Multiple indexes including IDX_occupancies_company_id, etc.
+
+# Test cache is working
+# First request (uncached)
+time curl -H "Authorization: Bearer $TOKEN" http://localhost:3001/api/v1/dashboard/stats
+
+# Second request (cached) - should be significantly faster
+time curl -H "Authorization: Bearer $TOKEN" http://localhost:3001/api/v1/dashboard/stats
 ```
 
 ---
 
 ## 📊 Monitoring & Maintenance
+
+### Monitoring Stack (NEW v1.0.1)
+
+The application now includes comprehensive monitoring with Prometheus and Grafana.
+
+#### Access Monitoring Dashboards
+
+- **Grafana:** http://localhost:3002 (admin / admin123)
+- **Prometheus:** http://localhost:9090
+- **Metrics Endpoint:** http://localhost:3001/api/v1/metrics
+
+#### Setup Grafana Dashboard
+
+1. **Login to Grafana:**
+   ```bash
+   # URL: http://localhost:3002
+   # Username: admin
+   # Password: admin123
+   ```
+
+2. **Add Prometheus Data Source:**
+   - Go to Configuration → Data Sources
+   - Click "Add data source"
+   - Select "Prometheus"
+   - URL: `http://prometheus:9090`
+   - Click "Save & Test"
+
+3. **Import TernantApp Dashboard:**
+   - Go to Dashboards → Import
+   - Click "Upload JSON file"
+   - Select: `backend/monitoring/grafana-dashboard.json`
+   - Choose Prometheus data source
+   - Click "Import"
+
+#### Key Metrics to Monitor
+
+**HTTP Performance:**
+- `http_requests_total` - Total requests by method, route, status
+- `http_request_duration_seconds` - Request latency (p50, p95, p99)
+- Alert if p95 > 500ms or p99 > 1000ms
+
+**Database Performance:**
+- `db_connections_active` - Active database connections
+- `db_query_duration_seconds` - Query execution time
+- Alert if connections > 80% of pool size
+
+**Cache Performance:**
+- `cache_hits_total` / `cache_misses_total` - Cache hit rate
+- Target: > 70% hit rate
+
+**Business Metrics:**
+- `active_tenants_total` - Active tenants by company
+- `total_revenue` - Total revenue
+- `active_occupancies_total` - Active leases
+
+#### Monitoring Stack Management
+
+```bash
+# Start monitoring stack
+docker compose -f docker-compose.monitoring.yml up -d
+
+# Stop monitoring stack
+docker compose -f docker-compose.monitoring.yml down
+
+# View monitoring logs
+docker compose -f docker-compose.monitoring.yml logs -f
+
+# Restart Prometheus (reload config)
+docker compose -f docker-compose.monitoring.yml restart prometheus
+```
 
 ### Log Management
 
