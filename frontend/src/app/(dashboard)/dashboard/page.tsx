@@ -122,23 +122,38 @@ export default function DashboardPage() {
   };
 
   const getInvoiceStatusBadge = (status: string) => {
+    if (!status) {
+      return <Badge variant="default">Unknown</Badge>;
+    }
     const variants: Record<string, 'default' | 'success' | 'warning' | 'destructive'> = {
       paid: 'success',
       pending: 'warning',
+      sent: 'warning',
       overdue: 'destructive',
       cancelled: 'default',
     };
-    return <Badge variant={variants[status] || 'default'}>{status}</Badge>;
+    return <Badge variant={variants[status] || 'default'}>{status.charAt(0).toUpperCase() + status.slice(1)}</Badge>;
   };
 
   const getPaymentMethodBadge = (method: string) => {
+    if (!method) {
+      return <Badge variant="outline">N/A</Badge>;
+    }
     const variants: Record<string, 'default' | 'secondary' | 'outline'> = {
-      mpesa: 'default',
-      bank_transfer: 'secondary',
-      cash: 'outline',
-      cheque: 'outline',
+      CASH: 'outline',
+      BANK: 'secondary',
+      MOBILE: 'default',
+      CARD: 'secondary',
+      OTHER: 'outline',
     };
-    return <Badge variant={variants[method] || 'outline'}>{method.replace('_', ' ')}</Badge>;
+    const displayNames: Record<string, string> = {
+      CASH: 'Cash',
+      BANK: 'Bank Transfer',
+      MOBILE: 'Mobile Money',
+      CARD: 'Card',
+      OTHER: 'Other',
+    };
+    return <Badge variant={variants[method] || 'outline'}>{displayNames[method] || method}</Badge>;
   };
 
   if (loading) {
@@ -306,9 +321,9 @@ export default function DashboardPage() {
                 ) : (
                   recentPayments.map((payment) => (
                     <TableRow key={payment.id}>
-                      <TableCell className="font-medium">{payment.reference}</TableCell>
+                      <TableCell className="font-medium">{payment.reference || 'N/A'}</TableCell>
                       <TableCell>{formatCurrency(payment.amount)}</TableCell>
-                      <TableCell>{getPaymentMethodBadge(payment.paymentMethod)}</TableCell>
+                      <TableCell>{getPaymentMethodBadge(payment.method)}</TableCell>
                     </TableRow>
                   ))
                 )}

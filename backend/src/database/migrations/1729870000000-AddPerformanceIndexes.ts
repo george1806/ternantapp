@@ -2,128 +2,69 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddPerformanceIndexes1729870000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
+    // Helper function to create index if it doesn't exist
+    const createIndexIfNotExists = async (indexName: string, tableName: string, columns: string) => {
+      const indexExists = await queryRunner.query(
+        `SELECT COUNT(*) as count FROM information_schema.statistics
+         WHERE table_schema = DATABASE() AND table_name = '${tableName}' AND index_name = '${indexName}'`
+      );
+      if (indexExists[0].count === 0) {
+        await queryRunner.query(`CREATE INDEX ${indexName} ON ${tableName}(${columns});`);
+      }
+    };
+
     // Users table indexes
-    await queryRunner.query(`
-      CREATE INDEX IDX_users_email ON users(email);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_users_company_id ON users(companyId);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_users_role ON users(role);
-    `);
+    await createIndexIfNotExists('IDX_users_email', 'users', 'email');
+    await createIndexIfNotExists('IDX_users_company_id', 'users', 'companyId');
+    await createIndexIfNotExists('IDX_users_role', 'users', 'role');
 
     // Companies table indexes
-    await queryRunner.query(`
-      CREATE INDEX IDX_companies_slug ON companies(slug);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_companies_is_active ON companies(isActive);
-    `);
+    await createIndexIfNotExists('IDX_companies_slug', 'companies', 'slug');
+    await createIndexIfNotExists('IDX_companies_is_active', 'companies', 'isActive');
 
     // Compounds table indexes
-    await queryRunner.query(`
-      CREATE INDEX IDX_compounds_company_id ON compounds(companyId);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_compounds_name ON compounds(name);
-    `);
+    await createIndexIfNotExists('IDX_compounds_company_id', 'compounds', 'companyId');
+    await createIndexIfNotExists('IDX_compounds_name', 'compounds', 'name');
 
     // Apartments table indexes
-    await queryRunner.query(`
-      CREATE INDEX IDX_apartments_company_id ON apartments(companyId);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_apartments_compound_id ON apartments(compoundId);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_apartments_status ON apartments(status);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_apartments_number ON apartments(apartmentNumber);
-    `);
+    await createIndexIfNotExists('IDX_apartments_company_id', 'apartments', 'companyId');
+    await createIndexIfNotExists('IDX_apartments_compound_id', 'apartments', 'compoundId');
+    await createIndexIfNotExists('IDX_apartments_status', 'apartments', 'status');
+    await createIndexIfNotExists('IDX_apartments_number', 'apartments', 'apartmentNumber');
 
     // Tenants table indexes
-    await queryRunner.query(`
-      CREATE INDEX IDX_tenants_company_id ON tenants(companyId);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_tenants_email ON tenants(email);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_tenants_phone ON tenants(phone);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_tenants_national_id ON tenants(nationalId);
-    `);
+    await createIndexIfNotExists('IDX_tenants_company_id', 'tenants', 'companyId');
+    await createIndexIfNotExists('IDX_tenants_email', 'tenants', 'email');
+    await createIndexIfNotExists('IDX_tenants_phone', 'tenants', 'phone');
+    await createIndexIfNotExists('IDX_tenants_national_id', 'tenants', 'nationalId');
 
     // Occupancies table indexes
-    await queryRunner.query(`
-      CREATE INDEX IDX_occupancies_company_id ON occupancies(companyId);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_occupancies_apartment_id ON occupancies(apartmentId);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_occupancies_tenant_id ON occupancies(tenantId);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_occupancies_status ON occupancies(status);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_occupancies_start_date ON occupancies(startDate);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_occupancies_end_date ON occupancies(endDate);
-    `);
+    await createIndexIfNotExists('IDX_occupancies_company_id', 'occupancies', 'companyId');
+    await createIndexIfNotExists('IDX_occupancies_apartment_id', 'occupancies', 'apartmentId');
+    await createIndexIfNotExists('IDX_occupancies_tenant_id', 'occupancies', 'tenantId');
+    await createIndexIfNotExists('IDX_occupancies_status', 'occupancies', 'status');
+    await createIndexIfNotExists('IDX_occupancies_start_date', 'occupancies', 'startDate');
+    await createIndexIfNotExists('IDX_occupancies_end_date', 'occupancies', 'endDate');
 
     // Invoices table indexes
-    await queryRunner.query(`
-      CREATE INDEX IDX_invoices_company_id ON invoices(companyId);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_invoices_occupancy_id ON invoices(occupancyId);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_invoices_status ON invoices(status);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_invoices_invoice_date ON invoices(invoiceDate);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_invoices_due_date ON invoices(dueDate);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_invoices_invoice_number ON invoices(invoiceNumber);
-    `);
+    await createIndexIfNotExists('IDX_invoices_company_id', 'invoices', 'companyId');
+    await createIndexIfNotExists('IDX_invoices_occupancy_id', 'invoices', 'occupancyId');
+    await createIndexIfNotExists('IDX_invoices_status', 'invoices', 'status');
+    await createIndexIfNotExists('IDX_invoices_invoice_date', 'invoices', 'invoiceDate');
+    await createIndexIfNotExists('IDX_invoices_due_date', 'invoices', 'dueDate');
+    await createIndexIfNotExists('IDX_invoices_invoice_number', 'invoices', 'invoiceNumber');
 
     // Payments table indexes
-    await queryRunner.query(`
-      CREATE INDEX IDX_payments_company_id ON payments(companyId);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_payments_invoice_id ON payments(invoiceId);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_payments_payment_date ON payments(paymentDate);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_payments_payment_method ON payments(paymentMethod);
-    `);
+    await createIndexIfNotExists('IDX_payments_company_id', 'payments', 'companyId');
+    await createIndexIfNotExists('IDX_payments_invoice_id', 'payments', 'invoiceId');
+    await createIndexIfNotExists('IDX_payments_payment_date', 'payments', 'paymentDate');
+    await createIndexIfNotExists('IDX_payments_payment_method', 'payments', 'paymentMethod');
 
     // Composite indexes for common queries
-    await queryRunner.query(`
-      CREATE INDEX IDX_occupancies_company_status ON occupancies(companyId, status);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_invoices_company_status ON invoices(companyId, status);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_apartments_compound_status ON apartments(compoundId, status);
-    `);
-    await queryRunner.query(`
-      CREATE INDEX IDX_invoices_occupancy_date ON invoices(occupancyId, invoiceDate);
-    `);
+    await createIndexIfNotExists('IDX_occupancies_company_status', 'occupancies', 'companyId, status');
+    await createIndexIfNotExists('IDX_invoices_company_status', 'invoices', 'companyId, status');
+    await createIndexIfNotExists('IDX_apartments_compound_status', 'apartments', 'compoundId, status');
+    await createIndexIfNotExists('IDX_invoices_occupancy_date', 'invoices', 'occupancyId, invoiceDate');
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

@@ -63,20 +63,48 @@ export class InvoicesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all invoices' })
-  @ApiQuery({ name: 'status', required: false })
-  @ApiQuery({ name: 'includeInactive', required: false })
-  @ApiResponse({ status: 200, description: 'List of invoices' })
-  findAll(
+  @ApiOperation({ summary: 'Get all invoices with pagination' })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter by status' })
+  @ApiQuery({ name: 'includeInactive', required: false, type: Boolean })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
+  @ApiQuery({ name: 'sortBy', required: false, type: String, description: 'Sort field' })
+  @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })
+  @ApiResponse({ status: 200, description: 'Returns invoices with pagination' })
+  async findAll(
     @Query('status') status?: string,
     @Query('includeInactive') includeInactive?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: 'ASC' | 'DESC',
     @CurrentUser() user?: any,
   ) {
-    return this.invoicesService.findAll(
+    const invoices = await this.invoicesService.findAll(
       user.companyId,
       status,
       includeInactive === 'true',
     );
+
+    // Apply pagination
+    const currentPage = page || 1;
+    const pageLimit = limit || 10;
+    const total = invoices.length;
+    const totalPages = Math.ceil(total / pageLimit);
+    const startIndex = (currentPage - 1) * pageLimit;
+    const endIndex = startIndex + pageLimit;
+    const paginatedData = invoices.slice(startIndex, endIndex);
+
+    // Return paginated response format expected by frontend
+    return {
+      data: paginatedData,
+      meta: {
+        total,
+        page: currentPage,
+        limit: pageLimit,
+        totalPages,
+      },
+    };
   }
 
   @Get('stats')

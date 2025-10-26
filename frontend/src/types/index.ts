@@ -187,17 +187,18 @@ export interface Payment {
   companyId: string;
   invoiceId: string;
   amount: number;
-  paymentDate: string; // Backend uses paymentDate
-  paymentMethod: 'mpesa' | 'bank_transfer' | 'cash' | 'cheque' | 'other';
-  reference: string;
+  paidAt: string; // Backend uses paidAt (timestamp)
+  method: 'CASH' | 'BANK' | 'MOBILE' | 'CARD' | 'OTHER';
+  reference?: string;
   notes?: string;
+  metadata?: any;
   isActive: boolean;
   invoice?: Invoice;
   createdAt: string;
   updatedAt: string;
 }
 
-export type PaymentMethod = 'mpesa' | 'bank_transfer' | 'cash' | 'cheque' | 'other';
+export type PaymentMethod = 'CASH' | 'BANK' | 'MOBILE' | 'CARD' | 'OTHER';
 
 /**
  * Authentication Types

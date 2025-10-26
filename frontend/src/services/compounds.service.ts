@@ -13,14 +13,14 @@ import type { Compound, PaginatedResponse, PaginationParams } from '@/types';
 
 export interface CreateCompoundDto {
   name: string;
-  address: string;
+  addressLine: string; // Backend expects 'addressLine', not 'address'
   city: string;
   region?: string;
   country: string;
-  postalCode?: string;
-  totalUnits: number;
-  description?: string;
-  amenities?: string[];
+  geoLat?: number;
+  geoLng?: number;
+  notes?: string; // Backend uses 'notes', not 'description'
+  isActive?: boolean;
 }
 
 export interface UpdateCompoundDto extends Partial<CreateCompoundDto> {}

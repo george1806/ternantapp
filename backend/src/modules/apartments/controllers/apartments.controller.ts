@@ -57,7 +57,7 @@ export class ApartmentsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all apartments' })
+  @ApiOperation({ summary: 'Get all apartments with pagination' })
   @ApiQuery({
     name: 'compoundId',
     required: false,
@@ -69,16 +69,52 @@ export class ApartmentsController {
     enum: ['available', 'occupied', 'maintenance', 'reserved'],
     description: 'Filter by status',
   })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search by unit number' })
   @ApiResponse({
     status: 200,
-    description: 'List of apartments retrieved successfully',
+    description: 'Returns apartments with pagination',
   })
   async findAll(
     @CurrentUser() user: any,
     @Query('compoundId') compoundId?: string,
     @Query('status') status?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('search') search?: string,
   ) {
-    return this.apartmentsService.findAll(user.companyId, compoundId, status);
+    const apartments = await this.apartmentsService.findAll(user.companyId, compoundId, status);
+
+    // Filter by search if provided
+    let filteredApartments = apartments;
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredApartments = apartments.filter(a =>
+        a.unitNumber.toLowerCase().includes(searchLower) ||
+        a.notes?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply pagination
+    const currentPage = page || 1;
+    const pageLimit = limit || 10;
+    const total = filteredApartments.length;
+    const totalPages = Math.ceil(total / pageLimit);
+    const startIndex = (currentPage - 1) * pageLimit;
+    const endIndex = startIndex + pageLimit;
+    const paginatedData = filteredApartments.slice(startIndex, endIndex);
+
+    // Return paginated response format expected by frontend
+    return {
+      data: paginatedData,
+      meta: {
+        total,
+        page: currentPage,
+        limit: pageLimit,
+        totalPages,
+      },
+    };
   }
 
   @Get('search')

@@ -13,15 +13,16 @@ import type { Payment, PaginatedResponse, PaginationParams } from '@/types';
 export interface CreatePaymentDto {
   invoiceId: string;
   amount: number;
-  paymentDate: string;
-  paymentMethod: 'mpesa' | 'bank_transfer' | 'cash' | 'cheque' | 'other';
-  reference: string;
+  paidAt: string; // Backend uses paidAt timestamp
+  method: 'CASH' | 'BANK' | 'MOBILE' | 'CARD' | 'OTHER';
+  reference?: string;
   notes?: string;
+  metadata?: any;
 }
 
 export interface PaymentFilters extends PaginationParams {
   search?: string;
-  paymentMethod?: string;
+  method?: string; // Backend uses 'method' not 'paymentMethod'
   dateFrom?: string;
   dateTo?: string;
   invoiceId?: string;

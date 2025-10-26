@@ -57,13 +57,50 @@ export class CompoundsController {
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.STAFF, UserRole.AUDITOR)
   @ApiOperation({ summary: 'Get all compounds for the company' })
   @ApiQuery({ name: 'includeInactive', required: false, type: Boolean })
-  @ApiResponse({ status: 200, description: 'Returns all compounds' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiResponse({ status: 200, description: 'Returns all compounds with pagination' })
   async findAll(
     @TenantId() companyId: string,
     @Query('includeInactive') includeInactive?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('search') search?: string,
   ) {
     const includeInactiveFlag = includeInactive === 'true';
-    return this.compoundsService.findAll(companyId, includeInactiveFlag);
+    const compounds = await this.compoundsService.findAll(companyId, includeInactiveFlag);
+
+    // Filter by search if provided
+    let filteredCompounds = compounds;
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredCompounds = compounds.filter(c =>
+        c.name.toLowerCase().includes(searchLower) ||
+        c.city.toLowerCase().includes(searchLower) ||
+        c.addressLine?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply pagination
+    const currentPage = page || 1;
+    const pageLimit = limit || 10;
+    const total = filteredCompounds.length;
+    const totalPages = Math.ceil(total / pageLimit);
+    const startIndex = (currentPage - 1) * pageLimit;
+    const endIndex = startIndex + pageLimit;
+    const paginatedData = filteredCompounds.slice(startIndex, endIndex);
+
+    // Return paginated response format expected by frontend
+    return {
+      data: paginatedData,
+      meta: {
+        total,
+        page: currentPage,
+        limit: pageLimit,
+        totalPages,
+      },
+    };
   }
 
   /**

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Search, Home, Eye, Trash2 } from 'lucide-react';
+import { Plus, Search, Home, Eye, Trash2, Pencil } from 'lucide-react';
 import { apartmentsService, type ApartmentFilters } from '@/services/apartments.service';
 import { compoundsService } from '@/services/compounds.service';
 import type { Apartment, Compound } from '@/types';

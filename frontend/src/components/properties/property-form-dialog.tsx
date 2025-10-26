@@ -36,13 +36,11 @@ import { Loader2 } from 'lucide-react';
 // Form validation schema
 const propertyFormSchema = z.object({
   name: z.string().min(2, 'Property name must be at least 2 characters'),
-  address: z.string().min(5, 'Address must be at least 5 characters'),
+  addressLine: z.string().min(5, 'Address must be at least 5 characters'),
   city: z.string().min(2, 'City is required'),
   region: z.string().optional(),
   country: z.string().min(2, 'Country is required'),
-  postalCode: z.string().optional(),
-  totalUnits: z.coerce.number().min(1, 'Total units must be at least 1'),
-  description: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 type PropertyFormData = z.infer<typeof propertyFormSchema>;
@@ -74,23 +72,19 @@ export function PropertyFormDialog({
     defaultValues: compound
       ? {
           name: compound.name,
-          address: compound.address,
+          addressLine: compound.address || compound.addressLine || '',
           city: compound.city,
           region: compound.region || '',
           country: compound.country,
-          postalCode: compound.postalCode || '',
-          totalUnits: compound.totalUnits,
-          description: compound.description || '',
+          notes: compound.notes || compound.description || '',
         }
       : {
           name: '',
-          address: '',
+          addressLine: '',
           city: '',
           region: '',
           country: 'Kenya',
-          postalCode: '',
-          totalUnits: 1,
-          description: '',
+          notes: '',
         },
   });
 
@@ -165,17 +159,17 @@ export function PropertyFormDialog({
 
           {/* Address */}
           <div className="space-y-2">
-            <Label htmlFor="address" className="text-sm font-medium">
+            <Label htmlFor="addressLine" className="text-sm font-medium">
               Address <span className="text-destructive">*</span>
             </Label>
             <Input
-              id="address"
+              id="addressLine"
               placeholder="e.g., 123 Main Street"
-              {...register('address')}
-              className={errors.address ? 'border-destructive' : ''}
+              {...register('addressLine')}
+              className={errors.addressLine ? 'border-destructive' : ''}
             />
-            {errors.address && (
-              <p className="text-sm text-destructive">{errors.address.message}</p>
+            {errors.addressLine && (
+              <p className="text-sm text-destructive">{errors.addressLine.message}</p>
             )}
           </div>
 
@@ -204,62 +198,32 @@ export function PropertyFormDialog({
             </div>
           </div>
 
-          {/* Country & Postal Code Row */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="country" className="text-sm font-medium">
-                Country <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="country"
-                placeholder="e.g., Kenya"
-                {...register('country')}
-                className={errors.country ? 'border-destructive' : ''}
-              />
-              {errors.country && (
-                <p className="text-sm text-destructive">{errors.country.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="postalCode" className="text-sm font-medium">
-                Postal Code
-              </Label>
-              <Input id="postalCode" placeholder="e.g., 00100" {...register('postalCode')} />
-            </div>
-          </div>
-
-          {/* Total Units */}
+          {/* Country */}
           <div className="space-y-2">
-            <Label htmlFor="totalUnits" className="text-sm font-medium">
-              Total Units <span className="text-destructive">*</span>
+            <Label htmlFor="country" className="text-sm font-medium">
+              Country <span className="text-destructive">*</span>
             </Label>
             <Input
-              id="totalUnits"
-              type="number"
-              min="1"
-              placeholder="e.g., 24"
-              {...register('totalUnits')}
-              className={errors.totalUnits ? 'border-destructive' : ''}
+              id="country"
+              placeholder="e.g., Kenya"
+              {...register('country')}
+              className={errors.country ? 'border-destructive' : ''}
             />
-            {errors.totalUnits && (
-              <p className="text-sm text-destructive">{errors.totalUnits.message}</p>
+            {errors.country && (
+              <p className="text-sm text-destructive">{errors.country.message}</p>
             )}
-            <p className="text-xs text-muted-foreground">
-              Number of apartments/units in this property
-            </p>
           </div>
 
-          {/* Description */}
+          {/* Notes */}
           <div className="space-y-2">
-            <Label htmlFor="description" className="text-sm font-medium">
-              Description
+            <Label htmlFor="notes" className="text-sm font-medium">
+              Notes
             </Label>
             <textarea
-              id="description"
+              id="notes"
               rows={3}
-              placeholder="Optional property description..."
-              {...register('description')}
+              placeholder="Optional property notes..."
+              {...register('notes')}
               className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
