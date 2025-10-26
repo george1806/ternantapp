@@ -5,7 +5,7 @@
  * @author george1806
  */
 
-import api from '@/lib/api';
+import { api } from '@/lib/api';
 import type { ApiResponse } from '@/types';
 
 /**

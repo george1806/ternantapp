@@ -28,6 +28,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
+import { useAuthStore } from '@/store/auth';
 import { format, differenceInDays, parseISO } from 'date-fns';
 import Link from 'next/link';
 import { OccupancyFormDialog } from '@/components/occupancies/occupancy-form-dialog';
@@ -49,6 +50,8 @@ import { OccupancyFormDialog } from '@/components/occupancies/occupancy-form-dia
  */
 
 export default function OccupanciesPage() {
+  const { user } = useAuthStore();
+  const currency = user?.company?.currency || 'KES';
   const [occupancies, setOccupancies] = useState<Occupancy[]>([]);
   const [compounds, setCompounds] = useState<Compound[]>([]);
   const [loading, setLoading] = useState(true);
@@ -486,10 +489,10 @@ export default function OccupanciesPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="font-medium">{formatCurrency(occupancy.monthlyRent)}</div>
+                        <div className="font-medium">{formatCurrency(occupancy.monthlyRent, currency)}</div>
                         {occupancy.securityDeposit && (
                           <div className="text-xs text-muted-foreground">
-                            Deposit: {formatCurrency(occupancy.securityDeposit)}
+                            Deposit: {formatCurrency(occupancy.securityDeposit, currency)}
                           </div>
                         )}
                       </TableCell>

@@ -8,9 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getAvailableCurrencies, getCurrenciesByRegion, type Currency } from '@/lib/currency';
 
 /**
  * Settings Page
@@ -27,6 +29,8 @@ interface CompanyProfile {
   name: string;
   email: string;
   phone: string;
+  currency: Currency;
+  timezone: string;
   address: string;
   city: string;
   region: string;
@@ -68,6 +72,8 @@ export default function SettingsPage() {
     name: '',
     email: '',
     phone: '',
+    currency: 'KES',
+    timezone: 'Africa/Nairobi',
     address: '',
     city: '',
     region: '',
@@ -370,6 +376,48 @@ export default function SettingsPage() {
                     onChange={(e) => setCompanyProfile({ ...companyProfile, phone: e.target.value })}
                     placeholder="+1 234 567 8900"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="currency">Operating Currency</Label>
+                  <Select
+                    value={companyProfile.currency}
+                    onValueChange={(value) => setCompanyProfile({ ...companyProfile, currency: value as Currency })}
+                  >
+                    <SelectTrigger id="currency">
+                      <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(getCurrenciesByRegion()).map(([region, currencies]) => (
+                        <div key={region}>
+                          <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                            {region}
+                          </div>
+                          {currencies.map((curr) => (
+                            <SelectItem key={curr.code} value={curr.code}>
+                              {curr.code} - {curr.name} ({curr.symbol})
+                            </SelectItem>
+                          ))}
+                        </div>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-muted-foreground">
+                    This currency will be used for all amounts in your account
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="timezone">Timezone</Label>
+                  <Input
+                    id="timezone"
+                    value={companyProfile.timezone}
+                    onChange={(e) => setCompanyProfile({ ...companyProfile, timezone: e.target.value })}
+                    placeholder="Africa/Nairobi"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    IANA timezone identifier (e.g., Africa/Nairobi, America/New_York)
+                  </p>
                 </div>
 
                 <div className="space-y-2 md:col-span-2">

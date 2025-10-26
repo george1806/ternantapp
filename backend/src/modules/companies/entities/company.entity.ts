@@ -1,6 +1,7 @@
 import { Entity, Column, OneToMany, Index } from 'typeorm';
 import { BaseEntity } from '../../../database/entities/base.entity';
 import { User } from '../../users/entities/user.entity';
+import { Currency } from '../../../common/enums';
 
 @Entity('companies')
 export class Company extends BaseEntity {
@@ -16,8 +17,12 @@ export class Company extends BaseEntity {
     @Column({ length: 50, nullable: true })
     phone: string;
 
-    @Column({ length: 10, default: 'USD' })
-    currency: string;
+    @Column({
+        type: 'enum',
+        enum: Currency,
+        default: Currency.USD,
+    })
+    currency: Currency;
 
     @Column({ length: 50, default: 'UTC' })
     timezone: string;

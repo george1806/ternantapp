@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { useAuthStore } from '@/store/auth';
 import {
   Building2,
   Users,
@@ -36,6 +37,8 @@ import {
  */
 
 export default function DashboardPage() {
+  const { user } = useAuthStore();
+  const currency = user?.company?.currency || 'KES';
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
   const [recentPayments, setRecentPayments] = useState<Payment[]>([]);
@@ -214,13 +217,13 @@ export default function DashboardPage() {
         <StatsCard
           title="Active Tenants"
           value={stats?.activeTenants || 0}
-          description={`Avg rent: ${formatCurrency(stats?.averageRent || 0)}`}
+          description={`Avg rent: ${formatCurrency(stats?.averageRent || 0, currency)}`}
           icon={Users}
         />
         <StatsCard
           title="Monthly Recurring Revenue"
-          value={formatCurrency(stats?.monthlyRecurringRevenue || 0)}
-          description={`Total: ${formatCurrency(stats?.totalRevenue || 0)}`}
+          value={formatCurrency(stats?.monthlyRecurringRevenue || 0, currency)}
+          description={`Total: ${formatCurrency(stats?.totalRevenue || 0, currency)}`}
           icon={DollarSign}
         />
       </div>
@@ -235,7 +238,7 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats?.outstandingAmount || 0)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats?.outstandingAmount || 0, currency)}</div>
             <p className="text-xs text-muted-foreground mt-1">
               Collection Rate: {stats?.collectionRate?.toFixed(1) || 0}%
             </p>
@@ -252,7 +255,7 @@ export default function DashboardPage() {
           <CardContent>
             <div className="text-2xl font-bold text-red-600">{stats?.overdueInvoices || 0}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              Total: {formatCurrency(stats?.overdueAmount || 0)}
+              Total: {formatCurrency(stats?.overdueAmount || 0, currency)}
             </p>
           </CardContent>
         </Card>
@@ -286,7 +289,7 @@ export default function DashboardPage() {
                   recentInvoices.map((invoice) => (
                     <TableRow key={invoice.id}>
                       <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
-                      <TableCell>{formatCurrency(invoice.totalAmount)}</TableCell>
+                      <TableCell>{formatCurrency(invoice.totalAmount, currency)}</TableCell>
                       <TableCell>{getInvoiceStatusBadge(invoice.status)}</TableCell>
                     </TableRow>
                   ))
@@ -322,7 +325,7 @@ export default function DashboardPage() {
                   recentPayments.map((payment) => (
                     <TableRow key={payment.id}>
                       <TableCell className="font-medium">{payment.reference || 'N/A'}</TableCell>
-                      <TableCell>{formatCurrency(payment.amount)}</TableCell>
+                      <TableCell>{formatCurrency(payment.amount, currency)}</TableCell>
                       <TableCell>{getPaymentMethodBadge(payment.method)}</TableCell>
                     </TableRow>
                   ))

@@ -1,5 +1,10 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import {
+  formatCurrency as formatCurrencyDynamic,
+  getCurrencySymbol,
+  type Currency,
+} from './currency';
 
 /**
  * Merge Tailwind CSS classes with conflict resolution
@@ -9,15 +14,28 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Format currency in Kenyan Shillings
+ * Format currency with international support
+ * Defaults to KES for backward compatibility, but supports all currencies
+ *
+ * @param amount - The amount to format
+ * @param currencyCode - Currency code (ISO 4217), defaults to KES
+ * @returns Formatted currency string with proper locale formatting
  */
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-KE', {
-    style: 'currency',
-    currency: 'KES',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(amount);
+export function formatCurrency(
+  amount: number,
+  currencyCode: Currency | string = 'KES',
+): string {
+  return formatCurrencyDynamic(amount, currencyCode);
+}
+
+/**
+ * Get currency symbol only
+ *
+ * @param currencyCode - Currency code (ISO 4217), defaults to KES
+ * @returns Currency symbol
+ */
+export function getCurrency(currencyCode: Currency | string = 'KES'): string {
+  return getCurrencySymbol(currencyCode);
 }
 
 /**

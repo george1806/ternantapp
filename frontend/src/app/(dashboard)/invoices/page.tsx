@@ -20,6 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { useAuthStore } from '@/store/auth';
 import Link from 'next/link';
 
 /**
@@ -36,6 +37,8 @@ import Link from 'next/link';
  */
 
 export default function InvoicesPage() {
+  const { user } = useAuthStore();
+  const currency = user?.company?.currency || 'KES';
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -170,7 +173,7 @@ export default function InvoicesPage() {
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(stats.totalAmount)}</div>
+              <div className="text-2xl font-bold">{formatCurrency(stats.totalAmount, currency)}</div>
               <p className="text-xs text-muted-foreground mt-1">{invoices.length} invoices</p>
             </CardContent>
           </Card>
@@ -181,7 +184,7 @@ export default function InvoicesPage() {
               <DollarSign className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{formatCurrency(stats.paidAmount)}</div>
+              <div className="text-2xl font-bold text-green-600">{formatCurrency(stats.paidAmount, currency)}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 {invoices.filter((i) => i.status === 'paid').length} paid
               </p>
@@ -195,7 +198,7 @@ export default function InvoicesPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-orange-600">
-                {formatCurrency(stats.pendingAmount)}
+                {formatCurrency(stats.pendingAmount, currency)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {invoices.filter((i) => i.status === 'sent' || i.status === 'overdue' || i.status === 'draft').length}{' '}
@@ -379,10 +382,10 @@ export default function InvoicesPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="font-medium">{formatCurrency(invoice.totalAmount)}</div>
+                        <div className="font-medium">{formatCurrency(invoice.totalAmount, currency)}</div>
                         {invoice.paidAmount > 0 && invoice.paidAmount < invoice.totalAmount && (
                           <div className="text-xs text-muted-foreground">
-                            {formatCurrency(invoice.paidAmount)} paid
+                            {formatCurrency(invoice.paidAmount, currency)} paid
                           </div>
                         )}
                       </TableCell>

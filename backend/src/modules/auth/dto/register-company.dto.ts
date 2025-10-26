@@ -5,9 +5,12 @@ import {
     MinLength,
     MaxLength,
     Matches,
-    ValidateNested
+    ValidateNested,
+    IsEnum,
+    IsOptional
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { Currency } from '../../../common/enums';
 
 /**
  * Company registration DTO (nested)
@@ -35,14 +38,24 @@ class CompanyDto {
 
     @ApiProperty({ example: '+1234567890', required: false })
     @IsString()
+    @IsOptional()
     phone?: string;
 
-    @ApiProperty({ example: 'USD', required: false })
-    @IsString()
-    currency?: string;
+    @ApiProperty({
+        example: 'USD',
+        enum: Currency,
+        required: false,
+        description: 'Company operating currency (ISO 4217 code)'
+    })
+    @IsEnum(Currency, {
+        message: 'Invalid currency code. Must be one of the supported currencies.'
+    })
+    @IsOptional()
+    currency?: Currency;
 
     @ApiProperty({ example: 'America/New_York', required: false })
     @IsString()
+    @IsOptional()
     timezone?: string;
 }
 

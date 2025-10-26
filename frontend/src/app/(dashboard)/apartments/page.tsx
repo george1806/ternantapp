@@ -28,6 +28,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
+import { useAuthStore } from '@/store/auth';
 import Link from 'next/link';
 import { ApartmentFormDialog } from '@/components/apartments/apartment-form-dialog';
 
@@ -44,6 +45,8 @@ import { ApartmentFormDialog } from '@/components/apartments/apartment-form-dial
  */
 
 export default function ApartmentsPage() {
+  const { user } = useAuthStore();
+  const currency = user?.company?.currency || 'KES';
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [compounds, setCompounds] = useState<Compound[]>([]);
   const [loading, setLoading] = useState(true);
@@ -433,7 +436,7 @@ export default function ApartmentsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="font-medium">{formatCurrency(apartment.monthlyRent)}</div>
+                        <div className="font-medium">{formatCurrency(apartment.monthlyRent, currency)}</div>
                         <div className="text-xs text-muted-foreground">per month</div>
                       </TableCell>
                       <TableCell className="text-center">{getStatusBadge(apartment.status)}</TableCell>

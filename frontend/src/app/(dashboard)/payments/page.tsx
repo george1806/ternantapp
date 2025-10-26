@@ -20,6 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { useAuthStore } from '@/store/auth';
 import Link from 'next/link';
 
 /**
@@ -36,6 +37,8 @@ import Link from 'next/link';
  */
 
 export default function PaymentsPage() {
+  const { user } = useAuthStore();
+  const currency = user?.company?.currency || 'KES';
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -154,7 +157,7 @@ export default function PaymentsPage() {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{formatCurrency(stats.totalAmount)}</div>
+              <div className="text-2xl font-bold text-green-600">{formatCurrency(stats.totalAmount, currency)}</div>
               <p className="text-xs text-muted-foreground mt-1">{payments.length} transactions</p>
             </CardContent>
           </Card>
@@ -165,7 +168,7 @@ export default function PaymentsPage() {
               <CreditCard className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(stats.mpesaTotal)}</div>
+              <div className="text-2xl font-bold">{formatCurrency(stats.mpesaTotal, currency)}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 {payments.filter((p) => p.paymentMethod === 'mpesa').length} via M-Pesa
               </p>
@@ -178,7 +181,7 @@ export default function PaymentsPage() {
               <CreditCard className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(stats.bankTotal)}</div>
+              <div className="text-2xl font-bold">{formatCurrency(stats.bankTotal, currency)}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 {payments.filter((p) => p.paymentMethod === 'bank_transfer').length} via bank
               </p>
@@ -347,7 +350,7 @@ export default function PaymentsPage() {
                       </TableCell>
                       <TableCell>{getPaymentMethodBadge(payment.paymentMethod)}</TableCell>
                       <TableCell className="text-right">
-                        <div className="font-medium text-green-600">{formatCurrency(payment.amount)}</div>
+                        <div className="font-medium text-green-600">{formatCurrency(payment.amount, currency)}</div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm text-muted-foreground max-w-xs truncate">

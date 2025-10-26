@@ -12,7 +12,7 @@ import { UsersService } from '../../users/services/users.service';
 import { CreateCompanyDto } from '../dto/create-company.dto';
 import { UpdateCompanyDto } from '../dto/update-company.dto';
 import { CompanyStatsDto } from '../dto/company-stats.dto';
-import { UserRole, UserStatus } from '../../../common/enums';
+import { UserRole, UserStatus, Currency } from '../../../common/enums';
 
 /**
  * Super Admin Companies Service
@@ -299,7 +299,7 @@ export class SuperAdminCompaniesService {
             slug: createCompanyDto.slug,
             email: createCompanyDto.email,
             phone: createCompanyDto.phone,
-            currency: createCompanyDto.currency || 'USD',
+            currency: createCompanyDto.currency || Currency.USD,
             timezone: createCompanyDto.timezone || 'UTC',
             isActive: true
         });

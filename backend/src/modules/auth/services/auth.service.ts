@@ -13,7 +13,7 @@ import { SessionService } from '../../../common/services/session.service';
 import { LoginDto } from '../dto/login.dto';
 import { RegisterCompanyDto } from '../dto/register-company.dto';
 import { JwtPayload, UserSession, RefreshSession } from '../interfaces/session.interface';
-import { UserRole, UserStatus } from '../../../common/enums';
+import { UserRole, UserStatus, Currency } from '../../../common/enums';
 import { SessionConfig } from '../../../common/config/session.config';
 
 /**
@@ -78,7 +78,7 @@ export class AuthService {
                 slug: registerDto.company.slug,
                 email: registerDto.company.email,
                 phone: registerDto.company.phone,
-                currency: registerDto.company.currency || 'USD',
+                currency: registerDto.company.currency || Currency.USD,
                 timezone: registerDto.company.timezone || 'UTC'
             });
 

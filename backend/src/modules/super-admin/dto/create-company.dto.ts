@@ -5,8 +5,10 @@ import {
     MinLength,
     MaxLength,
     Matches,
-    IsPhoneNumber
+    IsPhoneNumber,
+    IsEnum
 } from 'class-validator';
+import { Currency } from '../../../common/enums';
 
 export class CreateCompanyDto {
     @IsString()
@@ -30,9 +32,10 @@ export class CreateCompanyDto {
     phone?: string;
 
     @IsOptional()
-    @IsString()
-    @MaxLength(3)
-    currency?: string;
+    @IsEnum(Currency, {
+        message: 'Invalid currency code. Must be one of the supported currencies.'
+    })
+    currency?: Currency;
 
     @IsOptional()
     @IsString()

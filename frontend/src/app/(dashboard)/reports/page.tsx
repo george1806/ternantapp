@@ -31,6 +31,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
+import { useAuthStore } from '@/store/auth';
 
 /**
  * Reports Page
@@ -44,6 +45,8 @@ import { formatCurrency } from '@/lib/utils';
  */
 
 export default function ReportsPage() {
+  const { user } = useAuthStore();
+  const currency = user?.company?.currency || 'KES';
   const [kpis, setKpis] = useState<KPIData | null>(null);
   const [occupancyReport, setOccupancyReport] = useState<OccupancyReport[]>([]);
   const [revenueReport, setRevenueReport] = useState<RevenueReport[]>([]);
@@ -321,7 +324,7 @@ export default function ReportsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(kpis.totalRevenue)}</div>
+                <div className="text-2xl font-bold">{formatCurrency(kpis.totalRevenue, currency)}</div>
                 <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
                   {renderTrendIcon(kpis.revenueGrowth)}
                   <span>{Math.abs(kpis.revenueGrowth).toFixed(1)}% from last period</span>
@@ -350,9 +353,9 @@ export default function ReportsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(kpis.monthlyRevenue)}</div>
+                <div className="text-2xl font-bold">{formatCurrency(kpis.monthlyRevenue, currency)}</div>
                 <div className="text-sm text-muted-foreground mt-1">
-                  Average rent: {formatCurrency(kpis.averageRent)}
+                  Average rent: {formatCurrency(kpis.averageRent, currency)}
                 </div>
               </CardContent>
             </Card>
@@ -497,9 +500,9 @@ export default function ReportsPage() {
                             {report.occupancyRate.toFixed(1)}%
                           </span>
                         </TableCell>
-                        <TableCell className="text-right">{formatCurrency(report.averageRent)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(report.averageRent, currency)}</TableCell>
                         <TableCell className="text-right font-medium">
-                          {formatCurrency(report.monthlyRevenue)}
+                          {formatCurrency(report.monthlyRevenue, currency)}
                         </TableCell>
                       </TableRow>
                     ))
@@ -555,12 +558,12 @@ export default function ReportsPage() {
                         <TableCell className="font-medium">
                           {report.month} {report.year}
                         </TableCell>
-                        <TableCell className="text-right">{formatCurrency(report.expectedRevenue)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(report.expectedRevenue, currency)}</TableCell>
                         <TableCell className="text-right text-green-600">
-                          {formatCurrency(report.collectedRevenue)}
+                          {formatCurrency(report.collectedRevenue, currency)}
                         </TableCell>
                         <TableCell className="text-right text-red-600">
-                          {formatCurrency(report.outstandingRevenue)}
+                          {formatCurrency(report.outstandingRevenue, currency)}
                         </TableCell>
                         <TableCell className="text-right">
                           <span

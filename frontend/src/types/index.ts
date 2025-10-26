@@ -1,3 +1,5 @@
+import type { Currency } from '@/lib/currency';
+
 /**
  * User Types
  */
@@ -40,7 +42,7 @@ export interface Company {
   slug: string;
   email: string;
   phone?: string;
-  currency: string;
+  currency: Currency;
   timezone: string;
   isActive: boolean;
   createdAt: string;

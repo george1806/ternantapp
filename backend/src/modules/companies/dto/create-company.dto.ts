@@ -5,8 +5,10 @@ import {
     IsOptional,
     MinLength,
     MaxLength,
-    Matches
+    Matches,
+    IsEnum
 } from 'class-validator';
+import { Currency } from '../../../common/enums';
 
 export class CreateCompanyDto {
     @ApiProperty({ example: 'Acme Properties' })
@@ -34,10 +36,16 @@ export class CreateCompanyDto {
     @IsOptional()
     phone?: string;
 
-    @ApiProperty({ example: 'USD' })
-    @IsString()
+    @ApiProperty({
+        example: 'USD',
+        enum: Currency,
+        description: 'Company operating currency (ISO 4217 code)'
+    })
+    @IsEnum(Currency, {
+        message: 'Invalid currency code. Must be one of the supported currencies.'
+    })
     @IsOptional()
-    currency?: string;
+    currency?: Currency;
 
     @ApiProperty({ example: 'America/New_York' })
     @IsString()

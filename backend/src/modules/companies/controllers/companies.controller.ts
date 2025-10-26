@@ -23,6 +23,7 @@ import { Roles } from '../../../common/decorators/roles.decorator';
 import { Public } from '../../../common/decorators/public.decorator';
 import { UserRole } from '../../../common/enums';
 import { AuthService } from '../../auth/services/auth.service';
+import { getAvailableCurrencies } from '../../../common/config/currency.config';
 
 @ApiTags('Companies')
 @Controller('companies')
@@ -33,6 +34,20 @@ export class CompaniesController {
         private readonly companiesService: CompaniesService,
         private readonly authService: AuthService
     ) {}
+
+    @Public()
+    @Get('currencies')
+    @ApiOperation({ summary: 'Get list of supported currencies (Public)' })
+    @ApiResponse({
+        status: 200,
+        description: 'List of all supported currencies with metadata'
+    })
+    getCurrencies() {
+        return {
+            currencies: getAvailableCurrencies(),
+            message: 'Supported currencies retrieved successfully'
+        };
+    }
 
     @Public()
     @Post('register')
