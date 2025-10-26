@@ -117,9 +117,11 @@ See [Super Admin Implementation](docs/SUPER_ADMIN_IMPLEMENTATION.md) for details
 
 ## Documentation
 
-- [Super Admin Implementation Guide](docs/SUPER_ADMIN_IMPLEMENTATION.md)
-- [Deployment Guide](docs/DEPLOYMENT.md)
+- [Main Documentation](../docs/)
+- [Deployment Guides](../docs/PRODUCTION_DEPLOYMENT.md)
+- [Staging Deployment](../docs/STAGING_DEPLOYMENT.md)
 - [API Documentation](http://localhost:3000/api/docs) (when running)
+- [Changelog](../CHANGELOG.md)
 
 ## Available Services
 
