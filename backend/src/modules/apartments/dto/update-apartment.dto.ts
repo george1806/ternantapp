@@ -7,5 +7,5 @@ import { OmitType } from '@nestjs/swagger';
  * All fields are optional except compoundId cannot be changed after creation
  */
 export class UpdateApartmentDto extends PartialType(
-  OmitType(CreateApartmentDto, ['compoundId'] as const),
+    OmitType(CreateApartmentDto, ['compoundId'] as const)
 ) {}

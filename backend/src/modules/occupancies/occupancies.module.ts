@@ -13,9 +13,9 @@ import { Apartment } from '../apartments/entities/apartment.entity';
  * Author: george1806
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([Occupancy, Tenant, Apartment])],
-  controllers: [OccupanciesController],
-  providers: [OccupanciesService],
-  exports: [OccupanciesService],
+    imports: [TypeOrmModule.forFeature([Occupancy, Tenant, Apartment])],
+    controllers: [OccupanciesController],
+    providers: [OccupanciesService],
+    exports: [OccupanciesService]
 })
 export class OccupanciesModule {}

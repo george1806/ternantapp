@@ -1,22 +1,22 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-  Query,
-  UseGuards,
-  HttpCode,
-  HttpStatus,
+    Controller,
+    Get,
+    Post,
+    Body,
+    Patch,
+    Param,
+    Delete,
+    Query,
+    UseGuards,
+    HttpCode,
+    HttpStatus
 } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-  ApiQuery,
+    ApiTags,
+    ApiOperation,
+    ApiResponse,
+    ApiBearerAuth,
+    ApiQuery
 } from '@nestjs/swagger';
 import { ApartmentsService } from '../services/apartments.service';
 import { CreateApartmentDto } from '../dto/create-apartment.dto';
@@ -36,190 +36,202 @@ import { CurrentUser } from '../../../common/decorators/tenant.decorator';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class ApartmentsController {
-  constructor(private readonly apartmentsService: ApartmentsService) {}
+    constructor(private readonly apartmentsService: ApartmentsService) {}
 
-  @Post()
-  @ApiOperation({ summary: 'Create a new apartment' })
-  @ApiResponse({
-    status: 201,
-    description: 'Apartment created successfully',
-  })
-  @ApiResponse({ status: 400, description: 'Invalid compound or data' })
-  @ApiResponse({
-    status: 409,
-    description: 'Unit number already exists in compound',
-  })
-  async create(
-    @Body() createDto: CreateApartmentDto,
-    @CurrentUser() user: any,
-  ) {
-    return this.apartmentsService.create(createDto, user.companyId);
-  }
-
-  @Get()
-  @ApiOperation({ summary: 'Get all apartments with pagination' })
-  @ApiQuery({
-    name: 'compoundId',
-    required: false,
-    description: 'Filter by compound',
-  })
-  @ApiQuery({
-    name: 'status',
-    required: false,
-    enum: ['available', 'occupied', 'maintenance', 'reserved'],
-    description: 'Filter by status',
-  })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search by unit number' })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns apartments with pagination',
-  })
-  async findAll(
-    @CurrentUser() user: any,
-    @Query('compoundId') compoundId?: string,
-    @Query('status') status?: string,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-    @Query('search') search?: string,
-  ) {
-    const apartments = await this.apartmentsService.findAll(user.companyId, compoundId, status);
-
-    // Filter by search if provided
-    let filteredApartments = apartments;
-    if (search) {
-      const searchLower = search.toLowerCase();
-      filteredApartments = apartments.filter(a =>
-        a.unitNumber.toLowerCase().includes(searchLower) ||
-        a.notes?.toLowerCase().includes(searchLower)
-      );
+    @Post()
+    @ApiOperation({ summary: 'Create a new apartment' })
+    @ApiResponse({
+        status: 201,
+        description: 'Apartment created successfully'
+    })
+    @ApiResponse({ status: 400, description: 'Invalid compound or data' })
+    @ApiResponse({
+        status: 409,
+        description: 'Unit number already exists in compound'
+    })
+    async create(@Body() createDto: CreateApartmentDto, @CurrentUser() user: any) {
+        return this.apartmentsService.create(createDto, user.companyId);
     }
 
-    // Apply pagination
-    const currentPage = page || 1;
-    const pageLimit = limit || 10;
-    const total = filteredApartments.length;
-    const totalPages = Math.ceil(total / pageLimit);
-    const startIndex = (currentPage - 1) * pageLimit;
-    const endIndex = startIndex + pageLimit;
-    const paginatedData = filteredApartments.slice(startIndex, endIndex);
+    @Get()
+    @ApiOperation({ summary: 'Get all apartments with pagination' })
+    @ApiQuery({
+        name: 'compoundId',
+        required: false,
+        description: 'Filter by compound'
+    })
+    @ApiQuery({
+        name: 'status',
+        required: false,
+        enum: ['available', 'occupied', 'maintenance', 'reserved'],
+        description: 'Filter by status'
+    })
+    @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
+    @ApiQuery({
+        name: 'limit',
+        required: false,
+        type: Number,
+        description: 'Items per page'
+    })
+    @ApiQuery({
+        name: 'search',
+        required: false,
+        type: String,
+        description: 'Search by unit number'
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Returns apartments with pagination'
+    })
+    async findAll(
+        @CurrentUser() user: any,
+        @Query('compoundId') compoundId?: string,
+        @Query('status') status?: string,
+        @Query('page') page?: number,
+        @Query('limit') limit?: number,
+        @Query('search') search?: string
+    ) {
+        const apartments = await this.apartmentsService.findAll(
+            user.companyId,
+            compoundId,
+            status
+        );
 
-    // Return paginated response format expected by frontend
-    return {
-      data: paginatedData,
-      meta: {
-        total,
-        page: currentPage,
-        limit: pageLimit,
-        totalPages,
-      },
-    };
-  }
+        // Filter by search if provided
+        let filteredApartments = apartments;
+        if (search) {
+            const searchLower = search.toLowerCase();
+            filteredApartments = apartments.filter(
+                (a) =>
+                    a.unitNumber.toLowerCase().includes(searchLower) ||
+                    a.notes?.toLowerCase().includes(searchLower)
+            );
+        }
 
-  @Get('search')
-  @ApiOperation({ summary: 'Search apartments by unit number or notes' })
-  @ApiQuery({ name: 'q', required: true, description: 'Search query' })
-  @ApiResponse({ status: 200, description: 'Search results' })
-  async search(@CurrentUser() user: any, @Query('q') query: string) {
-    return this.apartmentsService.search(user.companyId, query);
-  }
+        // Apply pagination
+        const currentPage = page || 1;
+        const pageLimit = limit || 10;
+        const total = filteredApartments.length;
+        const totalPages = Math.ceil(total / pageLimit);
+        const startIndex = (currentPage - 1) * pageLimit;
+        const endIndex = startIndex + pageLimit;
+        const paginatedData = filteredApartments.slice(startIndex, endIndex);
 
-  @Get('count')
-  @ApiOperation({ summary: 'Count apartments with optional filters' })
-  @ApiQuery({
-    name: 'compoundId',
-    required: false,
-    description: 'Filter by compound',
-  })
-  @ApiQuery({
-    name: 'status',
-    required: false,
-    enum: ['available', 'occupied', 'maintenance', 'reserved'],
-    description: 'Filter by status',
-  })
-  @ApiResponse({ status: 200, description: 'Apartment count' })
-  async count(
-    @CurrentUser() user: any,
-    @Query('compoundId') compoundId?: string,
-    @Query('status') status?: string,
-  ) {
-    const count = await this.apartmentsService.count(
-      user.companyId,
-      compoundId,
-      status,
-    );
-    return { count };
-  }
+        // Return paginated response format expected by frontend
+        return {
+            data: paginatedData,
+            meta: {
+                total,
+                page: currentPage,
+                limit: pageLimit,
+                totalPages
+            }
+        };
+    }
 
-  @Get('stats')
-  @ApiOperation({ summary: 'Get apartment availability statistics' })
-  @ApiResponse({
-    status: 200,
-    description: 'Availability statistics',
-  })
-  async getStats(@CurrentUser() user: any) {
-    return this.apartmentsService.getAvailabilityStats(user.companyId);
-  }
+    @Get('search')
+    @ApiOperation({ summary: 'Search apartments by unit number or notes' })
+    @ApiQuery({ name: 'q', required: true, description: 'Search query' })
+    @ApiResponse({ status: 200, description: 'Search results' })
+    async search(@CurrentUser() user: any, @Query('q') query: string) {
+        return this.apartmentsService.search(user.companyId, query);
+    }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get apartment by ID' })
-  @ApiResponse({ status: 200, description: 'Apartment found' })
-  @ApiResponse({ status: 404, description: 'Apartment not found' })
-  async findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.apartmentsService.findOne(id, user.companyId);
-  }
+    @Get('count')
+    @ApiOperation({ summary: 'Count apartments with optional filters' })
+    @ApiQuery({
+        name: 'compoundId',
+        required: false,
+        description: 'Filter by compound'
+    })
+    @ApiQuery({
+        name: 'status',
+        required: false,
+        enum: ['available', 'occupied', 'maintenance', 'reserved'],
+        description: 'Filter by status'
+    })
+    @ApiResponse({ status: 200, description: 'Apartment count' })
+    async count(
+        @CurrentUser() user: any,
+        @Query('compoundId') compoundId?: string,
+        @Query('status') status?: string
+    ) {
+        const count = await this.apartmentsService.count(
+            user.companyId,
+            compoundId,
+            status
+        );
+        return { count };
+    }
 
-  @Patch(':id')
-  @ApiOperation({ summary: 'Update an apartment' })
-  @ApiResponse({ status: 200, description: 'Apartment updated successfully' })
-  @ApiResponse({ status: 404, description: 'Apartment not found' })
-  @ApiResponse({
-    status: 409,
-    description: 'Unit number already exists',
-  })
-  async update(
-    @Param('id') id: string,
-    @Body() updateDto: UpdateApartmentDto,
-    @CurrentUser() user: any,
-  ) {
-    return this.apartmentsService.update(id, updateDto, user.companyId);
-  }
+    @Get('stats')
+    @ApiOperation({ summary: 'Get apartment availability statistics' })
+    @ApiResponse({
+        status: 200,
+        description: 'Availability statistics'
+    })
+    async getStats(@CurrentUser() user: any) {
+        return this.apartmentsService.getAvailabilityStats(user.companyId);
+    }
 
-  @Patch(':id/status')
-  @ApiOperation({ summary: 'Update apartment status' })
-  @ApiResponse({ status: 200, description: 'Status updated successfully' })
-  @ApiResponse({ status: 404, description: 'Apartment not found' })
-  async updateStatus(
-    @Param('id') id: string,
-    @Body('status')
-    status: 'available' | 'occupied' | 'maintenance' | 'reserved',
-    @CurrentUser() user: any,
-  ) {
-    return this.apartmentsService.updateStatus(id, status, user.companyId);
-  }
+    @Get(':id')
+    @ApiOperation({ summary: 'Get apartment by ID' })
+    @ApiResponse({ status: 200, description: 'Apartment found' })
+    @ApiResponse({ status: 404, description: 'Apartment not found' })
+    async findOne(@Param('id') id: string, @CurrentUser() user: any) {
+        return this.apartmentsService.findOne(id, user.companyId);
+    }
 
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Deactivate an apartment (soft delete)' })
-  @ApiResponse({ status: 204, description: 'Apartment deactivated' })
-  @ApiResponse({ status: 404, description: 'Apartment not found' })
-  @ApiResponse({
-    status: 400,
-    description: 'Cannot delete occupied apartment',
-  })
-  async remove(@Param('id') id: string, @CurrentUser() user: any) {
-    await this.apartmentsService.remove(id, user.companyId);
-  }
+    @Patch(':id')
+    @ApiOperation({ summary: 'Update an apartment' })
+    @ApiResponse({ status: 200, description: 'Apartment updated successfully' })
+    @ApiResponse({ status: 404, description: 'Apartment not found' })
+    @ApiResponse({
+        status: 409,
+        description: 'Unit number already exists'
+    })
+    async update(
+        @Param('id') id: string,
+        @Body() updateDto: UpdateApartmentDto,
+        @CurrentUser() user: any
+    ) {
+        return this.apartmentsService.update(id, updateDto, user.companyId);
+    }
 
-  @Post(':id/activate')
-  @ApiOperation({ summary: 'Reactivate a deactivated apartment' })
-  @ApiResponse({
-    status: 200,
-    description: 'Apartment reactivated successfully',
-  })
-  @ApiResponse({ status: 404, description: 'Apartment not found' })
-  async activate(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.apartmentsService.activate(id, user.companyId);
-  }
+    @Patch(':id/status')
+    @ApiOperation({ summary: 'Update apartment status' })
+    @ApiResponse({ status: 200, description: 'Status updated successfully' })
+    @ApiResponse({ status: 404, description: 'Apartment not found' })
+    async updateStatus(
+        @Param('id') id: string,
+        @Body('status')
+        status: 'available' | 'occupied' | 'maintenance' | 'reserved',
+        @CurrentUser() user: any
+    ) {
+        return this.apartmentsService.updateStatus(id, status, user.companyId);
+    }
+
+    @Delete(':id')
+    @HttpCode(HttpStatus.NO_CONTENT)
+    @ApiOperation({ summary: 'Deactivate an apartment (soft delete)' })
+    @ApiResponse({ status: 204, description: 'Apartment deactivated' })
+    @ApiResponse({ status: 404, description: 'Apartment not found' })
+    @ApiResponse({
+        status: 400,
+        description: 'Cannot delete occupied apartment'
+    })
+    async remove(@Param('id') id: string, @CurrentUser() user: any) {
+        await this.apartmentsService.remove(id, user.companyId);
+    }
+
+    @Post(':id/activate')
+    @ApiOperation({ summary: 'Reactivate a deactivated apartment' })
+    @ApiResponse({
+        status: 200,
+        description: 'Apartment reactivated successfully'
+    })
+    @ApiResponse({ status: 404, description: 'Apartment not found' })
+    async activate(@Param('id') id: string, @CurrentUser() user: any) {
+        return this.apartmentsService.activate(id, user.companyId);
+    }
 }

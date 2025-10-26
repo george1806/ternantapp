@@ -12,9 +12,9 @@ import { Invoice } from '../invoices/entities/invoice.entity';
  * Author: george1806
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([Payment, Invoice])],
-  controllers: [PaymentsController],
-  providers: [PaymentsService],
-  exports: [PaymentsService],
+    imports: [TypeOrmModule.forFeature([Payment, Invoice])],
+    controllers: [PaymentsController],
+    providers: [PaymentsService],
+    exports: [PaymentsService]
 })
 export class PaymentsModule {}

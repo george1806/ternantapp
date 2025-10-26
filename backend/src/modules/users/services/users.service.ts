@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, ConflictException, Inject, BadRequestException } from '@nestjs/common';
+import {
+    Injectable,
+    NotFoundException,
+    ConflictException,
+    Inject,
+    BadRequestException
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -11,316 +17,330 @@ import { UserStatus } from '../../../common/enums';
 
 @Injectable()
 export class UsersService {
-  constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
-    @Inject(CACHE_MANAGER)
-    private readonly cacheManager: Cache,
-  ) {}
+    constructor(
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>,
+        @Inject(CACHE_MANAGER)
+        private readonly cacheManager: Cache
+    ) {}
 
-  /**
-   * Create a new user with hashed password
-   */
-  async create(companyId: string, createUserDto: CreateUserDto): Promise<User> {
-    // Check if email already exists in this company
-    const existing = await this.userRepository.findOne({
-      where: { companyId, email: createUserDto.email },
-    });
+    /**
+     * Create a new user with hashed password
+     */
+    async create(companyId: string, createUserDto: CreateUserDto): Promise<User> {
+        // Check if email already exists in this company
+        const existing = await this.userRepository.findOne({
+            where: { companyId, email: createUserDto.email }
+        });
 
-    if (existing) {
-      throw new ConflictException('User with this email already exists in your company');
+        if (existing) {
+            throw new ConflictException(
+                'User with this email already exists in your company'
+            );
+        }
+
+        // Hash password
+        const passwordHash = await bcrypt.hash(createUserDto.password, 12);
+
+        // Create user
+        const user = this.userRepository.create({
+            ...createUserDto,
+            companyId,
+            passwordHash,
+            status: UserStatus.ACTIVE,
+            profile: {
+                phone: createUserDto.phone
+            }
+        });
+
+        const saved = await this.userRepository.save(user);
+
+        // Cache user
+        await this.cacheUser(saved);
+
+        // Return without password
+        const { passwordHash: _, ...userWithoutPassword } = saved;
+        return userWithoutPassword as User;
     }
 
-    // Hash password
-    const passwordHash = await bcrypt.hash(createUserDto.password, 12);
+    /**
+     * Find all users in a company
+     */
+    async findAll(companyId: string, includeInactive = false): Promise<User[]> {
+        const where: any = { companyId };
 
-    // Create user
-    const user = this.userRepository.create({
-      ...createUserDto,
-      companyId,
-      passwordHash,
-      status: UserStatus.ACTIVE,
-      profile: {
-        phone: createUserDto.phone,
-      },
-    });
+        if (!includeInactive) {
+            where.status = UserStatus.ACTIVE;
+        }
 
-    const saved = await this.userRepository.save(user);
+        const users = await this.userRepository.find({
+            where,
+            order: { createdAt: 'DESC' },
+            select: [
+                'id',
+                'companyId',
+                'firstName',
+                'lastName',
+                'email',
+                'role',
+                'status',
+                'profile',
+                'lastLoginAt',
+                'emailVerifiedAt',
+                'createdAt',
+                'updatedAt'
+            ]
+        });
 
-    // Cache user
-    await this.cacheUser(saved);
-
-    // Return without password
-    const { passwordHash: _, ...userWithoutPassword } = saved;
-    return userWithoutPassword as User;
-  }
-
-  /**
-   * Find all users in a company
-   */
-  async findAll(companyId: string, includeInactive = false): Promise<User[]> {
-    const where: any = { companyId };
-
-    if (!includeInactive) {
-      where.status = UserStatus.ACTIVE;
+        return users;
     }
 
-    const users = await this.userRepository.find({
-      where,
-      order: { createdAt: 'DESC' },
-      select: [
-        'id',
-        'companyId',
-        'firstName',
-        'lastName',
-        'email',
-        'role',
-        'status',
-        'profile',
-        'lastLoginAt',
-        'emailVerifiedAt',
-        'createdAt',
-        'updatedAt',
-      ],
-    });
+    /**
+     * Find user by ID with caching
+     */
+    async findOne(id: string, companyId: string): Promise<User> {
+        const cacheKey = `user:${id}`;
 
-    return users;
-  }
+        // Try cache first
+        const cached = await this.cacheManager.get<User>(cacheKey);
+        if (cached && cached.companyId === companyId) {
+            return cached;
+        }
 
-  /**
-   * Find user by ID with caching
-   */
-  async findOne(id: string, companyId: string): Promise<User> {
-    const cacheKey = `user:${id}`;
+        // Fetch from database
+        const user = await this.userRepository.findOne({
+            where: { id, companyId },
+            select: [
+                'id',
+                'companyId',
+                'firstName',
+                'lastName',
+                'email',
+                'role',
+                'status',
+                'profile',
+                'lastLoginAt',
+                'lastLoginIp',
+                'emailVerifiedAt',
+                'createdAt',
+                'updatedAt'
+            ]
+        });
 
-    // Try cache first
-    const cached = await this.cacheManager.get<User>(cacheKey);
-    if (cached && cached.companyId === companyId) {
-      return cached;
+        if (!user) {
+            throw new NotFoundException(`User with ID ${id} not found`);
+        }
+
+        // Cache for 5 minutes
+        await this.cacheUser(user);
+
+        return user;
     }
 
-    // Fetch from database
-    const user = await this.userRepository.findOne({
-      where: { id, companyId },
-      select: [
-        'id',
-        'companyId',
-        'firstName',
-        'lastName',
-        'email',
-        'role',
-        'status',
-        'profile',
-        'lastLoginAt',
-        'lastLoginIp',
-        'emailVerifiedAt',
-        'createdAt',
-        'updatedAt',
-      ],
-    });
+    /**
+     * Find user by email (for authentication)
+     */
+    async findByEmail(email: string, companyId?: string): Promise<User | null> {
+        const where: any = { email };
+        if (companyId) {
+            where.companyId = companyId;
+        }
 
-    if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
+        return this.userRepository.findOne({
+            where,
+            select: [
+                'id',
+                'companyId',
+                'firstName',
+                'lastName',
+                'email',
+                'passwordHash',
+                'role',
+                'status',
+                'profile',
+                'lastLoginAt',
+                'emailVerifiedAt'
+            ]
+        });
     }
 
-    // Cache for 5 minutes
-    await this.cacheUser(user);
-
-    return user;
-  }
-
-  /**
-   * Find user by email (for authentication)
-   */
-  async findByEmail(email: string, companyId?: string): Promise<User | null> {
-    const where: any = { email };
-    if (companyId) {
-      where.companyId = companyId;
+    /**
+     * Find user by email with company details
+     */
+    async findByEmailWithCompany(email: string): Promise<User | null> {
+        return this.userRepository.findOne({
+            where: { email },
+            relations: ['company'],
+            select: [
+                'id',
+                'companyId',
+                'firstName',
+                'lastName',
+                'email',
+                'passwordHash',
+                'role',
+                'status',
+                'isSuperAdmin'
+            ]
+        });
     }
 
-    return this.userRepository.findOne({
-      where,
-      select: [
-        'id',
-        'companyId',
-        'firstName',
-        'lastName',
-        'email',
-        'passwordHash',
-        'role',
-        'status',
-        'profile',
-        'lastLoginAt',
-        'emailVerifiedAt',
-      ],
-    });
-  }
+    /**
+     * Update user
+     */
+    async update(
+        id: string,
+        companyId: string,
+        updateUserDto: UpdateUserDto
+    ): Promise<User> {
+        const user = await this.userRepository.findOne({
+            where: { id, companyId }
+        });
 
-  /**
-   * Find user by email with company details
-   */
-  async findByEmailWithCompany(email: string): Promise<User | null> {
-    return this.userRepository.findOne({
-      where: { email },
-      relations: ['company'],
-      select: [
-        'id',
-        'companyId',
-        'firstName',
-        'lastName',
-        'email',
-        'passwordHash',
-        'role',
-        'status',
-        'isSuperAdmin',
-      ],
-    });
-  }
+        if (!user) {
+            throw new NotFoundException(`User with ID ${id} not found`);
+        }
 
-  /**
-   * Update user
-   */
-  async update(id: string, companyId: string, updateUserDto: UpdateUserDto): Promise<User> {
-    const user = await this.userRepository.findOne({
-      where: { id, companyId },
-    });
+        // Update profile if phone is provided
+        if (updateUserDto.phone) {
+            user.profile = {
+                ...user.profile,
+                phone: updateUserDto.phone
+            };
+        }
 
-    if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
+        // Update other fields
+        Object.assign(user, updateUserDto);
+
+        const updated = await this.userRepository.save(user);
+
+        // Invalidate and refresh cache
+        await this.invalidateCache(id);
+        await this.cacheUser(updated);
+
+        // Return without password
+        const { passwordHash, ...userWithoutPassword } = updated;
+        return userWithoutPassword as User;
     }
 
-    // Update profile if phone is provided
-    if (updateUserDto.phone) {
-      user.profile = {
-        ...user.profile,
-        phone: updateUserDto.phone,
-      };
+    /**
+     * Update user password
+     */
+    async updatePassword(
+        id: string,
+        companyId: string,
+        newPassword: string
+    ): Promise<void> {
+        const user = await this.userRepository.findOne({
+            where: { id, companyId }
+        });
+
+        if (!user) {
+            throw new NotFoundException(`User with ID ${id} not found`);
+        }
+
+        // Validate password strength
+        const passwordRegex =
+            /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
+        if (!passwordRegex.test(newPassword) || newPassword.length < 8) {
+            throw new BadRequestException(
+                'Password must be at least 8 characters and contain uppercase, lowercase, number and special character'
+            );
+        }
+
+        user.passwordHash = await bcrypt.hash(newPassword, 12);
+        await this.userRepository.save(user);
+
+        // Invalidate cache
+        await this.invalidateCache(id);
     }
 
-    // Update other fields
-    Object.assign(user, updateUserDto);
+    /**
+     * Update last login info
+     */
+    async updateLastLogin(id: string, ipAddress: string): Promise<void> {
+        await this.userRepository.update(id, {
+            lastLoginAt: new Date(),
+            lastLoginIp: ipAddress
+        });
 
-    const updated = await this.userRepository.save(user);
-
-    // Invalidate and refresh cache
-    await this.invalidateCache(id);
-    await this.cacheUser(updated);
-
-    // Return without password
-    const { passwordHash, ...userWithoutPassword } = updated;
-    return userWithoutPassword as User;
-  }
-
-  /**
-   * Update user password
-   */
-  async updatePassword(id: string, companyId: string, newPassword: string): Promise<void> {
-    const user = await this.userRepository.findOne({
-      where: { id, companyId },
-    });
-
-    if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
+        // Invalidate cache
+        await this.invalidateCache(id);
     }
 
-    // Validate password strength
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
-    if (!passwordRegex.test(newPassword) || newPassword.length < 8) {
-      throw new BadRequestException(
-        'Password must be at least 8 characters and contain uppercase, lowercase, number and special character',
-      );
+    /**
+     * Verify password
+     */
+    async verifyPassword(
+        plainPassword: string,
+        hashedPassword: string
+    ): Promise<boolean> {
+        return bcrypt.compare(plainPassword, hashedPassword);
     }
 
-    user.passwordHash = await bcrypt.hash(newPassword, 12);
-    await this.userRepository.save(user);
+    /**
+     * Soft delete user (deactivate)
+     */
+    async remove(id: string, companyId: string): Promise<void> {
+        const user = await this.userRepository.findOne({
+            where: { id, companyId }
+        });
 
-    // Invalidate cache
-    await this.invalidateCache(id);
-  }
+        if (!user) {
+            throw new NotFoundException(`User with ID ${id} not found`);
+        }
 
-  /**
-   * Update last login info
-   */
-  async updateLastLogin(id: string, ipAddress: string): Promise<void> {
-    await this.userRepository.update(id, {
-      lastLoginAt: new Date(),
-      lastLoginIp: ipAddress,
-    });
+        user.status = UserStatus.INACTIVE;
+        await this.userRepository.save(user);
 
-    // Invalidate cache
-    await this.invalidateCache(id);
-  }
-
-  /**
-   * Verify password
-   */
-  async verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
-    return bcrypt.compare(plainPassword, hashedPassword);
-  }
-
-  /**
-   * Soft delete user (deactivate)
-   */
-  async remove(id: string, companyId: string): Promise<void> {
-    const user = await this.userRepository.findOne({
-      where: { id, companyId },
-    });
-
-    if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
+        // Invalidate cache
+        await this.invalidateCache(id);
     }
 
-    user.status = UserStatus.INACTIVE;
-    await this.userRepository.save(user);
+    /**
+     * Activate user
+     */
+    async activate(id: string, companyId: string): Promise<User> {
+        const user = await this.userRepository.findOne({
+            where: { id, companyId }
+        });
 
-    // Invalidate cache
-    await this.invalidateCache(id);
-  }
+        if (!user) {
+            throw new NotFoundException(`User with ID ${id} not found`);
+        }
 
-  /**
-   * Activate user
-   */
-  async activate(id: string, companyId: string): Promise<User> {
-    const user = await this.userRepository.findOne({
-      where: { id, companyId },
-    });
+        user.status = UserStatus.ACTIVE;
+        const updated = await this.userRepository.save(user);
 
-    if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
+        // Refresh cache
+        await this.cacheUser(updated);
+
+        const { passwordHash, ...userWithoutPassword } = updated;
+        return userWithoutPassword as User;
     }
 
-    user.status = UserStatus.ACTIVE;
-    const updated = await this.userRepository.save(user);
+    /**
+     * Cache user by ID
+     */
+    private async cacheUser(user: User): Promise<void> {
+        const ttl = 300000; // 5 minutes
+        const { passwordHash, ...userToCache } = user;
+        await this.cacheManager.set(`user:${user.id}`, userToCache, ttl);
+    }
 
-    // Refresh cache
-    await this.cacheUser(updated);
+    /**
+     * Invalidate user cache
+     */
+    private async invalidateCache(id: string): Promise<void> {
+        await this.cacheManager.del(`user:${id}`);
+    }
 
-    const { passwordHash, ...userWithoutPassword } = updated;
-    return userWithoutPassword as User;
-  }
-
-  /**
-   * Cache user by ID
-   */
-  private async cacheUser(user: User): Promise<void> {
-    const ttl = 300000; // 5 minutes
-    const { passwordHash, ...userToCache } = user;
-    await this.cacheManager.set(`user:${user.id}`, userToCache, ttl);
-  }
-
-  /**
-   * Invalidate user cache
-   */
-  private async invalidateCache(id: string): Promise<void> {
-    await this.cacheManager.del(`user:${id}`);
-  }
-
-  /**
-   * Count users by company
-   */
-  async countByCompany(companyId: string): Promise<number> {
-    return this.userRepository.count({
-      where: { companyId, status: UserStatus.ACTIVE },
-    });
-  }
+    /**
+     * Count users by company
+     */
+    async countByCompany(companyId: string): Promise<number> {
+        return this.userRepository.count({
+            where: { companyId, status: UserStatus.ACTIVE }
+        });
+    }
 }

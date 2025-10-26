@@ -12,9 +12,9 @@ import { Apartment } from '../apartments/entities/apartment.entity';
  * Author: george1806
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([Compound, Apartment])],
-  controllers: [CompoundsController],
-  providers: [CompoundsService],
-  exports: [CompoundsService], // Export for use in Apartments module
+    imports: [TypeOrmModule.forFeature([Compound, Apartment])],
+    controllers: [CompoundsController],
+    providers: [CompoundsService],
+    exports: [CompoundsService] // Export for use in Apartments module
 })
 export class CompoundsModule {}

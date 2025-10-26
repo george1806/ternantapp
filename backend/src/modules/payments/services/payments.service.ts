@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, FindOptionsWhere } from 'typeorm';
 import { Payment } from '../entities/payment.entity';
@@ -18,326 +14,331 @@ import { Invoice } from '../../invoices/entities/invoice.entity';
  */
 @Injectable()
 export class PaymentsService {
-  constructor(
-    @InjectRepository(Payment)
-    private paymentsRepository: Repository<Payment>,
-    @InjectRepository(Invoice)
-    private invoicesRepository: Repository<Invoice>,
-    private dataSource: DataSource,
-  ) {}
+    constructor(
+        @InjectRepository(Payment)
+        private paymentsRepository: Repository<Payment>,
+        @InjectRepository(Invoice)
+        private invoicesRepository: Repository<Invoice>,
+        private dataSource: DataSource
+    ) {}
 
-  /**
-   * Create a new payment and update invoice
-   * Uses transaction to ensure data consistency
-   */
-  async create(
-    createDto: CreatePaymentDto,
-    companyId: string,
-  ): Promise<Payment> {
-    return this.dataSource.transaction(async (manager) => {
-      // 1. Verify invoice exists and get details
-      const invoice = await manager.findOne(Invoice, {
-        where: { id: createDto.invoiceId, companyId, isActive: true },
-      });
+    /**
+     * Create a new payment and update invoice
+     * Uses transaction to ensure data consistency
+     */
+    async create(createDto: CreatePaymentDto, companyId: string): Promise<Payment> {
+        return this.dataSource.transaction(async (manager) => {
+            // 1. Verify invoice exists and get details
+            const invoice = await manager.findOne(Invoice, {
+                where: { id: createDto.invoiceId, companyId, isActive: true }
+            });
 
-      if (!invoice) {
-        throw new NotFoundException('Invoice not found');
-      }
+            if (!invoice) {
+                throw new NotFoundException('Invoice not found');
+            }
 
-      // 2. Validate payment doesn't exceed outstanding amount
-      const currentPaid = Number(invoice.amountPaid) || 0;
-      const totalAmount = Number(invoice.totalAmount);
-      const newTotal = currentPaid + createDto.amount;
+            // 2. Validate payment doesn't exceed outstanding amount
+            const currentPaid = Number(invoice.amountPaid) || 0;
+            const totalAmount = Number(invoice.totalAmount);
+            const newTotal = currentPaid + createDto.amount;
 
-      if (newTotal > totalAmount) {
-        throw new BadRequestException(
-          `Payment amount exceeds outstanding balance. Outstanding: ${totalAmount - currentPaid}`,
-        );
-      }
+            if (newTotal > totalAmount) {
+                throw new BadRequestException(
+                    `Payment amount exceeds outstanding balance. Outstanding: ${totalAmount - currentPaid}`
+                );
+            }
 
-      // 3. Create payment
-      const payment = manager.create(Payment, {
-        ...createDto,
-        companyId,
-        paidAt: new Date(createDto.paidAt),
-      });
+            // 3. Create payment
+            const payment = manager.create(Payment, {
+                ...createDto,
+                companyId,
+                paidAt: new Date(createDto.paidAt)
+            });
 
-      const savedPayment = await manager.save(Payment, payment);
+            const savedPayment = await manager.save(Payment, payment);
 
-      // 4. Update invoice
-      invoice.amountPaid = newTotal;
+            // 4. Update invoice
+            invoice.amountPaid = newTotal;
 
-      // Update invoice status based on payment
-      if (newTotal >= totalAmount) {
-        invoice.status = 'paid';
-        invoice.paidDate = new Date();
-      } else if (newTotal > 0 && invoice.status === 'draft') {
-        invoice.status = 'sent';
-      }
+            // Update invoice status based on payment
+            if (newTotal >= totalAmount) {
+                invoice.status = 'paid';
+                invoice.paidDate = new Date();
+            } else if (newTotal > 0 && invoice.status === 'draft') {
+                invoice.status = 'sent';
+            }
 
-      await manager.save(Invoice, invoice);
+            await manager.save(Invoice, invoice);
 
-      return savedPayment;
-    });
-  }
-
-  /**
-   * Find all payments for a company
-   */
-  async findAll(
-    companyId: string,
-    invoiceId?: string,
-    includeInactive = false,
-  ): Promise<Payment[]> {
-    const where: FindOptionsWhere<Payment> = { companyId };
-
-    if (!includeInactive) {
-      where.isActive = true;
+            return savedPayment;
+        });
     }
 
-    if (invoiceId) {
-      where.invoiceId = invoiceId;
-    }
+    /**
+     * Find all payments for a company
+     */
+    async findAll(
+        companyId: string,
+        invoiceId?: string,
+        includeInactive = false
+    ): Promise<Payment[]> {
+        const where: FindOptionsWhere<Payment> = { companyId };
 
-    return this.paymentsRepository.find({
-      where,
-      relations: ['invoice', 'invoice.tenant'],
-      order: { paidAt: 'DESC' },
-    });
-  }
-
-  /**
-   * Find payments by invoice
-   */
-  async findByInvoice(invoiceId: string, companyId: string): Promise<Payment[]> {
-    return this.paymentsRepository.find({
-      where: { invoiceId, companyId, isActive: true },
-      order: { paidAt: 'DESC' },
-    });
-  }
-
-  /**
-   * Find payments within a date range
-   */
-  async findByDateRange(
-    companyId: string,
-    startDate: Date,
-    endDate: Date,
-  ): Promise<Payment[]> {
-    return this.paymentsRepository
-      .createQueryBuilder('payment')
-      .where('payment.companyId = :companyId', { companyId })
-      .andWhere('payment.isActive = :isActive', { isActive: true })
-      .andWhere('payment.paidAt >= :startDate', { startDate })
-      .andWhere('payment.paidAt <= :endDate', { endDate })
-      .leftJoinAndSelect('payment.invoice', 'invoice')
-      .leftJoinAndSelect('invoice.tenant', 'tenant')
-      .orderBy('payment.paidAt', 'DESC')
-      .getMany();
-  }
-
-  /**
-   * Get payment statistics
-   */
-  async getStats(
-    companyId: string,
-    startDate?: Date,
-    endDate?: Date,
-  ): Promise<{
-    totalPayments: number;
-    totalAmount: number;
-    byMethod: Record<string, { count: number; amount: number }>;
-  }> {
-    const queryBuilder = this.paymentsRepository
-      .createQueryBuilder('payment')
-      .where('payment.companyId = :companyId', { companyId })
-      .andWhere('payment.isActive = :isActive', { isActive: true });
-
-    if (startDate) {
-      queryBuilder.andWhere('payment.paidAt >= :startDate', { startDate });
-    }
-
-    if (endDate) {
-      queryBuilder.andWhere('payment.paidAt <= :endDate', { endDate });
-    }
-
-    const payments = await queryBuilder.getMany();
-
-    const totalPayments = payments.length;
-    const totalAmount = payments.reduce((sum, p) => sum + Number(p.amount), 0);
-
-    const byMethod: Record<string, { count: number; amount: number }> = {};
-
-    payments.forEach((payment) => {
-      const method = payment.method;
-      if (!byMethod[method]) {
-        byMethod[method] = { count: 0, amount: 0 };
-      }
-      byMethod[method].count++;
-      byMethod[method].amount += Number(payment.amount);
-    });
-
-    return { totalPayments, totalAmount, byMethod };
-  }
-
-  /**
-   * Find one payment by ID
-   */
-  async findOne(id: string, companyId: string): Promise<Payment> {
-    const payment = await this.paymentsRepository.findOne({
-      where: { id, companyId },
-      relations: ['invoice', 'invoice.tenant', 'invoice.occupancy'],
-    });
-
-    if (!payment) {
-      throw new NotFoundException(`Payment with ID "${id}" not found`);
-    }
-
-    return payment;
-  }
-
-  /**
-   * Update a payment
-   */
-  async update(
-    id: string,
-    updateDto: UpdatePaymentDto,
-    companyId: string,
-  ): Promise<Payment> {
-    return this.dataSource.transaction(async (manager) => {
-      const payment = await manager.findOne(Payment, {
-        where: { id, companyId },
-        relations: ['invoice'],
-      });
-
-      if (!payment) {
-        throw new NotFoundException(`Payment with ID "${id}" not found`);
-      }
-
-      const oldAmount = Number(payment.amount);
-      const newAmount = updateDto.amount !== undefined ? updateDto.amount : oldAmount;
-
-      // If amount is changing, we need to update the invoice
-      if (newAmount !== oldAmount) {
-        const invoice = payment.invoice;
-        const currentPaid = Number(invoice.amountPaid);
-        const totalAmount = Number(invoice.totalAmount);
-
-        // Calculate new invoice amountPaid
-        const newInvoicePaid = currentPaid - oldAmount + newAmount;
-
-        if (newInvoicePaid < 0) {
-          throw new BadRequestException('Updated payment amount creates negative balance');
+        if (!includeInactive) {
+            where.isActive = true;
         }
 
-        if (newInvoicePaid > totalAmount) {
-          throw new BadRequestException('Updated payment amount exceeds invoice total');
+        if (invoiceId) {
+            where.invoiceId = invoiceId;
         }
 
-        // Update invoice
-        invoice.amountPaid = newInvoicePaid;
+        return this.paymentsRepository.find({
+            where,
+            relations: ['invoice', 'invoice.tenant'],
+            order: { paidAt: 'DESC' }
+        });
+    }
 
-        if (newInvoicePaid >= totalAmount) {
-          invoice.status = 'paid';
-          if (!invoice.paidDate) {
-            invoice.paidDate = new Date();
-          }
-        } else {
-          // If was paid but now isn't fully paid
-          if (invoice.status === 'paid') {
-            invoice.status = 'sent';
-            (invoice as any).paidDate = null;
-          }
+    /**
+     * Find payments by invoice
+     */
+    async findByInvoice(invoiceId: string, companyId: string): Promise<Payment[]> {
+        return this.paymentsRepository.find({
+            where: { invoiceId, companyId, isActive: true },
+            order: { paidAt: 'DESC' }
+        });
+    }
+
+    /**
+     * Find payments within a date range
+     */
+    async findByDateRange(
+        companyId: string,
+        startDate: Date,
+        endDate: Date
+    ): Promise<Payment[]> {
+        return this.paymentsRepository
+            .createQueryBuilder('payment')
+            .where('payment.companyId = :companyId', { companyId })
+            .andWhere('payment.isActive = :isActive', { isActive: true })
+            .andWhere('payment.paidAt >= :startDate', { startDate })
+            .andWhere('payment.paidAt <= :endDate', { endDate })
+            .leftJoinAndSelect('payment.invoice', 'invoice')
+            .leftJoinAndSelect('invoice.tenant', 'tenant')
+            .orderBy('payment.paidAt', 'DESC')
+            .getMany();
+    }
+
+    /**
+     * Get payment statistics
+     */
+    async getStats(
+        companyId: string,
+        startDate?: Date,
+        endDate?: Date
+    ): Promise<{
+        totalPayments: number;
+        totalAmount: number;
+        byMethod: Record<string, { count: number; amount: number }>;
+    }> {
+        const queryBuilder = this.paymentsRepository
+            .createQueryBuilder('payment')
+            .where('payment.companyId = :companyId', { companyId })
+            .andWhere('payment.isActive = :isActive', { isActive: true });
+
+        if (startDate) {
+            queryBuilder.andWhere('payment.paidAt >= :startDate', { startDate });
         }
 
-        await manager.save(Invoice, invoice);
-      }
+        if (endDate) {
+            queryBuilder.andWhere('payment.paidAt <= :endDate', { endDate });
+        }
 
-      // Update payment
-      Object.assign(payment, updateDto);
+        const payments = await queryBuilder.getMany();
 
-      if (updateDto.paidAt) {
-        payment.paidAt = new Date(updateDto.paidAt);
-      }
+        const totalPayments = payments.length;
+        const totalAmount = payments.reduce((sum, p) => sum + Number(p.amount), 0);
 
-      return manager.save(Payment, payment);
-    });
-  }
+        const byMethod: Record<string, { count: number; amount: number }> = {};
 
-  /**
-   * Soft delete (deactivate) a payment
-   */
-  async remove(id: string, companyId: string): Promise<void> {
-    return this.dataSource.transaction(async (manager) => {
-      const payment = await manager.findOne(Payment, {
-        where: { id, companyId },
-        relations: ['invoice'],
-      });
+        payments.forEach((payment) => {
+            const method = payment.method;
+            if (!byMethod[method]) {
+                byMethod[method] = { count: 0, amount: 0 };
+            }
+            byMethod[method].count++;
+            byMethod[method].amount += Number(payment.amount);
+        });
 
-      if (!payment) {
-        throw new NotFoundException(`Payment with ID "${id}" not found`);
-      }
+        return { totalPayments, totalAmount, byMethod };
+    }
 
-      // Revert invoice amount
-      const invoice = payment.invoice;
-      const currentPaid = Number(invoice.amountPaid);
-      const paymentAmount = Number(payment.amount);
+    /**
+     * Find one payment by ID
+     */
+    async findOne(id: string, companyId: string): Promise<Payment> {
+        const payment = await this.paymentsRepository.findOne({
+            where: { id, companyId },
+            relations: ['invoice', 'invoice.tenant', 'invoice.occupancy']
+        });
 
-      invoice.amountPaid = Math.max(0, currentPaid - paymentAmount);
+        if (!payment) {
+            throw new NotFoundException(`Payment with ID "${id}" not found`);
+        }
 
-      // Update invoice status
-      if (invoice.status === 'paid' && invoice.amountPaid < Number(invoice.totalAmount)) {
-        invoice.status = 'sent';
-        (invoice as any).paidDate = null;
-      }
+        return payment;
+    }
 
-      await manager.save(Invoice, invoice);
+    /**
+     * Update a payment
+     */
+    async update(
+        id: string,
+        updateDto: UpdatePaymentDto,
+        companyId: string
+    ): Promise<Payment> {
+        return this.dataSource.transaction(async (manager) => {
+            const payment = await manager.findOne(Payment, {
+                where: { id, companyId },
+                relations: ['invoice']
+            });
 
-      // Deactivate payment
-      payment.isActive = false;
-      await manager.save(Payment, payment);
-    });
-  }
+            if (!payment) {
+                throw new NotFoundException(`Payment with ID "${id}" not found`);
+            }
 
-  /**
-   * Reactivate a deactivated payment
-   */
-  async activate(id: string, companyId: string): Promise<Payment> {
-    return this.dataSource.transaction(async (manager) => {
-      const payment = await manager.findOne(Payment, {
-        where: { id, companyId },
-        relations: ['invoice'],
-      });
+            const oldAmount = Number(payment.amount);
+            const newAmount =
+                updateDto.amount !== undefined ? updateDto.amount : oldAmount;
 
-      if (!payment) {
-        throw new NotFoundException(`Payment with ID "${id}" not found`);
-      }
+            // If amount is changing, we need to update the invoice
+            if (newAmount !== oldAmount) {
+                const invoice = payment.invoice;
+                const currentPaid = Number(invoice.amountPaid);
+                const totalAmount = Number(invoice.totalAmount);
 
-      const invoice = payment.invoice;
-      const currentPaid = Number(invoice.amountPaid);
-      const totalAmount = Number(invoice.totalAmount);
-      const paymentAmount = Number(payment.amount);
-      const newTotal = currentPaid + paymentAmount;
+                // Calculate new invoice amountPaid
+                const newInvoicePaid = currentPaid - oldAmount + newAmount;
 
-      if (newTotal > totalAmount) {
-        throw new BadRequestException(
-          'Cannot reactivate: payment would exceed invoice total',
-        );
-      }
+                if (newInvoicePaid < 0) {
+                    throw new BadRequestException(
+                        'Updated payment amount creates negative balance'
+                    );
+                }
 
-      // Update invoice
-      invoice.amountPaid = newTotal;
+                if (newInvoicePaid > totalAmount) {
+                    throw new BadRequestException(
+                        'Updated payment amount exceeds invoice total'
+                    );
+                }
 
-      if (newTotal >= totalAmount) {
-        invoice.status = 'paid';
-        invoice.paidDate = new Date();
-      }
+                // Update invoice
+                invoice.amountPaid = newInvoicePaid;
 
-      await manager.save(Invoice, invoice);
+                if (newInvoicePaid >= totalAmount) {
+                    invoice.status = 'paid';
+                    if (!invoice.paidDate) {
+                        invoice.paidDate = new Date();
+                    }
+                } else {
+                    // If was paid but now isn't fully paid
+                    if (invoice.status === 'paid') {
+                        invoice.status = 'sent';
+                        (invoice as any).paidDate = null;
+                    }
+                }
 
-      // Reactivate payment
-      payment.isActive = true;
-      return manager.save(Payment, payment);
-    });
-  }
+                await manager.save(Invoice, invoice);
+            }
+
+            // Update payment
+            Object.assign(payment, updateDto);
+
+            if (updateDto.paidAt) {
+                payment.paidAt = new Date(updateDto.paidAt);
+            }
+
+            return manager.save(Payment, payment);
+        });
+    }
+
+    /**
+     * Soft delete (deactivate) a payment
+     */
+    async remove(id: string, companyId: string): Promise<void> {
+        return this.dataSource.transaction(async (manager) => {
+            const payment = await manager.findOne(Payment, {
+                where: { id, companyId },
+                relations: ['invoice']
+            });
+
+            if (!payment) {
+                throw new NotFoundException(`Payment with ID "${id}" not found`);
+            }
+
+            // Revert invoice amount
+            const invoice = payment.invoice;
+            const currentPaid = Number(invoice.amountPaid);
+            const paymentAmount = Number(payment.amount);
+
+            invoice.amountPaid = Math.max(0, currentPaid - paymentAmount);
+
+            // Update invoice status
+            if (
+                invoice.status === 'paid' &&
+                invoice.amountPaid < Number(invoice.totalAmount)
+            ) {
+                invoice.status = 'sent';
+                (invoice as any).paidDate = null;
+            }
+
+            await manager.save(Invoice, invoice);
+
+            // Deactivate payment
+            payment.isActive = false;
+            await manager.save(Payment, payment);
+        });
+    }
+
+    /**
+     * Reactivate a deactivated payment
+     */
+    async activate(id: string, companyId: string): Promise<Payment> {
+        return this.dataSource.transaction(async (manager) => {
+            const payment = await manager.findOne(Payment, {
+                where: { id, companyId },
+                relations: ['invoice']
+            });
+
+            if (!payment) {
+                throw new NotFoundException(`Payment with ID "${id}" not found`);
+            }
+
+            const invoice = payment.invoice;
+            const currentPaid = Number(invoice.amountPaid);
+            const totalAmount = Number(invoice.totalAmount);
+            const paymentAmount = Number(payment.amount);
+            const newTotal = currentPaid + paymentAmount;
+
+            if (newTotal > totalAmount) {
+                throw new BadRequestException(
+                    'Cannot reactivate: payment would exceed invoice total'
+                );
+            }
+
+            // Update invoice
+            invoice.amountPaid = newTotal;
+
+            if (newTotal >= totalAmount) {
+                invoice.status = 'paid';
+                invoice.paidDate = new Date();
+            }
+
+            await manager.save(Invoice, invoice);
+
+            // Reactivate payment
+            payment.isActive = true;
+            return manager.save(Payment, payment);
+        });
+    }
 }

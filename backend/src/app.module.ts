@@ -32,96 +32,98 @@ import { HealthModule } from './common/health/health.module';
 import { MetricsModule } from './common/metrics/metrics.module';
 
 @Module({
-  imports: [
-    // Configuration
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: '.env',
-      cache: true,
-    }),
-
-    // Database with connection pooling
-    TypeOrmModule.forRootAsync({
-      useFactory: () => ({
-        ...dataSourceOptions,
-        autoLoadEntities: true,
-        extra: {
-          connectionLimit: parseInt(process.env.DB_POOL_SIZE || '20'),
-          acquireTimeout: parseInt(process.env.DB_POOL_ACQUIRE_TIMEOUT || '30000'),
-          waitForConnections: true,
-          queueLimit: 0,
-        },
-      }),
-    }),
-
-    // Redis cache
-    CacheModule.registerAsync<RedisClientOptions>({
-      isGlobal: true,
-      useFactory: async (configService: ConfigService) => ({
-        store: await redisStore({
-          socket: {
-            host: configService.get('REDIS_HOST', 'localhost'),
-            port: configService.get('REDIS_PORT', 6379),
-          },
-          password: configService.get('REDIS_PASSWORD'),
-          database: configService.get('REDIS_DB', 0),
-          ttl: configService.get('REDIS_TTL', 3600) * 1000,
+    imports: [
+        // Configuration
+        ConfigModule.forRoot({
+            isGlobal: true,
+            envFilePath: '.env',
+            cache: true
         }),
-      }),
-      inject: [ConfigService],
-    }),
 
-    // Rate limiting
-    ThrottlerModule.forRootAsync({
-      useFactory: (configService: ConfigService) => [
-        {
-          ttl: configService.get('THROTTLE_TTL', 60) * 1000,
-          limit: configService.get('THROTTLE_LIMIT', 100),
-        },
-      ],
-      inject: [ConfigService],
-    }),
+        // Database with connection pooling
+        TypeOrmModule.forRootAsync({
+            useFactory: () => ({
+                ...dataSourceOptions,
+                autoLoadEntities: true,
+                extra: {
+                    connectionLimit: parseInt(process.env.DB_POOL_SIZE || '20'),
+                    acquireTimeout: parseInt(
+                        process.env.DB_POOL_ACQUIRE_TIMEOUT || '30000'
+                    ),
+                    waitForConnections: true,
+                    queueLimit: 0
+                }
+            })
+        }),
 
-    // Event emitter for domain events
-    EventEmitterModule.forRoot({
-      wildcard: false,
-      delimiter: '.',
-      newListener: false,
-      removeListener: false,
-      maxListeners: 10,
-      verboseMemoryLeak: true,
-      ignoreErrors: false,
-    }),
+        // Redis cache
+        CacheModule.registerAsync<RedisClientOptions>({
+            isGlobal: true,
+            useFactory: async (configService: ConfigService) => ({
+                store: await redisStore({
+                    socket: {
+                        host: configService.get('REDIS_HOST', 'localhost'),
+                        port: configService.get('REDIS_PORT', 6379)
+                    },
+                    password: configService.get('REDIS_PASSWORD'),
+                    database: configService.get('REDIS_DB', 0),
+                    ttl: configService.get('REDIS_TTL', 3600) * 1000
+                })
+            }),
+            inject: [ConfigService]
+        }),
 
-    // Scheduler for cron jobs
-    ScheduleModule.forRoot(),
+        // Rate limiting
+        ThrottlerModule.forRootAsync({
+            useFactory: (configService: ConfigService) => [
+                {
+                    ttl: configService.get('THROTTLE_TTL', 60) * 1000,
+                    limit: configService.get('THROTTLE_LIMIT', 100)
+                }
+            ],
+            inject: [ConfigService]
+        }),
 
-    // Logging with Winston
-    WinstonModule.forRoot(winstonConfig),
+        // Event emitter for domain events
+        EventEmitterModule.forRoot({
+            wildcard: false,
+            delimiter: '.',
+            newListener: false,
+            removeListener: false,
+            maxListeners: 10,
+            verboseMemoryLeak: true,
+            ignoreErrors: false
+        }),
 
-    // Common modules
-    // TenantModule,
-    QueueModule,
-    EmailModule,
-    HealthModule,
-    MetricsModule,
+        // Scheduler for cron jobs
+        ScheduleModule.forRoot(),
 
-    // Feature modules
-    AuthModule,
-    CompaniesModule,
-    UsersModule,
-    CompoundsModule,
-    ApartmentsModule,
-    TenantsModule,
-    OccupanciesModule,
-    InvoicesModule,
-    PaymentsModule,
-    RemindersModule,
-    ReportsModule,
-    SuperAdminModule,
-    DashboardModule,
-    // FilesModule,
-    // AuditModule,
-  ],
+        // Logging with Winston
+        WinstonModule.forRoot(winstonConfig),
+
+        // Common modules
+        // TenantModule,
+        QueueModule,
+        EmailModule,
+        HealthModule,
+        MetricsModule,
+
+        // Feature modules
+        AuthModule,
+        CompaniesModule,
+        UsersModule,
+        CompoundsModule,
+        ApartmentsModule,
+        TenantsModule,
+        OccupanciesModule,
+        InvoicesModule,
+        PaymentsModule,
+        RemindersModule,
+        ReportsModule,
+        SuperAdminModule,
+        DashboardModule
+        // FilesModule,
+        // AuditModule,
+    ]
 })
 export class AppModule {}

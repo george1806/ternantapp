@@ -1,141 +1,144 @@
 import {
-  IsString,
-  IsDateString,
-  IsArray,
-  IsNumber,
-  IsOptional,
-  IsEnum,
-  ValidateNested,
-  Min,
-  MaxLength,
+    IsString,
+    IsDateString,
+    IsArray,
+    IsNumber,
+    IsOptional,
+    IsEnum,
+    ValidateNested,
+    Min,
+    MaxLength
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 class LineItemDto {
-  @ApiProperty({ description: 'Item description', example: 'Monthly Rent - January 2024' })
-  @IsString()
-  description: string;
+    @ApiProperty({
+        description: 'Item description',
+        example: 'Monthly Rent - January 2024'
+    })
+    @IsString()
+    description: string;
 
-  @ApiProperty({ description: 'Quantity', example: 1 })
-  @IsNumber()
-  @Min(0)
-  quantity: number;
+    @ApiProperty({ description: 'Quantity', example: 1 })
+    @IsNumber()
+    @Min(0)
+    quantity: number;
 
-  @ApiProperty({ description: 'Unit price', example: 1500.00 })
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  unitPrice: number;
+    @ApiProperty({ description: 'Unit price', example: 1500.0 })
+    @IsNumber({ maxDecimalPlaces: 2 })
+    @Min(0)
+    unitPrice: number;
 
-  @ApiProperty({ description: 'Total amount (quantity * unitPrice)', example: 1500.00 })
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  amount: number;
+    @ApiProperty({ description: 'Total amount (quantity * unitPrice)', example: 1500.0 })
+    @IsNumber({ maxDecimalPlaces: 2 })
+    @Min(0)
+    amount: number;
 
-  @ApiPropertyOptional({
-    description: 'Line item type',
-    enum: ['rent', 'utility', 'maintenance', 'other'],
-  })
-  @IsOptional()
-  @IsEnum(['rent', 'utility', 'maintenance', 'other'])
-  type?: 'rent' | 'utility' | 'maintenance' | 'other';
+    @ApiPropertyOptional({
+        description: 'Line item type',
+        enum: ['rent', 'utility', 'maintenance', 'other']
+    })
+    @IsOptional()
+    @IsEnum(['rent', 'utility', 'maintenance', 'other'])
+    type?: 'rent' | 'utility' | 'maintenance' | 'other';
 }
 
 export class CreateInvoiceDto {
-  @ApiProperty({
-    description: 'Invoice number (unique within company)',
-    example: 'INV-2024-001',
-  })
-  @IsString()
-  @MaxLength(50)
-  invoiceNumber: string;
+    @ApiProperty({
+        description: 'Invoice number (unique within company)',
+        example: 'INV-2024-001'
+    })
+    @IsString()
+    @MaxLength(50)
+    invoiceNumber: string;
 
-  @ApiProperty({
-    description: 'Occupancy ID',
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
-  @IsString()
-  occupancyId: string;
+    @ApiProperty({
+        description: 'Occupancy ID',
+        example: '123e4567-e89b-12d3-a456-426614174000'
+    })
+    @IsString()
+    occupancyId: string;
 
-  @ApiProperty({
-    description: 'Tenant ID',
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
-  @IsString()
-  tenantId: string;
+    @ApiProperty({
+        description: 'Tenant ID',
+        example: '123e4567-e89b-12d3-a456-426614174000'
+    })
+    @IsString()
+    tenantId: string;
 
-  @ApiProperty({
-    description: 'Invoice date',
-    example: '2024-01-01',
-  })
-  @IsDateString()
-  invoiceDate: string;
+    @ApiProperty({
+        description: 'Invoice date',
+        example: '2024-01-01'
+    })
+    @IsDateString()
+    invoiceDate: string;
 
-  @ApiProperty({
-    description: 'Payment due date',
-    example: '2024-01-05',
-  })
-  @IsDateString()
-  dueDate: string;
+    @ApiProperty({
+        description: 'Payment due date',
+        example: '2024-01-05'
+    })
+    @IsDateString()
+    dueDate: string;
 
-  @ApiPropertyOptional({
-    description: 'Invoice status',
-    enum: ['draft', 'sent', 'paid', 'overdue', 'cancelled'],
-    default: 'draft',
-  })
-  @IsOptional()
-  @IsEnum(['draft', 'sent', 'paid', 'overdue', 'cancelled'])
-  status?: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+    @ApiPropertyOptional({
+        description: 'Invoice status',
+        enum: ['draft', 'sent', 'paid', 'overdue', 'cancelled'],
+        default: 'draft'
+    })
+    @IsOptional()
+    @IsEnum(['draft', 'sent', 'paid', 'overdue', 'cancelled'])
+    status?: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
 
-  @ApiProperty({
-    description: 'Line items',
-    type: [LineItemDto],
-  })
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => LineItemDto)
-  lineItems: LineItemDto[];
+    @ApiProperty({
+        description: 'Line items',
+        type: [LineItemDto]
+    })
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => LineItemDto)
+    lineItems: LineItemDto[];
 
-  @ApiProperty({
-    description: 'Subtotal amount',
-    example: 1500.00,
-  })
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  subtotal: number;
+    @ApiProperty({
+        description: 'Subtotal amount',
+        example: 1500.0
+    })
+    @IsNumber({ maxDecimalPlaces: 2 })
+    @Min(0)
+    subtotal: number;
 
-  @ApiPropertyOptional({
-    description: 'Tax amount',
-    example: 150.00,
-    default: 0,
-  })
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  taxAmount?: number;
+    @ApiPropertyOptional({
+        description: 'Tax amount',
+        example: 150.0,
+        default: 0
+    })
+    @IsOptional()
+    @IsNumber({ maxDecimalPlaces: 2 })
+    @Min(0)
+    taxAmount?: number;
 
-  @ApiProperty({
-    description: 'Total amount (subtotal + tax)',
-    example: 1650.00,
-  })
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  totalAmount: number;
+    @ApiProperty({
+        description: 'Total amount (subtotal + tax)',
+        example: 1650.0
+    })
+    @IsNumber({ maxDecimalPlaces: 2 })
+    @Min(0)
+    totalAmount: number;
 
-  @ApiPropertyOptional({
-    description: 'Amount already paid',
-    example: 0,
-    default: 0,
-  })
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  amountPaid?: number;
+    @ApiPropertyOptional({
+        description: 'Amount already paid',
+        example: 0,
+        default: 0
+    })
+    @IsOptional()
+    @IsNumber({ maxDecimalPlaces: 2 })
+    @Min(0)
+    amountPaid?: number;
 
-  @ApiPropertyOptional({
-    description: 'Additional notes',
-  })
-  @IsOptional()
-  @IsString()
-  notes?: string;
+    @ApiPropertyOptional({
+        description: 'Additional notes'
+    })
+    @IsOptional()
+    @IsString()
+    notes?: string;
 }

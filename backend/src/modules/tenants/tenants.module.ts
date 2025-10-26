@@ -11,9 +11,9 @@ import { Tenant } from './entities/tenant.entity';
  * Author: george1806
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([Tenant])],
-  controllers: [TenantsController],
-  providers: [TenantsService],
-  exports: [TenantsService],
+    imports: [TypeOrmModule.forFeature([Tenant])],
+    controllers: [TenantsController],
+    providers: [TenantsService],
+    exports: [TenantsService]
 })
 export class TenantsModule {}

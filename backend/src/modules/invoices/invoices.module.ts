@@ -13,9 +13,9 @@ import { Tenant } from '../tenants/entities/tenant.entity';
  * Author: george1806
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([Invoice, Occupancy, Tenant])],
-  controllers: [InvoicesController],
-  providers: [InvoicesService],
-  exports: [InvoicesService],
+    imports: [TypeOrmModule.forFeature([Invoice, Occupancy, Tenant])],
+    controllers: [InvoicesController],
+    providers: [InvoicesService],
+    exports: [InvoicesService]
 })
 export class InvoicesModule {}

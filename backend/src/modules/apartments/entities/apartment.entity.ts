@@ -16,71 +16,71 @@ import { Occupancy } from '../../occupancies/entities/occupancy.entity';
 @Index(['companyId', 'compoundId', 'unitNumber'], { unique: true })
 @Index(['companyId', 'isActive'])
 export class Apartment extends TenantBaseEntity {
-  @Column({ name: 'compound_id' })
-  @Index()
-  compoundId: string;
+    @Column({ name: 'compound_id' })
+    @Index()
+    compoundId: string;
 
-  @ManyToOne(() => Compound, { eager: false })
-  @JoinColumn({ name: 'compound_id' })
-  compound: Compound;
+    @ManyToOne(() => Compound, { eager: false })
+    @JoinColumn({ name: 'compound_id' })
+    compound: Compound;
 
-  @Column({ name: 'unit_number', length: 50 })
-  unitNumber: string;
+    @Column({ name: 'unit_number', length: 50 })
+    unitNumber: string;
 
-  @Column({ type: 'int', nullable: true })
-  floor: number;
+    @Column({ type: 'int', nullable: true })
+    floor: number;
 
-  @Column({ type: 'int', nullable: true })
-  bedrooms: number;
+    @Column({ type: 'int', nullable: true })
+    bedrooms: number;
 
-  @Column({ type: 'int', nullable: true })
-  bathrooms: number;
+    @Column({ type: 'int', nullable: true })
+    bathrooms: number;
 
-  @Column({
-    type: 'decimal',
-    precision: 10,
-    scale: 2,
-    nullable: true,
-    name: 'area_sqm'
-  })
-  areaSqm: number;
+    @Column({
+        type: 'decimal',
+        precision: 10,
+        scale: 2,
+        nullable: true,
+        name: 'area_sqm'
+    })
+    areaSqm: number;
 
-  @Column({
-    type: 'decimal',
-    precision: 15,
-    scale: 2,
-    nullable: true,
-    name: 'monthly_rent'
-  })
-  monthlyRent: number;
+    @Column({
+        type: 'decimal',
+        precision: 15,
+        scale: 2,
+        nullable: true,
+        name: 'monthly_rent'
+    })
+    monthlyRent: number;
 
-  @Column({
-    type: 'enum',
-    enum: ['available', 'occupied', 'maintenance', 'reserved'],
-    default: 'available'
-  })
-  status: 'available' | 'occupied' | 'maintenance' | 'reserved';
+    @Column({
+        type: 'enum',
+        enum: ['available', 'occupied', 'maintenance', 'reserved'],
+        default: 'available'
+    })
+    status: 'available' | 'occupied' | 'maintenance' | 'reserved';
 
-  @Column({ type: 'json', nullable: true })
-  amenities: string[];
+    @Column({ type: 'json', nullable: true })
+    amenities: string[];
 
-  @Column({ type: 'text', nullable: true })
-  notes: string;
+    @Column({ type: 'text', nullable: true })
+    notes: string;
 
-  @Column({ default: true, name: 'is_active' })
-  isActive: boolean;
+    @Column({ default: true, name: 'is_active' })
+    isActive: boolean;
 
-  // Relations
-  @OneToMany(() => Occupancy, (occupancy) => occupancy.apartment)
-  occupancies: Occupancy[];
+    // Relations
+    @OneToMany(() => Occupancy, (occupancy) => occupancy.apartment)
+    occupancies: Occupancy[];
 
-  // Virtual field for display name
-  get displayName(): string {
-    return `Unit ${this.unitNumber}`;
-  }
+    // Virtual field for display name
+    get displayName(): string {
+        return `Unit ${this.unitNumber}`;
+    }
 
-  // Virtual field for occupancy status
-  get isAvailable(): boolean {
-    return this.status === 'available' && this.isActive;
-  }
+    // Virtual field for occupancy status
+    get isAvailable(): boolean {
+        return this.status === 'available' && this.isActive;
+    }
 }

@@ -21,11 +21,9 @@ import { Tenant } from '../tenants/entities/tenant.entity';
  * Author: george1806
  */
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Reminder, Invoice, Tenant]),
-  ],
-  controllers: [RemindersController],
-  providers: [RemindersService],
-  exports: [RemindersService],
+    imports: [TypeOrmModule.forFeature([Reminder, Invoice, Tenant])],
+    controllers: [RemindersController],
+    providers: [RemindersService],
+    exports: [RemindersService]
 })
 export class RemindersModule {}

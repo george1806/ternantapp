@@ -14,20 +14,20 @@ import { Invoice } from '../invoices/entities/invoice.entity';
 import { UsersModule } from '../users/users.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([
-      Company,
-      User,
-      Compound,
-      Apartment,
-      Tenant,
-      Occupancy,
-      Invoice,
-    ]),
-    UsersModule,
-  ],
-  controllers: [SuperAdminCompaniesController, SuperAdminUsersController],
-  providers: [SuperAdminCompaniesService, SuperAdminUsersService],
-  exports: [SuperAdminCompaniesService, SuperAdminUsersService],
+    imports: [
+        TypeOrmModule.forFeature([
+            Company,
+            User,
+            Compound,
+            Apartment,
+            Tenant,
+            Occupancy,
+            Invoice
+        ]),
+        UsersModule
+    ],
+    controllers: [SuperAdminCompaniesController, SuperAdminUsersController],
+    providers: [SuperAdminCompaniesService, SuperAdminUsersService],
+    exports: [SuperAdminCompaniesService, SuperAdminUsersService]
 })
 export class SuperAdminModule {}

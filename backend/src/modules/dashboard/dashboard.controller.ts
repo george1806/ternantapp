@@ -16,15 +16,15 @@ import { DashboardStatsDto } from './dto/dashboard-stats.dto';
 @Controller('dashboard')
 @UseGuards(JwtAuthGuard)
 export class DashboardController {
-  constructor(private readonly dashboardService: DashboardService) {}
+    constructor(private readonly dashboardService: DashboardService) {}
 
-  /**
-   * Get dashboard statistics for current user's company
-   */
-  @Get('stats')
-  @ApiOperation({ summary: 'Get dashboard statistics' })
-  async getStats(@CurrentUser() user: any): Promise<{ data: DashboardStatsDto }> {
-    const stats = await this.dashboardService.getStats(user.companyId);
-    return { data: stats };
-  }
+    /**
+     * Get dashboard statistics for current user's company
+     */
+    @Get('stats')
+    @ApiOperation({ summary: 'Get dashboard statistics' })
+    async getStats(@CurrentUser() user: any): Promise<{ data: DashboardStatsDto }> {
+        const stats = await this.dashboardService.getStats(user.companyId);
+        return { data: stats };
+    }
 }

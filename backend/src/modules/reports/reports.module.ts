@@ -22,17 +22,11 @@ import { Compound } from '../compounds/entities/compound.entity';
  * Author: george1806
  */
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([
-      Apartment,
-      Occupancy,
-      Invoice,
-      Payment,
-      Compound,
-    ]),
-  ],
-  controllers: [ReportsController],
-  providers: [ReportsService],
-  exports: [ReportsService],
+    imports: [
+        TypeOrmModule.forFeature([Apartment, Occupancy, Invoice, Payment, Compound])
+    ],
+    controllers: [ReportsController],
+    providers: [ReportsService],
+    exports: [ReportsService]
 })
 export class ReportsModule {}

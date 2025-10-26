@@ -16,22 +16,22 @@ import { SessionService } from '../../common/services/session.service';
  * Author: george1806
  */
 @Module({
-  imports: [
-    UsersModule,
-    forwardRef(() => CompaniesModule),
-    PassportModule.register({ defaultStrategy: 'jwt' }),
-    JwtModule.registerAsync({
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get('JWT_SECRET'),
-        signOptions: {
-          expiresIn: configService.get('JWT_EXPIRES_IN', '15m'),
-        },
-      }),
-      inject: [ConfigService],
-    }),
-  ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, SessionService],
-  exports: [AuthService, SessionService],
+    imports: [
+        UsersModule,
+        forwardRef(() => CompaniesModule),
+        PassportModule.register({ defaultStrategy: 'jwt' }),
+        JwtModule.registerAsync({
+            useFactory: (configService: ConfigService) => ({
+                secret: configService.get('JWT_SECRET'),
+                signOptions: {
+                    expiresIn: configService.get('JWT_EXPIRES_IN', '15m')
+                }
+            }),
+            inject: [ConfigService]
+        })
+    ],
+    controllers: [AuthController],
+    providers: [AuthService, JwtStrategy, SessionService],
+    exports: [AuthService, SessionService]
 })
 export class AuthModule {}

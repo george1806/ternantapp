@@ -8,11 +8,9 @@ import { Invoice } from '../invoices/entities/invoice.entity';
 import { Payment } from '../payments/entities/payment.entity';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Apartment, Occupancy, Invoice, Payment]),
-  ],
-  controllers: [DashboardController],
-  providers: [DashboardService],
-  exports: [DashboardService],
+    imports: [TypeOrmModule.forFeature([Apartment, Occupancy, Invoice, Payment])],
+    controllers: [DashboardController],
+    providers: [DashboardService],
+    exports: [DashboardService]
 })
 export class DashboardModule {}
