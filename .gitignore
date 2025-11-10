@@ -58,3 +58,4 @@ backups/*.sql.gz
 
 # Deployment
 deploy-*.log
+.tempz.md
