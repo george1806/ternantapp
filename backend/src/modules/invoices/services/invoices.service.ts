@@ -85,12 +85,12 @@ export class InvoicesService {
         dueDay: number = 5 // Day of month when rent is due
     ): Promise<Invoice> {
         const occupancy = await this.occupanciesRepository.findOne({
-            where: { id: occupancyId, companyId, isActive: true },
+            where: { id: occupancyId, companyId, isActive: true, status: 'active' },
             relations: ['tenant']
         });
 
         if (!occupancy) {
-            throw new NotFoundException('Occupancy not found');
+            throw new NotFoundException('Occupancy not found or not active');
         }
 
         // Parse month
@@ -295,7 +295,7 @@ export class InvoicesService {
      */
     async findOne(id: string, companyId: string): Promise<Invoice> {
         const invoice = await this.invoicesRepository.findOne({
-            where: { id, companyId },
+            where: { id, companyId, isActive: true },
             relations: ['tenant', 'occupancy', 'occupancy.apartment']
         });
 
@@ -471,7 +471,8 @@ export class InvoicesService {
                 where: {
                     companyId,
                     id: occupancyIds,
-                    isActive: true
+                    isActive: true,
+                    status: 'active'
                 },
                 relations: ['tenant']
             });
@@ -480,7 +481,8 @@ export class InvoicesService {
             occupancies = await this.occupanciesRepository.find({
                 where: {
                     companyId,
-                    isActive: true
+                    isActive: true,
+                    status: 'active'
                 },
                 relations: ['tenant']
             });

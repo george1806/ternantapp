@@ -5,7 +5,7 @@ import {
     BadRequestException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindOptionsWhere, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+import { Repository, FindOptionsWhere, LessThanOrEqual, MoreThanOrEqual, DataSource } from 'typeorm';
 import { Occupancy } from '../entities/occupancy.entity';
 import { CreateOccupancyDto } from '../dto/create-occupancy.dto';
 import { UpdateOccupancyDto } from '../dto/update-occupancy.dto';
@@ -26,7 +26,8 @@ export class OccupanciesService {
         @InjectRepository(Tenant)
         private tenantsRepository: Repository<Tenant>,
         @InjectRepository(Apartment)
-        private apartmentsRepository: Repository<Apartment>
+        private apartmentsRepository: Repository<Apartment>,
+        private dataSource: DataSource
     ) {}
 
     /**
@@ -243,7 +244,7 @@ export class OccupanciesService {
      */
     async findOne(id: string, companyId: string): Promise<Occupancy> {
         const occupancy = await this.occupanciesRepository.findOne({
-            where: { id, companyId },
+            where: { id, companyId, isActive: true },
             relations: ['tenant', 'apartment', 'apartment.compound']
         });
 
@@ -306,6 +307,21 @@ export class OccupanciesService {
         companyId: string
     ): Promise<Occupancy> {
         const occupancy = await this.findOne(id, companyId);
+
+        // Validate status transitions
+        const validTransitions: Record<string, string[]> = {
+            pending: ['active', 'cancelled'],
+            active: ['ended', 'cancelled'],
+            ended: ['cancelled'],
+            cancelled: []
+        };
+
+        if (!validTransitions[occupancy.status]?.includes(status)) {
+            throw new BadRequestException(
+                `Cannot transition from ${occupancy.status} to ${status}`
+            );
+        }
+
         occupancy.status = status;
         return this.occupanciesRepository.save(occupancy);
     }
@@ -340,20 +356,40 @@ export class OccupanciesService {
         companyId: string,
         amount: number
     ): Promise<Occupancy> {
-        const occupancy = await this.findOne(id, companyId);
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
 
-        const currentDeposit = Number(occupancy.depositPaid) || 0;
-        const securityDeposit = Number(occupancy.securityDeposit) || 0;
-        const newTotal = currentDeposit + amount;
+        try {
+            const occupancy = await queryRunner.manager.findOne(Occupancy, {
+                where: { id, companyId, isActive: true }
+            });
 
-        if (newTotal > securityDeposit) {
-            throw new BadRequestException(
-                'Deposit payment exceeds required security deposit'
-            );
+            if (!occupancy) {
+                throw new NotFoundException(`Occupancy with ID "${id}" not found`);
+            }
+
+            const currentDeposit = Number(occupancy.depositPaid) || 0;
+            const securityDeposit = Number(occupancy.securityDeposit) || 0;
+            const newTotal = currentDeposit + amount;
+
+            if (newTotal > securityDeposit) {
+                throw new BadRequestException(
+                    'Deposit payment exceeds required security deposit'
+                );
+            }
+
+            occupancy.depositPaid = newTotal;
+            const saved = await queryRunner.manager.save(Occupancy, occupancy);
+
+            await queryRunner.commitTransaction();
+            return saved;
+        } catch (error) {
+            await queryRunner.rollbackTransaction();
+            throw error;
+        } finally {
+            await queryRunner.release();
         }
-
-        occupancy.depositPaid = newTotal;
-        return this.occupanciesRepository.save(occupancy);
     }
 
     /**
@@ -383,6 +419,33 @@ export class OccupanciesService {
 
         if (!occupancy) {
             throw new NotFoundException(`Occupancy with ID "${id}" not found`);
+        }
+
+        // Check for conflicts before reactivating
+        const leaseStart = new Date(occupancy.leaseStartDate);
+        const leaseEnd = new Date(occupancy.leaseEndDate);
+
+        const conflicts = await this.occupanciesRepository.find({
+            where: {
+                apartmentId: occupancy.apartmentId,
+                companyId,
+                isActive: true,
+                status: 'active',
+                id: occupancy.id // Exclude self
+            }
+        });
+
+        // Filter conflicts that overlap with lease dates
+        const hasConflict = conflicts.some((other) => {
+            const otherStart = new Date(other.leaseStartDate);
+            const otherEnd = new Date(other.leaseEndDate);
+            return leaseStart < otherEnd && leaseEnd > otherStart;
+        });
+
+        if (hasConflict) {
+            throw new ConflictException(
+                'Apartment is already occupied during this lease period'
+            );
         }
 
         occupancy.isActive = true;
