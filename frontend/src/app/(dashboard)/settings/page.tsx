@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Save, User, Building2, Mail, Shield } from 'lucide-react';
 import { useAuthStore } from '@/store/auth';
+import { userService } from '@/services/user.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -114,8 +115,47 @@ export default function SettingsPage() {
   const loadSettings = async () => {
     try {
       setLoading(true);
-      // TODO: Load actual settings from API
-      // For now, using default values
+
+      const [userRes, companyRes, notificationsRes] = await Promise.all([
+        userService.getProfile(),
+        userService.getCompanyProfile(),
+        userService.getNotificationSettings(),
+      ]);
+
+      if (userRes.data?.data) {
+        setUserProfile({
+          firstName: userRes.data.data.firstName || '',
+          lastName: userRes.data.data.lastName || '',
+          email: userRes.data.data.email || '',
+          phone: userRes.data.data.phone || '',
+        });
+      }
+
+      if (companyRes.data?.data) {
+        setCompanyProfile({
+          name: companyRes.data.data.name || '',
+          email: companyRes.data.data.email || '',
+          phone: companyRes.data.data.phone || '',
+          currency: companyRes.data.data.currency || 'KES',
+          timezone: companyRes.data.data.timezone || 'Africa/Nairobi',
+          address: companyRes.data.data.address || '',
+          city: companyRes.data.data.city || '',
+          region: companyRes.data.data.region || '',
+          country: companyRes.data.data.country || '',
+          postalCode: companyRes.data.data.postalCode || '',
+          website: companyRes.data.data.website || '',
+        });
+      }
+
+      if (notificationsRes.data?.data) {
+        setNotifications({
+          emailNotifications: notificationsRes.data.data.emailNotifications ?? true,
+          invoiceReminders: notificationsRes.data.data.invoiceReminders ?? true,
+          paymentConfirmations: notificationsRes.data.data.paymentConfirmations ?? true,
+          leaseExpiry: notificationsRes.data.data.leaseExpiry ?? true,
+          maintenanceAlerts: notificationsRes.data.data.maintenanceAlerts ?? true,
+        });
+      }
     } catch (error) {
       console.error('Error loading settings:', error);
       toast({
@@ -131,8 +171,7 @@ export default function SettingsPage() {
   const handleSaveCompanyProfile = async () => {
     try {
       setSaving(true);
-      // TODO: Implement API call to save company profile
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+      await userService.updateCompanyProfile(companyProfile);
 
       toast({
         title: 'Success',
@@ -152,8 +191,16 @@ export default function SettingsPage() {
   const handleSaveUserProfile = async () => {
     try {
       setSaving(true);
-      // TODO: Implement API call to save user profile
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+      const response = await userService.updateProfile(userProfile);
+
+      if (response.data?.data) {
+        useAuthStore.setState({
+          user: {
+            ...user,
+            ...response.data.data,
+          },
+        });
+      }
 
       toast({
         title: 'Success',
@@ -191,8 +238,10 @@ export default function SettingsPage() {
 
     try {
       setSaving(true);
-      // TODO: Implement API call to change password
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+      await userService.changePassword({
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+      });
 
       toast({
         title: 'Success',
@@ -219,8 +268,7 @@ export default function SettingsPage() {
   const handleSaveNotifications = async () => {
     try {
       setSaving(true);
-      // TODO: Implement API call to save notification settings
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+      await userService.updateNotificationSettings(notifications);
 
       toast({
         title: 'Success',
