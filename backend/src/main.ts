@@ -8,6 +8,8 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { MetricsInterceptor } from './common/interceptors/metrics.interceptor';
+import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { MetricsService } from './common/metrics/metrics.service';
 
 async function bootstrap() {
@@ -90,9 +92,16 @@ async function bootstrap() {
         })
     );
 
-    // Global metrics interceptor
+    // Global exception filter
+    app.useGlobalFilters(new HttpExceptionFilter());
+
+    // Global interceptors - order matters!
+    // ResponseInterceptor must come before MetricsInterceptor to wrap responses
     const metricsService = app.get(MetricsService);
-    app.useGlobalInterceptors(new MetricsInterceptor(metricsService));
+    app.useGlobalInterceptors(
+        new ResponseInterceptor(),
+        new MetricsInterceptor(metricsService)
+    );
 
     // Swagger documentation
     const config = new DocumentBuilder()
