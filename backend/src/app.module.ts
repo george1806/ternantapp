@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CacheModule } from '@nestjs/cache-manager';
@@ -10,6 +10,7 @@ import { redisStore } from 'cache-manager-redis-yet';
 import { RedisClientOptions } from 'redis';
 import { dataSourceOptions } from './database/data-source';
 import { winstonConfig } from './common/logger/winston.config';
+import { TenantMiddleware } from './common/middlewares/tenant.middleware';
 // import { TenantModule } from './common/tenant/tenant.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CompaniesModule } from './modules/companies/companies.module';
@@ -126,4 +127,14 @@ import { MetricsModule } from './common/metrics/metrics.module';
         // AuditModule,
     ]
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+    /**
+     * Register global middlewares
+     * Order matters! Tenant middleware runs first to extract context for all routes.
+     */
+    configure(consumer: MiddlewareConsumer) {
+        consumer
+            .apply(TenantMiddleware)
+            .forRoutes('*'); // Apply to all routes
+    }
+}
