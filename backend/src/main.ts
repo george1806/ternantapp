@@ -9,8 +9,10 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { MetricsInterceptor } from './common/interceptors/metrics.interceptor';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { MetricsService } from './common/metrics/metrics.service';
+import { AuditLogService } from './common/audit-log/audit-log.service';
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule, {
@@ -96,9 +98,12 @@ async function bootstrap() {
     app.useGlobalFilters(new HttpExceptionFilter());
 
     // Global interceptors - order matters!
+    // AuditLogInterceptor first (before response wrapping)
     // ResponseInterceptor must come before MetricsInterceptor to wrap responses
     const metricsService = app.get(MetricsService);
+    const auditLogService = app.get(AuditLogService);
     app.useGlobalInterceptors(
+        new AuditLogInterceptor(auditLogService),
         new ResponseInterceptor(),
         new MetricsInterceptor(metricsService)
     );
