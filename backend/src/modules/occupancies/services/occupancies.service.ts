@@ -11,6 +11,7 @@ import { CreateOccupancyDto } from '../dto/create-occupancy.dto';
 import { UpdateOccupancyDto } from '../dto/update-occupancy.dto';
 import { Tenant } from '../../tenants/entities/tenant.entity';
 import { Apartment } from '../../apartments/entities/apartment.entity';
+import { Invoice } from '../../invoices/entities/invoice.entity';
 
 /**
  * Occupancies Service
@@ -27,6 +28,8 @@ export class OccupanciesService {
         private tenantsRepository: Repository<Tenant>,
         @InjectRepository(Apartment)
         private apartmentsRepository: Repository<Apartment>,
+        @InjectRepository(Invoice)
+        private invoicesRepository: Repository<Invoice>,
         private dataSource: DataSource
     ) {}
 
@@ -402,7 +405,7 @@ export class OccupanciesService {
     }
 
     /**
-     * Soft delete (deactivate) an occupancy
+     * Soft delete (deactivate) an occupancy and cascade delete its invoices
      */
     async remove(id: string, companyId: string): Promise<void> {
         const occupancy = await this.findOne(id, companyId);
@@ -413,6 +416,12 @@ export class OccupanciesService {
                 'Cannot delete an active occupancy. End it first.'
             );
         }
+
+        // Cascade: soft delete all invoices for this occupancy
+        await this.invoicesRepository.update(
+            { occupancyId: id, companyId, isActive: true },
+            { isActive: false }
+        );
 
         occupancy.isActive = false;
         await this.occupanciesRepository.save(occupancy);

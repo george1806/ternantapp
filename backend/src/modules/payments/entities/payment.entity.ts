@@ -47,7 +47,7 @@ export class Payment extends TenantBaseEntity {
     isActive: boolean;
 
     // Relations
-    @ManyToOne(() => Invoice, { eager: false })
+    @ManyToOne(() => Invoice, { eager: false, cascade: true })
     @JoinColumn({ name: 'invoice_id' })
     invoice: Invoice;
 }

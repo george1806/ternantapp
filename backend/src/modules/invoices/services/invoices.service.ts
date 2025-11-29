@@ -11,6 +11,7 @@ import { CreateInvoiceDto } from '../dto/create-invoice.dto';
 import { UpdateInvoiceDto } from '../dto/update-invoice.dto';
 import { Occupancy } from '../../occupancies/entities/occupancy.entity';
 import { Tenant } from '../../tenants/entities/tenant.entity';
+import { Payment } from '../../payments/entities/payment.entity';
 
 /**
  * Invoices Service
@@ -26,7 +27,9 @@ export class InvoicesService {
         @InjectRepository(Occupancy)
         private occupanciesRepository: Repository<Occupancy>,
         @InjectRepository(Tenant)
-        private tenantsRepository: Repository<Tenant>
+        private tenantsRepository: Repository<Tenant>,
+        @InjectRepository(Payment)
+        private paymentsRepository: Repository<Payment>
     ) {}
 
     /**
@@ -448,6 +451,12 @@ export class InvoicesService {
         if (invoice.status !== 'draft' && invoice.status !== 'cancelled') {
             throw new BadRequestException('Can only delete draft or cancelled invoices');
         }
+
+        // Cascade: soft delete all payments for this invoice
+        await this.paymentsRepository.update(
+            { invoiceId: id, companyId, isActive: true },
+            { isActive: false }
+        );
 
         invoice.isActive = false;
         await this.invoicesRepository.save(invoice);

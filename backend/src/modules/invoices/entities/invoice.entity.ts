@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
+import { Entity, Column, ManyToOne, OneToMany, JoinColumn, Index } from 'typeorm';
 import { TenantBaseEntity } from '../../../database/entities/base.entity';
 import { Occupancy } from '../../occupancies/entities/occupancy.entity';
 import { Tenant } from '../../tenants/entities/tenant.entity';
@@ -96,6 +96,9 @@ export class Invoice extends TenantBaseEntity {
     @ManyToOne(() => Tenant, { eager: false })
     @JoinColumn({ name: 'tenant_id' })
     tenant: Tenant;
+
+    @OneToMany('Payment', 'invoice', { cascade: true })
+    payments: any[];
 
     // Virtual properties
     get amountDue(): number {
