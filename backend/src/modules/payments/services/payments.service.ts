@@ -28,7 +28,19 @@ export class PaymentsService {
      */
     async create(createDto: CreatePaymentDto, companyId: string): Promise<Payment> {
         return this.dataSource.transaction(async (manager) => {
-            // 1. Verify invoice exists and get details
+            // 1. Check for duplicate payment using idempotency key
+            if (createDto.idempotencyKey) {
+                const existingPayment = await manager.findOne(Payment, {
+                    where: { companyId, idempotencyKey: createDto.idempotencyKey, isActive: true }
+                });
+
+                if (existingPayment) {
+                    // Return the existing payment (idempotent behavior)
+                    return existingPayment;
+                }
+            }
+
+            // 2. Verify invoice exists and get details
             const invoice = await manager.findOne(Invoice, {
                 where: { id: createDto.invoiceId, companyId, isActive: true }
             });
@@ -37,7 +49,7 @@ export class PaymentsService {
                 throw new NotFoundException('Invoice not found');
             }
 
-            // 2. Validate payment doesn't exceed outstanding amount
+            // 3. Validate payment doesn't exceed outstanding amount
             const currentPaid = Number(invoice.amountPaid) || 0;
             const totalAmount = Number(invoice.totalAmount);
             const newTotal = currentPaid + createDto.amount;
@@ -48,7 +60,7 @@ export class PaymentsService {
                 );
             }
 
-            // 3. Create payment
+            // 4. Create payment
             const payment = manager.create(Payment, {
                 ...createDto,
                 companyId,

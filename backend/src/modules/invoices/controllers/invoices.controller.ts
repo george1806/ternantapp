@@ -16,6 +16,7 @@ import {
     ApiBearerAuth,
     ApiQuery
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { InvoicesService } from '../services/invoices.service';
 import { CreateInvoiceDto } from '../dto/create-invoice.dto';
 import { UpdateInvoiceDto } from '../dto/update-invoice.dto';
@@ -64,12 +65,14 @@ export class InvoicesController {
     }
 
     @Post('bulk-generate')
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
     @ApiOperation({
         summary: 'Bulk generate rent invoices for multiple occupancies',
-        description: 'Generate rent invoices for all active occupancies or specific ones in a single operation'
+        description: 'Generate rent invoices for all active occupancies or specific ones in a single operation. Rate limited to 10 requests per minute per user.'
     })
     @ApiResponse({ status: 201, description: 'Invoices generated', type: BulkGenerateInvoicesResponseDto })
     @ApiResponse({ status: 400, description: 'Invalid input parameters' })
+    @ApiResponse({ status: 429, description: 'Too many requests (rate limited)' })
     async bulkGenerateRentInvoices(
         @Body() dto: BulkGenerateInvoicesDto,
         @CurrentUser() user: any

@@ -10,6 +10,7 @@ import { PaymentMethod } from '../../../common/enums';
 @Entity('payments')
 @Index(['companyId', 'invoiceId'])
 @Index(['companyId', 'paidAt'])
+@Index(['companyId', 'idempotencyKey'], { unique: true, where: 'is_active = true' })
 export class Payment extends TenantBaseEntity {
     @Column({ name: 'invoice_id' })
     invoiceId: string;
@@ -34,7 +35,10 @@ export class Payment extends TenantBaseEntity {
     reference: string;
 
     @Column({ type: 'json', nullable: true })
-    metadata: any;
+    metadata: Record<string, any> | null;
+
+    @Column({ length: 255, nullable: true, name: 'idempotency_key' })
+    idempotencyKey: string | null;
 
     @Column({ type: 'text', nullable: true })
     notes: string;

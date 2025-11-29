@@ -20,19 +20,19 @@ class LineItemDto {
     @IsString()
     description: string;
 
-    @ApiProperty({ description: 'Quantity', example: 1 })
+    @ApiProperty({ description: 'Quantity', example: 1, minimum: 0.01 })
     @IsNumber()
-    @Min(0)
+    @Min(0.01, { message: 'Quantity must be greater than 0' })
     quantity: number;
 
-    @ApiProperty({ description: 'Unit price', example: 1500.0 })
+    @ApiProperty({ description: 'Unit price', example: 1500.0, minimum: 0.01 })
     @IsNumber({ maxDecimalPlaces: 2 })
-    @Min(0)
+    @Min(0.01, { message: 'Unit price must be greater than 0' })
     unitPrice: number;
 
-    @ApiProperty({ description: 'Total amount (quantity * unitPrice)', example: 1500.0 })
+    @ApiProperty({ description: 'Total amount (quantity * unitPrice)', example: 1500.0, minimum: 0.01 })
     @IsNumber({ maxDecimalPlaces: 2 })
-    @Min(0)
+    @Min(0.01, { message: 'Line item amount must be greater than 0' })
     amount: number;
 
     @ApiPropertyOptional({
@@ -101,28 +101,31 @@ export class CreateInvoiceDto {
 
     @ApiProperty({
         description: 'Subtotal amount',
-        example: 1500.0
+        example: 1500.0,
+        minimum: 0.01
     })
     @IsNumber({ maxDecimalPlaces: 2 })
-    @Min(0)
+    @Min(0.01, { message: 'Subtotal must be greater than 0' })
     subtotal: number;
 
     @ApiPropertyOptional({
         description: 'Tax amount',
         example: 150.0,
-        default: 0
+        default: 0,
+        minimum: 0
     })
     @IsOptional()
     @IsNumber({ maxDecimalPlaces: 2 })
-    @Min(0)
+    @Min(0, { message: 'Tax amount cannot be negative' })
     taxAmount?: number;
 
     @ApiProperty({
         description: 'Total amount (subtotal + tax)',
-        example: 1650.0
+        example: 1650.0,
+        minimum: 0.01
     })
     @IsNumber({ maxDecimalPlaces: 2 })
-    @Min(0)
+    @Min(0.01, { message: 'Total amount must be greater than 0' })
     totalAmount: number;
 
     @ApiPropertyOptional({

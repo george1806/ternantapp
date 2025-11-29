@@ -58,7 +58,16 @@ export class CreatePaymentDto {
         example: { bankName: 'ABC Bank', accountNumber: '****1234' }
     })
     @IsOptional()
-    metadata?: any;
+    metadata?: Record<string, any>;
+
+    @ApiPropertyOptional({
+        description: 'Idempotency key for duplicate request prevention (UUID format recommended)',
+        example: '123e4567-e89b-12d3-a456-426614174000'
+    })
+    @IsOptional()
+    @IsString()
+    @MaxLength(255)
+    idempotencyKey?: string;
 
     @ApiPropertyOptional({
         description: 'Additional notes'
