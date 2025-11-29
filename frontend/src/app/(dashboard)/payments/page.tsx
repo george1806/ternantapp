@@ -21,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth';
+import { PaymentFormDialog } from '@/components/payments/payment-form-dialog';
 import Link from 'next/link';
 
 /**
@@ -43,6 +44,7 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [methodFilter, setMethodFilter] = useState<'CASH' | 'BANK' | 'MOBILE' | 'CARD' | 'OTHER' | 'all'>('all');
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -142,7 +144,7 @@ export default function PaymentsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Payments</h1>
           <p className="text-muted-foreground mt-1">Track and manage payment transactions</p>
         </div>
-        <Button className="gap-2">
+        <Button className="gap-2" onClick={() => setPaymentDialogOpen(true)}>
           <Plus className="h-4 w-4" />
           Record Payment
         </Button>
@@ -273,13 +275,20 @@ export default function PaymentsPage() {
             <p className="text-sm text-muted-foreground mb-6 max-w-sm text-center">
               Record your first payment to start tracking transactions
             </p>
-            <Button className="gap-2">
+            <Button className="gap-2" onClick={() => setPaymentDialogOpen(true)}>
               <Plus className="h-4 w-4" />
               Record Your First Payment
             </Button>
           </CardContent>
         </Card>
       )}
+
+      {/* Payment Form Dialog */}
+      <PaymentFormDialog
+        open={paymentDialogOpen}
+        onOpenChange={setPaymentDialogOpen}
+        onSuccess={fetchPayments}
+      />
 
       {/* No Search Results */}
       {!loading && payments.length === 0 && (searchQuery || methodFilter !== 'all') && (
