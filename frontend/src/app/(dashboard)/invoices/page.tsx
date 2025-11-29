@@ -21,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth';
+import { InvoiceFormDialog } from '@/components/invoices/invoice-form-dialog';
 import Link from 'next/link';
 
 /**
@@ -43,6 +44,7 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled' | 'all'>('all');
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -158,7 +160,7 @@ export default function InvoicesPage() {
           <h1 className="text-3xl font-bold tracking-tight">Invoices</h1>
           <p className="text-muted-foreground mt-1">Manage rental invoices and payments</p>
         </div>
-        <Button className="gap-2">
+        <Button className="gap-2" onClick={() => setInvoiceDialogOpen(true)}>
           <Plus className="h-4 w-4" />
           Create Invoice
         </Button>
@@ -292,7 +294,7 @@ export default function InvoicesPage() {
             <p className="text-sm text-muted-foreground mb-6 max-w-sm text-center">
               Create your first invoice to start tracking rental payments
             </p>
-            <Button className="gap-2">
+            <Button className="gap-2" onClick={() => setInvoiceDialogOpen(true)}>
               <Plus className="h-4 w-4" />
               Create Your First Invoice
             </Button>
@@ -446,6 +448,13 @@ export default function InvoicesPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Invoice Form Dialog */}
+      <InvoiceFormDialog
+        open={invoiceDialogOpen}
+        onOpenChange={setInvoiceDialogOpen}
+        onSuccess={fetchInvoices}
+      />
     </div>
   );
 }
