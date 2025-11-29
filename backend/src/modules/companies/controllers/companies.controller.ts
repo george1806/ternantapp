@@ -16,11 +16,13 @@ import { Request } from 'express';
 import { CompaniesService } from '../services/companies.service';
 import { CreateCompanyDto } from '../dto/create-company.dto';
 import { UpdateCompanyDto } from '../dto/update-company.dto';
+import { CompanySettingsDto, UpdateCompanySettingsDto } from '../dto/company-settings.dto';
 import { RegisterCompanyDto } from '../../auth/dto/register-company.dto';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { Public } from '../../../common/decorators/public.decorator';
+import { CurrentUser } from '../../../common/decorators/tenant.decorator';
 import { UserRole } from '../../../common/enums';
 import { AuthService } from '../../auth/services/auth.service';
 import { getAvailableCurrencies } from '../../../common/config/currency.config';
@@ -108,5 +110,41 @@ export class CompaniesController {
     @ApiResponse({ status: 404, description: 'Company not found' })
     remove(@Param('id') id: string) {
         return this.companiesService.remove(id);
+    }
+
+    @Get(':id/settings')
+    @Roles(UserRole.OWNER, UserRole.ADMIN)
+    @ApiOperation({
+        summary: 'Get company settings',
+        description: 'Retrieve configuration and preferences for the company'
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Company settings retrieved successfully',
+        type: CompanySettingsDto
+    })
+    @ApiResponse({ status: 404, description: 'Company not found' })
+    async getSettings(@Param('id') id: string): Promise<CompanySettingsDto> {
+        return this.companiesService.getSettings(id);
+    }
+
+    @Patch(':id/settings')
+    @Roles(UserRole.OWNER, UserRole.ADMIN)
+    @ApiOperation({
+        summary: 'Update company settings',
+        description: 'Update configuration and preferences for the company'
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Company settings updated successfully',
+        type: CompanySettingsDto
+    })
+    @ApiResponse({ status: 404, description: 'Company not found' })
+    @ApiResponse({ status: 400, description: 'Invalid settings data' })
+    async updateSettings(
+        @Param('id') id: string,
+        @Body() updateSettingsDto: UpdateCompanySettingsDto
+    ): Promise<CompanySettingsDto> {
+        return this.companiesService.updateSettings(id, updateSettingsDto);
     }
 }

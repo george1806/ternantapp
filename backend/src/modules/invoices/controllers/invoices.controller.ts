@@ -19,6 +19,7 @@ import {
 import { InvoicesService } from '../services/invoices.service';
 import { CreateInvoiceDto } from '../dto/create-invoice.dto';
 import { UpdateInvoiceDto } from '../dto/update-invoice.dto';
+import { BulkGenerateInvoicesDto, BulkGenerateInvoicesResponseDto } from '../dto/bulk-generate-invoices.dto';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { CurrentUser } from '../../../common/decorators/tenant.decorator';
@@ -59,6 +60,26 @@ export class InvoicesController {
             user.companyId,
             month,
             dueDay
+        );
+    }
+
+    @Post('bulk-generate')
+    @ApiOperation({
+        summary: 'Bulk generate rent invoices for multiple occupancies',
+        description: 'Generate rent invoices for all active occupancies or specific ones in a single operation'
+    })
+    @ApiResponse({ status: 201, description: 'Invoices generated', type: BulkGenerateInvoicesResponseDto })
+    @ApiResponse({ status: 400, description: 'Invalid input parameters' })
+    async bulkGenerateRentInvoices(
+        @Body() dto: BulkGenerateInvoicesDto,
+        @CurrentUser() user: any
+    ): Promise<BulkGenerateInvoicesResponseDto> {
+        return this.invoicesService.bulkGenerateRentInvoices(
+            user.companyId,
+            dto.month,
+            dto.dueDay || 5,
+            dto.occupancyIds,
+            dto.skipExisting !== false
         );
     }
 

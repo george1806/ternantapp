@@ -443,4 +443,97 @@ export class InvoicesService {
         invoice.isActive = true;
         return this.invoicesRepository.save(invoice);
     }
+
+    /**
+     * Bulk generate invoices for multiple occupancies
+     * Generates rent invoices for active occupancies in a single operation
+     */
+    async bulkGenerateRentInvoices(
+        companyId: string,
+        month: string,
+        dueDay: number = 5,
+        occupancyIds?: string[],
+        skipExisting: boolean = true
+    ): Promise<{
+        processed: number;
+        created: number;
+        skipped: number;
+        failed: number;
+        createdInvoiceIds: string[];
+        errors: Array<{ occupancyId: string; error: string }>;
+        totalAmount: number;
+    }> {
+        // Get occupancies to process
+        let occupancies: Occupancy[];
+        if (occupancyIds && occupancyIds.length > 0) {
+            // Use specific occupancy IDs
+            occupancies = await this.occupanciesRepository.find({
+                where: {
+                    companyId,
+                    id: occupancyIds,
+                    isActive: true
+                },
+                relations: ['tenant']
+            });
+        } else {
+            // Get all active occupancies
+            occupancies = await this.occupanciesRepository.find({
+                where: {
+                    companyId,
+                    isActive: true
+                },
+                relations: ['tenant']
+            });
+        }
+
+        const results = {
+            processed: occupancies.length,
+            created: 0,
+            skipped: 0,
+            failed: 0,
+            createdInvoiceIds: [] as string[],
+            errors: [] as Array<{ occupancyId: string; error: string }>,
+            totalAmount: 0
+        };
+
+        // Generate invoices
+        for (const occupancy of occupancies) {
+            try {
+                const invoice = await this.generateRentInvoice(
+                    occupancy.id,
+                    companyId,
+                    month,
+                    dueDay
+                );
+
+                results.created++;
+                results.createdInvoiceIds.push(invoice.id);
+                results.totalAmount += Number(invoice.totalAmount);
+            } catch (error) {
+                // Check if it's a "already exists" error
+                if (
+                    error instanceof ConflictException &&
+                    error.message.includes('already exists')
+                ) {
+                    if (skipExisting) {
+                        results.skipped++;
+                    } else {
+                        results.failed++;
+                        results.errors.push({
+                            occupancyId: occupancy.id,
+                            error: error.message
+                        });
+                    }
+                } else {
+                    results.failed++;
+                    results.errors.push({
+                        occupancyId: occupancy.id,
+                        error: error instanceof Error ? error.message : 'Unknown error'
+                    });
+                }
+            }
+        }
+
+        return results;
+    }
 }

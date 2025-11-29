@@ -6,6 +6,7 @@ import { Cache } from 'cache-manager';
 import { Company } from '../entities/company.entity';
 import { CreateCompanyDto } from '../dto/create-company.dto';
 import { UpdateCompanyDto } from '../dto/update-company.dto';
+import { CompanySettingsDto, UpdateCompanySettingsDto } from '../dto/company-settings.dto';
 import slugify from 'slugify';
 
 @Injectable()
@@ -161,5 +162,72 @@ export class CompaniesService {
         if (slug) {
             await this.cacheManager.del(`company:slug:${slug}`);
         }
+    }
+
+    /**
+     * Get company settings
+     */
+    async getSettings(companyId: string): Promise<CompanySettingsDto> {
+        const cacheKey = `company:settings:${companyId}`;
+
+        // Try cache first
+        const cached = await this.cacheManager.get<CompanySettingsDto>(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
+        // Fetch company
+        const company = await this.findOne(companyId);
+
+        // Build settings DTO from company object
+        const settings: CompanySettingsDto = {
+            companyId: company.id,
+            defaultInvoiceDueDay: (company as any).defaultInvoiceDueDay || 5,
+            notificationEmail: (company as any).notificationEmail,
+            supportPhoneNumber: (company as any).supportPhoneNumber,
+            enableInvoiceReminders: (company as any).enableInvoiceReminders !== false,
+            reminderDaysBeforeDue: (company as any).reminderDaysBeforeDue || 3,
+            enableOverdueNotifications: (company as any).enableOverdueNotifications !== false,
+            defaultInvoiceTemplate: (company as any).defaultInvoiceTemplate || 'standard',
+            enableLateFees: (company as any).enableLateFees || false,
+            lateFeePercentage: (company as any).lateFeePercentage || 0,
+            enableTenantPortal: (company as any).enableTenantPortal !== false,
+            enableOnlinePayments: (company as any).enableOnlinePayments !== false,
+            preferredPaymentGateway: (company as any).preferredPaymentGateway,
+            defaultLeaseTerm: (company as any).defaultLeaseTerm || 12,
+            autoGenerateInvoices: (company as any).autoGenerateInvoices !== false,
+            updatedAt: company.updatedAt
+        };
+
+        // Cache for 5 minutes
+        await this.cacheManager.set(cacheKey, settings, 300000);
+
+        return settings;
+    }
+
+    /**
+     * Update company settings
+     */
+    async updateSettings(
+        companyId: string,
+        updateSettingsDto: UpdateCompanySettingsDto
+    ): Promise<CompanySettingsDto> {
+        const company = await this.findOne(companyId);
+
+        // Update company settings from DTO
+        Object.entries(updateSettingsDto).forEach(([key, value]) => {
+            if (value !== undefined) {
+                (company as any)[key] = value;
+            }
+        });
+
+        // Save updated company
+        const updated = await this.companyRepository.save(company);
+
+        // Invalidate cache
+        await this.cacheManager.del(`company:settings:${companyId}`);
+
+        // Return updated settings
+        return this.getSettings(updated.id);
     }
 }
