@@ -154,7 +154,7 @@ export class PaginationService {
       return defaultValue;
     }
 
-    const parsed = typeof value === 'string' ? parseInt(value, 10) : value;
+    const parsed = typeof value === 'string' ? parseInt(value, 10) : Math.floor(value);
 
     if (isNaN(parsed)) {
       this.logger.warn(`Failed to parse number: ${value}, using default: ${defaultValue}`);
