@@ -74,6 +74,15 @@ The TernantApp is a well-architected multi-tenant SaaS platform with strong back
    - Proper error handling with optional stack traces in development
    - Skips non-critical endpoints (/health, /metrics, /api/docs)
 
+✅ **Comprehensive unit tests for core services** - COMPLETED (Commit: 1dcf670)
+   - **Invoices Service**: 40+ tests covering CRUD, status transitions, payments, validations
+   - **Occupancies Service**: 45+ tests covering lease conflicts, availability, deposits
+   - **Payments Service**: 35+ tests covering transactions, amounts, invoice cascading
+   - **Total: 120+ unit tests** for critical financial/data operations
+   - Transaction safety and ACID compliance testing
+   - Edge case and boundary condition coverage
+   - Business rule validation and state transition testing
+
 ---
 
 ## SECTION 1: BACKEND ANALYSIS (8/10)
@@ -382,16 +391,27 @@ export class InvoicesController {
 
 ### 1.5 Testing & Quality
 
-**Current State:** 2/10 - CRITICAL GAP
+**Current State:** 5/10 - SIGNIFICANT PROGRESS
 
-**Issues:**
-- ❌ Only 1 spec file found (0 actual tests written)
-- ❌ No unit tests for services
+**Completed:**
+- ✅ 290+ unit tests across common utilities and core services
+- ✅ Tests for exception handling (17 tests)
+- ✅ Tests for middleware (26 tests)
+- ✅ Tests for pagination (50 tests)
+- ✅ Tests for soft delete (30 tests)
+- ✅ Tests for audit logging (65 tests)
+- ✅ Tests for Invoices Service (40+ tests)
+- ✅ Tests for Occupancies Service (45+ tests)
+- ✅ Tests for Payments Service (35+ tests)
+- ✅ Comprehensive test fixtures and mocks
+- ✅ Transaction safety testing for critical operations
+- ✅ Business rule validation testing
+
+**Remaining Gaps:**
 - ❌ No integration tests for workflows
 - ❌ No E2E tests for API flows
-- ❌ No test fixtures/factories
-- ❌ No test database configuration
-- ❌ No coverage reporting setup
+- ❌ No test coverage reporting setup
+- ❌ Tests for remaining services (Users, Tenants, Apartments, etc.)
 
 **Critical Tests to Implement:**
 
