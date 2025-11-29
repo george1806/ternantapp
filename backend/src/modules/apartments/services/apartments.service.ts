@@ -66,32 +66,46 @@ export class ApartmentsService {
     }
 
     /**
-     * Find all apartments for a company
+     * Find all apartments for a company with pagination
      * Supports filtering by compound and status
      */
     async findAll(
         companyId: string,
-        compoundId?: string,
-        status?: string
-    ): Promise<Apartment[]> {
-        const where: FindOptionsWhere<Apartment> = {
-            companyId,
-            isActive: true
-        };
+        page: number = 1,
+        limit: number = 10,
+        filters?: { compoundId?: string; status?: string; search?: string }
+    ): Promise<{ data: Apartment[]; total: number }> {
+        const skip = (page - 1) * limit;
 
-        if (compoundId) {
-            where.compoundId = compoundId;
+        const query = this.apartmentsRepository
+            .createQueryBuilder('apartment')
+            .where('apartment.companyId = :companyId', { companyId })
+            .andWhere('apartment.isActive = :isActive', { isActive: true })
+            .leftJoinAndSelect('apartment.compound', 'compound');
+
+        if (filters?.compoundId) {
+            query.andWhere('apartment.compoundId = :compoundId', { compoundId: filters.compoundId });
         }
 
-        if (status) {
-            where.status = status as any;
+        if (filters?.status) {
+            query.andWhere('apartment.status = :status', { status: filters.status });
         }
 
-        return this.apartmentsRepository.find({
-            where,
-            relations: ['compound'],
-            order: { unitNumber: 'ASC' }
-        });
+        if (filters?.search) {
+            query.andWhere(
+                '(apartment.unitNumber LIKE :search OR apartment.notes LIKE :search)',
+                { search: `%${filters.search}%` }
+            );
+        }
+
+        query.orderBy('apartment.unitNumber', 'ASC');
+
+        const [data, total] = await query
+            .skip(skip)
+            .take(limit)
+            .getManyAndCount();
+
+        return { data, total };
     }
 
     /**

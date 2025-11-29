@@ -147,28 +147,38 @@ export class InvoicesService {
     }
 
     /**
-     * Find all invoices for a company
+     * Find all invoices for a company with pagination
      */
     async findAll(
         companyId: string,
-        status?: string,
-        includeInactive = false
-    ): Promise<Invoice[]> {
-        const where: FindOptionsWhere<Invoice> = { companyId };
+        page: number = 1,
+        limit: number = 10,
+        filters?: { status?: string; includeInactive?: boolean }
+    ): Promise<{ data: Invoice[]; total: number }> {
+        const skip = (page - 1) * limit;
 
-        if (!includeInactive) {
-            where.isActive = true;
+        const query = this.invoicesRepository
+            .createQueryBuilder('invoice')
+            .where('invoice.companyId = :companyId', { companyId })
+            .leftJoinAndSelect('invoice.tenant', 'tenant')
+            .leftJoinAndSelect('invoice.occupancy', 'occupancy');
+
+        if (!filters?.includeInactive) {
+            query.andWhere('invoice.isActive = :isActive', { isActive: true });
         }
 
-        if (status) {
-            where.status = status as 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+        if (filters?.status) {
+            query.andWhere('invoice.status = :status', { status: filters.status });
         }
 
-        return this.invoicesRepository.find({
-            where,
-            relations: ['tenant', 'occupancy'],
-            order: { invoiceDate: 'DESC' }
-        });
+        query.orderBy('invoice.invoiceDate', 'DESC');
+
+        const [data, total] = await query
+            .skip(skip)
+            .take(limit)
+            .getManyAndCount();
+
+        return { data, total };
     }
 
     /**

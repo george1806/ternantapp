@@ -5,7 +5,8 @@ import {
     IsOptional,
     IsEnum,
     Min,
-    MaxLength
+    MaxLength,
+    ValidateIf
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -40,30 +41,39 @@ export class CreateOccupancyDto {
 
     @ApiProperty({
         description: 'Monthly rent amount',
-        example: 1500.0
+        example: 1500.0,
+        minimum: 0.01
     })
     @IsNumber({ maxDecimalPlaces: 2 })
-    @Min(0)
+    @Min(0.01, { message: 'Monthly rent must be greater than 0' })
     monthlyRent: number;
 
     @ApiPropertyOptional({
         description: 'Security deposit amount',
-        example: 3000.0
+        example: 3000.0,
+        minimum: 0
     })
     @IsOptional()
     @IsNumber({ maxDecimalPlaces: 2 })
-    @Min(0)
+    @Min(0, { message: 'Security deposit cannot be negative' })
     securityDeposit?: number;
 
     @ApiPropertyOptional({
-        description: 'Amount of deposit already paid',
+        description: 'Amount of deposit already paid (must not exceed security deposit)',
         example: 1500.0,
-        default: 0
+        default: 0,
+        minimum: 0
     })
     @IsOptional()
     @IsNumber({ maxDecimalPlaces: 2 })
-    @Min(0)
+    @Min(0, { message: 'Deposit paid cannot be negative' })
+    @ValidateIf((dto) => dto.depositPaid !== undefined && dto.securityDeposit !== undefined)
     depositPaid?: number;
+
+    get isDepositValid(): boolean {
+        if (!this.depositPaid || !this.securityDeposit) return true;
+        return this.depositPaid <= this.securityDeposit;
+    }
 
     @ApiPropertyOptional({
         description: 'Actual move-in date',

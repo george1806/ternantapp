@@ -114,26 +114,26 @@ export class InvoicesController {
         @Query('sortOrder') sortOrder?: 'ASC' | 'DESC',
         @CurrentUser() user?: any
     ) {
-        const invoices = await this.invoicesService.findAll(
+        const currentPage = Number(page) || 1;
+        const pageLimit = Number(limit) || 10;
+
+        const result = await this.invoicesService.findAll(
             user.companyId,
-            status,
-            includeInactive === 'true'
+            currentPage,
+            pageLimit,
+            {
+                status,
+                includeInactive: includeInactive === 'true'
+            }
         );
 
-        // Apply pagination
-        const currentPage = page || 1;
-        const pageLimit = limit || 10;
-        const total = invoices.length;
-        const totalPages = Math.ceil(total / pageLimit);
-        const startIndex = (currentPage - 1) * pageLimit;
-        const endIndex = startIndex + pageLimit;
-        const paginatedData = invoices.slice(startIndex, endIndex);
+        const totalPages = Math.ceil(result.total / pageLimit);
 
         // Return paginated response format expected by frontend
         return {
-            data: paginatedData,
+            data: result.data,
             meta: {
-                total,
+                total: result.total,
                 page: currentPage,
                 limit: pageLimit,
                 totalPages

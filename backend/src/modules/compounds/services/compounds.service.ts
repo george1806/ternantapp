@@ -42,19 +42,39 @@ export class CompoundsService {
     }
 
     /**
-     * Find all compounds for a company
+     * Find all compounds for a company with pagination
      */
-    async findAll(companyId: string, includeInactive = false): Promise<Compound[]> {
-        const where: any = { companyId };
+    async findAll(
+        companyId: string,
+        page: number = 1,
+        limit: number = 10,
+        filters?: { includeInactive?: boolean; search?: string }
+    ): Promise<{ data: Compound[]; total: number }> {
+        const skip = (page - 1) * limit;
 
-        if (!includeInactive) {
-            where.isActive = true;
+        const query = this.compoundRepository
+            .createQueryBuilder('compound')
+            .where('compound.companyId = :companyId', { companyId });
+
+        if (!filters?.includeInactive) {
+            query.andWhere('compound.isActive = :isActive', { isActive: true });
         }
 
-        return this.compoundRepository.find({
-            where,
-            order: { name: 'ASC' }
-        });
+        if (filters?.search) {
+            query.andWhere(
+                '(compound.name LIKE :search OR compound.city LIKE :search OR compound.addressLine LIKE :search)',
+                { search: `%${filters.search}%` }
+            );
+        }
+
+        query.orderBy('compound.name', 'ASC');
+
+        const [data, total] = await query
+            .skip(skip)
+            .take(limit)
+            .getManyAndCount();
+
+        return { data, total };
     }
 
     /**

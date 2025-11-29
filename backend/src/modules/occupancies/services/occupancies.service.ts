@@ -43,6 +43,15 @@ export class OccupanciesService {
             throw new BadRequestException('Lease end date must be after start date');
         }
 
+        // Validate deposit amounts
+        if (createDto.depositPaid && createDto.securityDeposit) {
+            if (createDto.depositPaid > createDto.securityDeposit) {
+                throw new BadRequestException(
+                    `Deposit paid (${createDto.depositPaid}) cannot exceed security deposit (${createDto.securityDeposit})`
+                );
+            }
+        }
+
         // Verify tenant exists and belongs to company
         const tenant = await this.tenantsRepository.findOne({
             where: { id: createDto.tenantId, companyId, isActive: true }

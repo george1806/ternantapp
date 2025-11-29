@@ -73,26 +73,26 @@ export class PaymentsController {
         @Query('sortOrder') sortOrder?: 'ASC' | 'DESC',
         @CurrentUser() user?: any
     ) {
-        const payments = await this.paymentsService.findAll(
+        const currentPage = Number(page) || 1;
+        const pageLimit = Number(limit) || 10;
+
+        const result = await this.paymentsService.findAll(
             user.companyId,
-            invoiceId,
-            includeInactive === 'true'
+            currentPage,
+            pageLimit,
+            {
+                invoiceId,
+                includeInactive: includeInactive === 'true'
+            }
         );
 
-        // Apply pagination
-        const currentPage = page || 1;
-        const pageLimit = limit || 10;
-        const total = payments.length;
-        const totalPages = Math.ceil(total / pageLimit);
-        const startIndex = (currentPage - 1) * pageLimit;
-        const endIndex = startIndex + pageLimit;
-        const paginatedData = payments.slice(startIndex, endIndex);
+        const totalPages = Math.ceil(result.total / pageLimit);
 
         // Return paginated response format expected by frontend
         return {
-            data: paginatedData,
+            data: result.data,
             meta: {
-                total,
+                total: result.total,
                 page: currentPage,
                 limit: pageLimit,
                 totalPages

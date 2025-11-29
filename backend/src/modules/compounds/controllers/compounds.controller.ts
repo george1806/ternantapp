@@ -74,38 +74,26 @@ export class CompoundsController {
         @Query('limit') limit?: number,
         @Query('search') search?: string
     ) {
-        const includeInactiveFlag = includeInactive === 'true';
-        const compounds = await this.compoundsService.findAll(
+        const currentPage = Number(page) || 1;
+        const pageLimit = Number(limit) || 10;
+
+        const result = await this.compoundsService.findAll(
             companyId,
-            includeInactiveFlag
+            currentPage,
+            pageLimit,
+            {
+                includeInactive: includeInactive === 'true',
+                search
+            }
         );
 
-        // Filter by search if provided
-        let filteredCompounds = compounds;
-        if (search) {
-            const searchLower = search.toLowerCase();
-            filteredCompounds = compounds.filter(
-                (c) =>
-                    c.name.toLowerCase().includes(searchLower) ||
-                    c.city.toLowerCase().includes(searchLower) ||
-                    c.addressLine?.toLowerCase().includes(searchLower)
-            );
-        }
-
-        // Apply pagination
-        const currentPage = page || 1;
-        const pageLimit = limit || 10;
-        const total = filteredCompounds.length;
-        const totalPages = Math.ceil(total / pageLimit);
-        const startIndex = (currentPage - 1) * pageLimit;
-        const endIndex = startIndex + pageLimit;
-        const paginatedData = filteredCompounds.slice(startIndex, endIndex);
+        const totalPages = Math.ceil(result.total / pageLimit);
 
         // Return paginated response format expected by frontend
         return {
-            data: paginatedData,
+            data: result.data,
             meta: {
-                total,
+                total: result.total,
                 page: currentPage,
                 limit: pageLimit,
                 totalPages

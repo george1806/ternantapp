@@ -91,37 +91,27 @@ export class ApartmentsController {
         @Query('limit') limit?: number,
         @Query('search') search?: string
     ) {
-        const apartments = await this.apartmentsService.findAll(
+        const currentPage = Number(page) || 1;
+        const pageLimit = Number(limit) || 10;
+
+        const result = await this.apartmentsService.findAll(
             user.companyId,
-            compoundId,
-            status
+            currentPage,
+            pageLimit,
+            {
+                compoundId,
+                status,
+                search
+            }
         );
 
-        // Filter by search if provided
-        let filteredApartments = apartments;
-        if (search) {
-            const searchLower = search.toLowerCase();
-            filteredApartments = apartments.filter(
-                (a) =>
-                    a.unitNumber.toLowerCase().includes(searchLower) ||
-                    a.notes?.toLowerCase().includes(searchLower)
-            );
-        }
-
-        // Apply pagination
-        const currentPage = page || 1;
-        const pageLimit = limit || 10;
-        const total = filteredApartments.length;
-        const totalPages = Math.ceil(total / pageLimit);
-        const startIndex = (currentPage - 1) * pageLimit;
-        const endIndex = startIndex + pageLimit;
-        const paginatedData = filteredApartments.slice(startIndex, endIndex);
+        const totalPages = Math.ceil(result.total / pageLimit);
 
         // Return paginated response format expected by frontend
         return {
-            data: paginatedData,
+            data: result.data,
             meta: {
-                total,
+                total: result.total,
                 page: currentPage,
                 limit: pageLimit,
                 totalPages

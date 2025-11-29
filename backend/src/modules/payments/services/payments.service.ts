@@ -87,28 +87,38 @@ export class PaymentsService {
     }
 
     /**
-     * Find all payments for a company
+     * Find all payments for a company with pagination
      */
     async findAll(
         companyId: string,
-        invoiceId?: string,
-        includeInactive = false
-    ): Promise<Payment[]> {
-        const where: FindOptionsWhere<Payment> = { companyId };
+        page: number = 1,
+        limit: number = 10,
+        filters?: { invoiceId?: string; includeInactive?: boolean }
+    ): Promise<{ data: Payment[]; total: number }> {
+        const skip = (page - 1) * limit;
 
-        if (!includeInactive) {
-            where.isActive = true;
+        const query = this.paymentsRepository
+            .createQueryBuilder('payment')
+            .where('payment.companyId = :companyId', { companyId })
+            .leftJoinAndSelect('payment.invoice', 'invoice')
+            .leftJoinAndSelect('invoice.tenant', 'tenant');
+
+        if (!filters?.includeInactive) {
+            query.andWhere('payment.isActive = :isActive', { isActive: true });
         }
 
-        if (invoiceId) {
-            where.invoiceId = invoiceId;
+        if (filters?.invoiceId) {
+            query.andWhere('payment.invoiceId = :invoiceId', { invoiceId: filters.invoiceId });
         }
 
-        return this.paymentsRepository.find({
-            where,
-            relations: ['invoice', 'invoice.tenant'],
-            order: { paidAt: 'DESC' }
-        });
+        query.orderBy('payment.paidAt', 'DESC');
+
+        const [data, total] = await query
+            .skip(skip)
+            .take(limit)
+            .getManyAndCount();
+
+        return { data, total };
     }
 
     /**
