@@ -60,7 +60,7 @@ export class CreateOccupancyDto {
 
     @ApiPropertyOptional({
         description: 'Amount of deposit already paid (must not exceed security deposit)',
-        example: 1500.0,
+        example: 0,
         default: 0,
         minimum: 0
     })
@@ -68,7 +68,7 @@ export class CreateOccupancyDto {
     @IsNumber({ maxDecimalPlaces: 2 })
     @Min(0, { message: 'Deposit paid cannot be negative' })
     @ValidateIf((dto) => dto.depositPaid !== undefined && dto.securityDeposit !== undefined)
-    depositPaid?: number;
+    depositPaid: number = 0;
 
     get isDepositValid(): boolean {
         if (!this.depositPaid || !this.securityDeposit) return true;
@@ -98,7 +98,7 @@ export class CreateOccupancyDto {
     })
     @IsOptional()
     @IsEnum(['pending', 'active', 'ended', 'cancelled'])
-    status?: 'pending' | 'active' | 'ended' | 'cancelled';
+    status: 'pending' | 'active' | 'ended' | 'cancelled' = 'pending';
 
     @ApiPropertyOptional({
         description: 'Additional notes'

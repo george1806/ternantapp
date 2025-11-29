@@ -88,7 +88,7 @@ export class CreateInvoiceDto {
     })
     @IsOptional()
     @IsEnum(['draft', 'sent', 'paid', 'overdue', 'cancelled'])
-    status?: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+    status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled' = 'draft';
 
     @ApiProperty({
         description: 'Line items',
@@ -110,14 +110,14 @@ export class CreateInvoiceDto {
 
     @ApiPropertyOptional({
         description: 'Tax amount',
-        example: 150.0,
+        example: 0,
         default: 0,
         minimum: 0
     })
     @IsOptional()
     @IsNumber({ maxDecimalPlaces: 2 })
     @Min(0, { message: 'Tax amount cannot be negative' })
-    taxAmount?: number;
+    taxAmount: number = 0;
 
     @ApiProperty({
         description: 'Total amount (subtotal + tax)',
@@ -136,7 +136,7 @@ export class CreateInvoiceDto {
     @IsOptional()
     @IsNumber({ maxDecimalPlaces: 2 })
     @Min(0)
-    amountPaid?: number;
+    amountPaid: number = 0;
 
     @ApiPropertyOptional({
         description: 'Additional notes'
