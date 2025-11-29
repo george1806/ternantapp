@@ -7,7 +7,8 @@ import {
     IsEnum,
     ValidateNested,
     Min,
-    MaxLength
+    MaxLength,
+    Custom
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -75,10 +76,18 @@ export class CreateInvoiceDto {
     invoiceDate: string;
 
     @ApiProperty({
-        description: 'Payment due date',
+        description: 'Payment due date (must be on or after invoice date)',
         example: '2024-01-05'
     })
     @IsDateString()
+    @Custom(({ value }, args) => {
+        const dueDate = new Date(value);
+        const invoiceDate = new Date((args.object as any).invoiceDate);
+        if (dueDate < invoiceDate) {
+            throw new Error('Due date must be on or after invoice date');
+        }
+        return true;
+    })
     dueDate: string;
 
     @ApiPropertyOptional({
