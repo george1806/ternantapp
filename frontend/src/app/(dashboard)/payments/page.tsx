@@ -42,7 +42,7 @@ export default function PaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [methodFilter, setMethodFilter] = useState<'mpesa' | 'bank_transfer' | 'cash' | 'cheque' | 'other' | 'all'>('all');
+  const [methodFilter, setMethodFilter] = useState<'CASH' | 'BANK' | 'MOBILE' | 'CARD' | 'OTHER' | 'all'>('all');
   const { toast } = useToast();
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -63,7 +63,7 @@ export default function PaymentsPage() {
         page: currentPage,
         limit,
         search: searchQuery || undefined,
-        paymentMethod: methodFilter === 'all' ? undefined : methodFilter,
+        method: methodFilter === 'all' ? undefined : methodFilter,
         sortBy: 'paymentDate',
         sortOrder: 'DESC',
       };
@@ -93,15 +93,15 @@ export default function PaymentsPage() {
 
   const getPaymentMethodBadge = (method: string) => {
     switch (method) {
-      case 'mpesa':
-        return <Badge variant="success" className="gap-1"><CreditCard className="h-3 w-3" /> M-Pesa</Badge>;
-      case 'bank_transfer':
-        return <Badge variant="default" className="gap-1"><CreditCard className="h-3 w-3" /> Bank Transfer</Badge>;
-      case 'cash':
+      case 'CASH':
         return <Badge variant="warning" className="gap-1"><DollarSign className="h-3 w-3" /> Cash</Badge>;
-      case 'cheque':
-        return <Badge variant="secondary" className="gap-1"><CreditCard className="h-3 w-3" /> Cheque</Badge>;
-      case 'other':
+      case 'BANK':
+        return <Badge variant="default" className="gap-1"><CreditCard className="h-3 w-3" /> Bank Transfer</Badge>;
+      case 'MOBILE':
+        return <Badge variant="success" className="gap-1"><CreditCard className="h-3 w-3" /> Mobile Money</Badge>;
+      case 'CARD':
+        return <Badge variant="secondary" className="gap-1"><CreditCard className="h-3 w-3" /> Card</Badge>;
+      case 'OTHER':
         return <Badge variant="outline" className="gap-1"><CreditCard className="h-3 w-3" /> Other</Badge>;
       default:
         return <Badge variant="outline">{method}</Badge>;
@@ -110,14 +110,14 @@ export default function PaymentsPage() {
 
   const getTotalStats = () => {
     const totalAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
-    const mpesaTotal = payments
-      .filter((p) => p.paymentMethod === 'mpesa')
+    const mobileTotal = payments
+      .filter((p) => p.method === 'MOBILE')
       .reduce((sum, p) => sum + p.amount, 0);
     const bankTotal = payments
-      .filter((p) => p.paymentMethod === 'bank_transfer')
+      .filter((p) => p.method === 'BANK')
       .reduce((sum, p) => sum + p.amount, 0);
 
-    return { totalAmount, mpesaTotal, bankTotal };
+    return { totalAmount, mobileTotal, bankTotal };
   };
 
   const stats = getTotalStats();
@@ -164,13 +164,13 @@ export default function PaymentsPage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">M-Pesa Payments</CardTitle>
+              <CardTitle className="text-sm font-medium">Mobile Money</CardTitle>
               <CreditCard className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(stats.mpesaTotal, currency)}</div>
+              <div className="text-2xl font-bold">{formatCurrency(stats.mobileTotal, currency)}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {payments.filter((p) => p.paymentMethod === 'mpesa').length} via M-Pesa
+                {payments.filter((p) => p.method === 'MOBILE').length} via mobile money
               </p>
             </CardContent>
           </Card>
@@ -183,7 +183,7 @@ export default function PaymentsPage() {
             <CardContent>
               <div className="text-2xl font-bold">{formatCurrency(stats.bankTotal, currency)}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {payments.filter((p) => p.paymentMethod === 'bank_transfer').length} via bank
+                {payments.filter((p) => p.method === 'BANK').length} via bank
               </p>
             </CardContent>
           </Card>
@@ -218,44 +218,44 @@ export default function PaymentsPage() {
                 All
               </Button>
               <Button
-                variant={methodFilter === 'mpesa' ? 'default' : 'outline'}
+                variant={methodFilter === 'MOBILE' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => {
-                  setMethodFilter('mpesa');
+                  setMethodFilter('MOBILE');
                   setCurrentPage(1);
                 }}
               >
-                M-Pesa
+                Mobile Money
               </Button>
               <Button
-                variant={methodFilter === 'bank_transfer' ? 'default' : 'outline'}
+                variant={methodFilter === 'BANK' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => {
-                  setMethodFilter('bank_transfer');
+                  setMethodFilter('BANK');
                   setCurrentPage(1);
                 }}
               >
                 Bank
               </Button>
               <Button
-                variant={methodFilter === 'cash' ? 'default' : 'outline'}
+                variant={methodFilter === 'CASH' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => {
-                  setMethodFilter('cash');
+                  setMethodFilter('CASH');
                   setCurrentPage(1);
                 }}
               >
                 Cash
               </Button>
               <Button
-                variant={methodFilter === 'cheque' ? 'default' : 'outline'}
+                variant={methodFilter === 'CARD' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => {
-                  setMethodFilter('cheque');
+                  setMethodFilter('CARD');
                   setCurrentPage(1);
                 }}
               >
-                Cheque
+                Card
               </Button>
             </div>
           </div>
