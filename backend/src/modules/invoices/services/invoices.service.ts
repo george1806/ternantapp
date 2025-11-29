@@ -161,7 +161,7 @@ export class InvoicesService {
         }
 
         if (status) {
-            where.status = status as any;
+            where.status = status as 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
         }
 
         return this.invoicesRepository.find({
@@ -278,7 +278,7 @@ export class InvoicesService {
             where: {
                 companyId,
                 isActive: true,
-                status: 'sent' as any
+                status: 'sent' as 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
             }
         });
 
@@ -350,6 +350,21 @@ export class InvoicesService {
         companyId: string
     ): Promise<Invoice> {
         const invoice = await this.findOne(id, companyId);
+
+        // Validate status transitions using state machine
+        const validTransitions: Record<string, string[]> = {
+            draft: ['sent', 'cancelled'],
+            sent: ['paid', 'overdue', 'cancelled'],
+            paid: [], // Final state
+            overdue: ['paid', 'cancelled'],
+            cancelled: [] // Final state
+        };
+
+        if (!validTransitions[invoice.status]?.includes(status)) {
+            throw new BadRequestException(
+                `Cannot transition from ${invoice.status} to ${status}`
+            );
+        }
 
         // Auto-update paid date when marking as paid
         if (status === 'paid' && invoice.status !== 'paid') {
