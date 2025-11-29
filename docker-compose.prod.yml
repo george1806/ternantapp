@@ -1,128 +1,292 @@
-version: '3.8'
+version: '3.9'
 
 services:
-  # Production Database
+  # ================================
+  # Database - MySQL 8.0 (Production)
+  # ================================
   mysql:
     image: mysql:8.0
-    container_name: ternantapp-mysql-prod
+    container_name: apartment-mysql-prod
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${DATABASE_NAME}
-      MYSQL_USER: ${DATABASE_USER}
-      MYSQL_PASSWORD: ${DATABASE_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - '3306:3306'
     volumes:
-      - mysql_data_prod:/var/lib/mysql
-    networks:
-      - ternantapp-network
+      - mysql_data:/var/lib/mysql
+      - ./db-backup:/backup
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --max_connections=1000
+      --innodb_buffer_pool_size=2G
+      --innodb_log_file_size=512M
+      --innodb_flush_log_at_trx_commit=1
+      --slow_query_log=1
+      --long_query_time=2
+      --log_slow_queries=/var/log/mysql/slow.log
+      --general_log=0
+      --skip-name-resolve
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      timeout: 20s
-      retries: 10
-    command: --default-authentication-plugin=mysql_native_password
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-p${MYSQL_ROOT_PASSWORD}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    networks:
+      - apartment_network
 
-  # Production Redis
+  # ================================
+  # Cache & Sessions - Redis 7 (Production)
+  # ================================
   redis:
     image: redis:7-alpine
-    container_name: ternantapp-redis-prod
+    container_name: apartment-redis-prod
     restart: always
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD}
+      --tcp-keepalive 300
+      --timeout 0
+    ports:
+      - '6379:6379'
     volumes:
-      - redis_data_prod:/data
-    networks:
-      - ternantapp-network
+      - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD}', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    networks:
+      - apartment_network
 
-  # Backend API (Production)
+  # ================================
+  # Backend API - NestJS (Production)
+  # ================================
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile.prod
-      args:
-        NODE_ENV: production
-    container_name: ternantapp-backend-prod
+      context: .
+      dockerfile: ./backend/Dockerfile.prod
+      target: production
+    container_name: apartment-backend-prod
     restart: always
-    ports:
-      - "3000:3000"
+    expose:
+      - '3000'
     environment:
+      # Application
       NODE_ENV: production
-      DATABASE_HOST: mysql
-      DATABASE_PORT: 3306
-      DATABASE_USER: ${DATABASE_USER}
-      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
-      DATABASE_NAME: ${DATABASE_NAME}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      PORT: ${PORT}
+      API_PREFIX: ${API_PREFIX}
+      APP_NAME: ${APP_NAME}
+      BASE_URL: ${BASE_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
+
+      # Database
+      DB_TYPE: ${DB_TYPE}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: ${DB_DATABASE}
+      DB_LOGGING: 'false'
+      DB_SYNCHRONIZE: 'false'
+      DB_RUN_MIGRATIONS: 'true'
+      DB_MIGRATIONS_RUN: 'false'
+
+      # Database Connection Pool
+      DB_POOL_SIZE: ${DB_POOL_SIZE}
+      DB_POOL_ACQUIRE_TIMEOUT: ${DB_POOL_ACQUIRE_TIMEOUT}
+      DB_POOL_IDLE_TIMEOUT: ${DB_POOL_IDLE_TIMEOUT}
+      DB_POOL_MAX_REUSES: ${DB_POOL_MAX_REUSES}
+
+      # Redis
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
       REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB}
+      REDIS_TTL: ${REDIS_TTL}
+
+      # JWT
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN}
+
+      # Session Management
+      SESSION_PREFIX: ${SESSION_PREFIX}
+      SESSION_TTL: ${SESSION_TTL}
+      REFRESH_SESSION_PREFIX: ${REFRESH_SESSION_PREFIX}
+      REFRESH_SESSION_TTL: ${REFRESH_SESSION_TTL}
+
+      # Email
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT}
+      MAIL_USER: ${MAIL_USER}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME}
+      MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL}
+      MAIL_SECURE: ${MAIL_SECURE}
+
+      # Rate Limiting
+      THROTTLE_TTL: ${THROTTLE_TTL}
+      THROTTLE_LIMIT: ${THROTTLE_LIMIT}
+
+      # Queue (BullMQ)
+      QUEUE_REDIS_HOST: ${QUEUE_REDIS_HOST}
+      QUEUE_REDIS_PORT: ${QUEUE_REDIS_PORT}
+      QUEUE_REDIS_PASSWORD: ${QUEUE_REDIS_PASSWORD}
+      QUEUE_REDIS_DB: ${QUEUE_REDIS_DB}
+      QUEUE_JOB_ATTEMPTS: ${QUEUE_JOB_ATTEMPTS}
+      QUEUE_JOB_BACKOFF_DELAY: ${QUEUE_JOB_BACKOFF_DELAY}
+      QUEUE_COMPLETED_JOB_AGE: ${QUEUE_COMPLETED_JOB_AGE}
+      QUEUE_FAILED_JOB_AGE: ${QUEUE_FAILED_JOB_AGE}
+
+      # Reminders
+      REMINDER_DUE_SOON_DAYS: ${REMINDER_DUE_SOON_DAYS}
+      REMINDER_DUE_SOON_CRON: ${REMINDER_DUE_SOON_CRON}
+      REMINDER_OVERDUE_CRON: ${REMINDER_OVERDUE_CRON}
+      REMINDER_OVERDUE_INTERVAL_DAYS: ${REMINDER_OVERDUE_INTERVAL_DAYS}
+      REMINDER_MAX_RETRIES: ${REMINDER_MAX_RETRIES}
+
+      # Security
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      CSRF_ENABLED: 'true'
+      HELMET_ENABLED: 'true'
+
+      # Features
+      FEATURE_TENANT_PORTAL: 'true'
+      FEATURE_FILE_UPLOAD: 'true'
+      FEATURE_AUDIT_LOG: 'true'
+      FEATURE_QUEUE_ENABLED: 'true'
+
+      # Monitoring
+      HEALTH_CHECK_ENABLED: 'true'
+      METRICS_ENABLED: 'true'
+
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - ternantapp-network
     healthcheck:
-      test: ["CMD", "node", "healthcheck.js"]
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:3000/api/v1/health']
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '5'
+    networks:
+      - apartment_network
 
-  # Frontend (Production)
+  # ================================
+  # Frontend UI - Next.js 15 (Production)
+  # ================================
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile.prod
+      context: .
+      dockerfile: ./frontend/Dockerfile.prod
+      target: production
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-        NODE_ENV: production
-    container_name: ternantapp-frontend-prod
+    container_name: apartment-frontend-prod
     restart: always
-    ports:
-      - "80:3000"
+    expose:
+      - '3001'
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      PORT: ${FRONTEND_PORT}
+      HOSTNAME: '0.0.0.0'
     depends_on:
-      - backend
-    networks:
-      - ternantapp-network
+      backend:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:3001']
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    networks:
+      - apartment_network
 
-  # Nginx Reverse Proxy (Production)
+  # ================================
+  # Reverse Proxy - Nginx (Production)
+  # ================================
   nginx:
     image: nginx:alpine
-    container_name: ternantapp-nginx-prod
+    container_name: apartment-nginx-prod
     restart: always
     ports:
-      - "443:443"
-      - "80:80"
+      - '80:80'
+      - '443:443'
     volumes:
-      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      - ./nginx/logs:/var/log/nginx
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - nginx_cache:/var/cache/nginx
     depends_on:
-      - frontend
       - backend
+      - frontend
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:80/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
     networks:
-      - ternantapp-network
+      - apartment_network
 
+# ================================
+# Volumes
+# ================================
 volumes:
-  mysql_data_prod:
+  mysql_data:
     driver: local
-  redis_data_prod:
+  redis_data:
+    driver: local
+  backend_logs:
+    driver: local
+  uploads:
+    driver: local
+  nginx_cache:
     driver: local
 
+# ================================
+# Networks
+# ================================
 networks:
-  ternantapp-network:
+  apartment_network:
     driver: bridge
+    name: apartment_network
