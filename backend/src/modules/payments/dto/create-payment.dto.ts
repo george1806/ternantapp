@@ -4,6 +4,7 @@ import {
     IsEnum,
     IsOptional,
     IsDateString,
+    IsObject,
     Min,
     MaxLength
 } from 'class-validator';
@@ -54,10 +55,12 @@ export class CreatePaymentDto {
     reference?: string;
 
     @ApiPropertyOptional({
-        description: 'Additional metadata (JSON)',
-        example: { bankName: 'ABC Bank', accountNumber: '****1234' }
+        description: 'Additional metadata (JSON object with string keys)',
+        example: { bankName: 'ABC Bank', accountNumber: '****1234' },
+        type: Object
     })
     @IsOptional()
+    @IsObject({ message: 'Metadata must be a valid JSON object' })
     metadata?: Record<string, any>;
 
     @ApiPropertyOptional({
