@@ -60,3 +60,6 @@ backups/*.sql.gz
 deploy-*.log
 .tempz.md.pnpm-store/
 package-lock.json
+
+# Build artifacts and dependencies
+.pnpm-store
