@@ -37,7 +37,7 @@ export class Payment extends TenantBaseEntity {
     @Column({ type: 'json', nullable: true })
     metadata: Record<string, any> | null;
 
-    @Column({ length: 255, nullable: true, name: 'idempotency_key' })
+    @Column({ type: 'varchar', length: 255, nullable: true, name: 'idempotency_key' })
     idempotencyKey: string | null;
 
     @Column({ type: 'text', nullable: true })
@@ -47,7 +47,7 @@ export class Payment extends TenantBaseEntity {
     isActive: boolean;
 
     // Relations
-    @ManyToOne(() => Invoice, { eager: false, cascade: true })
+    @ManyToOne(() => Invoice, { eager: false })
     @JoinColumn({ name: 'invoice_id' })
     invoice: Invoice;
 }

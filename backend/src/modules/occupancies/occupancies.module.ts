@@ -5,6 +5,7 @@ import { OccupanciesController } from './controllers/occupancies.controller';
 import { Occupancy } from './entities/occupancy.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { Apartment } from '../apartments/entities/apartment.entity';
+import { Invoice } from '../invoices/entities/invoice.entity';
 
 /**
  * Occupancies Module
@@ -13,7 +14,7 @@ import { Apartment } from '../apartments/entities/apartment.entity';
  * Author: george1806
  */
 @Module({
-    imports: [TypeOrmModule.forFeature([Occupancy, Tenant, Apartment])],
+    imports: [TypeOrmModule.forFeature([Occupancy, Tenant, Apartment, Invoice])],
     controllers: [OccupanciesController],
     providers: [OccupanciesService],
     exports: [OccupanciesService]

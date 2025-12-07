@@ -11,6 +11,7 @@
       "**/*.mjml",
       "**/*.json"
     ],
-    "watchAssets": true
+    "watchAssets": true,
+    "excludeFiles": ["**/*.spec.ts", "**/__tests__/**"]
   }
 }

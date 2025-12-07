@@ -249,4 +249,19 @@ export class InvoicesController {
     activate(@Param('id') id: string, @CurrentUser() user: any) {
         return this.invoicesService.activate(id, user.companyId);
     }
+
+    @Get(':id/pdf')
+    @ApiOperation({ summary: 'Download invoice as PDF' })
+    @ApiResponse({ status: 200, description: 'PDF file' })
+    @ApiResponse({ status: 404, description: 'Invoice not found' })
+    downloadPdf(@Param('id') id: string, @CurrentUser() user: any) {
+        return this.invoicesService.downloadPdf(id, user.companyId);
+    }
+
+    @Get(':id/payments')
+    @ApiOperation({ summary: 'Get payments for an invoice' })
+    @ApiResponse({ status: 200, description: 'List of payments' })
+    getPayments(@Param('id') id: string, @CurrentUser() user: any) {
+        return this.invoicesService.getPayments(id, user.companyId);
+    }
 }

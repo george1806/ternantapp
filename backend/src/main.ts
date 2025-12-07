@@ -98,15 +98,16 @@ async function bootstrap() {
     app.useGlobalFilters(new HttpExceptionFilter());
 
     // Global interceptors - order matters!
-    // AuditLogInterceptor first (before response wrapping)
     // ResponseInterceptor must come before MetricsInterceptor to wrap responses
     const metricsService = app.get(MetricsService);
-    const auditLogService = app.get(AuditLogService);
     app.useGlobalInterceptors(
-        new AuditLogInterceptor(auditLogService),
         new ResponseInterceptor(),
         new MetricsInterceptor(metricsService)
     );
+
+    // TODO: Re-enable AuditLogInterceptor once AuditLogService is properly provided
+    // const auditLogService = app.get(AuditLogService);
+    // app.useGlobalInterceptors(new AuditLogInterceptor(auditLogService));
 
     // Swagger documentation
     const config = new DocumentBuilder()

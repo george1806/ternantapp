@@ -1,4 +1,4 @@
-import { Repository, FindOptionsWhere, SelectQueryBuilder } from 'typeorm';
+import { Repository, FindOptionsWhere, SelectQueryBuilder, ObjectLiteral, FindOptionsOrder } from 'typeorm';
 import { Logger } from '@nestjs/common';
 import { PaginatedResult, PaginationParams } from './pagination.types';
 import { PaginationService } from './pagination.service';
@@ -16,7 +16,7 @@ import { PaginationService } from './pagination.service';
  * - SRP: Each method has single responsibility
  * - Open/Closed: Easy to extend for new entities
  */
-export abstract class BaseRepository<Entity> {
+export abstract class BaseRepository<Entity extends ObjectLiteral> {
   protected readonly logger: Logger;
 
   constructor(
@@ -30,7 +30,7 @@ export abstract class BaseRepository<Entity> {
    * Paginate query builder results
    * Generic method used by subclasses
    */
-  async paginate<T = Entity>(
+  async paginate<T extends ObjectLiteral = Entity>(
     queryBuilder: SelectQueryBuilder<T>,
     params: PaginationParams,
   ): Promise<PaginatedResult<T>> {
@@ -63,7 +63,7 @@ export abstract class BaseRepository<Entity> {
     where: FindOptionsWhere<Entity>,
     params: PaginationParams,
     relations?: string[],
-    order?: Record<string, 'ASC' | 'DESC'>,
+    order?: FindOptionsOrder<Entity>,
   ): Promise<PaginatedResult<Entity>> {
     const skip = (params.page - 1) * params.limit;
 

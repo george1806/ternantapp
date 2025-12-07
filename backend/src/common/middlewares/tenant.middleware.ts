@@ -36,8 +36,8 @@ export class TenantMiddleware implements NestMiddleware {
   // Min 3 chars, max 50 chars
   private readonly slugPattern = /^[a-zA-Z0-9_-]{3,50}$/;
 
-  use(req: TenantRequest, res: Response, next: NextFunction) {
-    const tenantContext = this.extractTenantContext(req);
+  use(req: Request, res: Response, next: NextFunction) {
+    const tenantContext = this.extractTenantContext(req as TenantRequest);
 
     if (tenantContext) {
       (req as any).tenantContext = tenantContext;
@@ -57,7 +57,7 @@ export class TenantMiddleware implements NestMiddleware {
   /**
    * Extract tenant context from request using multiple strategies
    */
-  private extractTenantContext(req: TenantRequest): TenantContext | null {
+  private extractTenantContext(req: Request): TenantContext | null {
     // Strategy 1: Extract from X-Tenant-Slug header
     const headerTenant = this.extractFromHeader(req);
     if (headerTenant) {

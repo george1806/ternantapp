@@ -29,7 +29,7 @@ export class SoftDeleteService {
         deletedAt: new Date(),
       } as any);
 
-      const deleted = result.affected && result.affected > 0;
+      const deleted: boolean = !!(result.affected && result.affected > 0);
 
       if (deleted) {
         this.logger.log(`Record ${id} soft deleted from ${repository.metadata.tableName}`);
@@ -86,7 +86,7 @@ export class SoftDeleteService {
         deletedAt: null,
       } as any);
 
-      const restored = result.affected && result.affected > 0;
+      const restored: boolean = !!(result.affected && result.affected > 0);
 
       if (restored) {
         this.logger.log(`Record ${id} restored in ${repository.metadata.tableName}`);
@@ -147,7 +147,7 @@ export class SoftDeleteService {
     try {
       const result = await repository.delete({ id } as any);
 
-      const deleted = result.affected && result.affected > 0;
+      const deleted: boolean = !!(result.affected && result.affected > 0);
 
       if (deleted) {
         this.logger.warn(

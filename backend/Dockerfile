@@ -34,27 +34,14 @@ RUN pnpm run build
 
 # ================================
 # Stage 3: Development - For development with hot-reload
-FROM node:22.18.0-alpine AS development
-
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+FROM base AS development
 
 WORKDIR /app
 
 # Install netcat for healthcheck
 RUN apk add --no-cache netcat-openbsd
 
-# Copy workspace configuration
-COPY pnpm-workspace.yaml ./
-COPY package.json pnpm-lock.yaml ./
-
-# Copy backend package.json
-COPY backend/package.json ./backend/
-
-# Install dependencies
-RUN pnpm install --frozen-lockfile
-
-# Copy backend source
+# Copy backend source files (node_modules excluded via .dockerignore)
 COPY backend ./backend
 
 WORKDIR /app/backend

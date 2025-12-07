@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { EmailProcessor } from './processors/email.processor';
 import { InvoiceProcessor } from './processors/invoice.processor';
 import { ReminderProcessor } from './processors/reminder.processor';
+import { InvoicesModule } from '../../modules/invoices/invoices.module';
 
 /**
  * Queue Module
@@ -38,6 +39,9 @@ import { ReminderProcessor } from './processors/reminder.processor';
       { name: 'invoices' },
       { name: 'reminders' },
     ),
+
+    // Import modules needed by processors
+    InvoicesModule,
   ],
   providers: [EmailProcessor, InvoiceProcessor, ReminderProcessor],
   exports: [BullModule],
