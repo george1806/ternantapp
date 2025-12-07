@@ -103,6 +103,12 @@ api.interceptors.response.use(
       console.warn(`[API Slow Request]: ${response.config.url} took ${duration}ms`);
     }
 
+    // Unwrap backend response format: { success: true, data: {...} }
+    // This makes it easier to work with responses in the frontend
+    if (response.data && typeof response.data === 'object' && 'data' in response.data) {
+      response.data = response.data.data;
+    }
+
     return response;
   },
   async (error: AxiosError) => {

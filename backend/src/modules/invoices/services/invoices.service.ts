@@ -5,7 +5,7 @@ import {
     BadRequestException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindOptionsWhere, LessThan, Between } from 'typeorm';
+import { Repository, FindOptionsWhere, LessThan, Between, In } from 'typeorm';
 import { Invoice } from '../entities/invoice.entity';
 import { CreateInvoiceDto } from '../dto/create-invoice.dto';
 import { UpdateInvoiceDto } from '../dto/update-invoice.dto';
@@ -504,7 +504,7 @@ export class InvoicesService {
             occupancies = await this.occupanciesRepository.find({
                 where: {
                     companyId,
-                    id: occupancyIds,
+                    id: In(occupancyIds),
                     isActive: true,
                     status: 'active'
                 },
@@ -571,5 +571,77 @@ export class InvoicesService {
         }
 
         return results;
+    }
+
+    /**
+     * Download invoice as PDF
+     */
+    async downloadPdf(id: string, companyId: string): Promise<Buffer> {
+        const invoice = await this.findOne(id, companyId);
+
+        if (!invoice) {
+            throw new NotFoundException('Invoice not found');
+        }
+
+        // Simple text-based PDF generation (can be enhanced with a proper PDF library)
+        // For now, return a basic PDF-like response
+        const PDFDocument = require('pdfkit');
+        const doc = new PDFDocument();
+        const buffers: Buffer[] = [];
+
+        doc.on('data', (chunk: Buffer) => buffers.push(chunk));
+
+        doc.fontSize(20).text(`Invoice #${invoice.invoiceNumber}`, { align: 'center' });
+        doc.moveDown();
+        doc.fontSize(12).text(`Status: ${invoice.status.toUpperCase()}`);
+        doc.text(`Issue Date: ${new Date(invoice.invoiceDate).toLocaleDateString()}`);
+        doc.text(`Due Date: ${new Date(invoice.dueDate).toLocaleDateString()}`);
+        doc.moveDown();
+
+        doc.fontSize(14).text('Invoice Details', { underline: true });
+        doc.fontSize(12);
+        doc.text(`Total Amount: ${invoice.totalAmount}`);
+        doc.text(`Paid Amount: ${invoice.amountPaid}`);
+        doc.text(`Outstanding: ${invoice.totalAmount - invoice.amountPaid}`);
+
+        if (invoice.notes) {
+            doc.moveDown();
+            doc.text('Notes:', { underline: true });
+            doc.text(invoice.notes);
+        }
+
+        doc.end();
+
+        return new Promise((resolve, reject) => {
+            doc.on('finish', () => {
+                resolve(Buffer.concat(buffers));
+            });
+            doc.on('error', reject);
+        });
+    }
+
+    /**
+     * Get payments for an invoice
+     */
+    async getPayments(id: string, companyId: string) {
+        const invoice = await this.findOne(id, companyId);
+
+        if (!invoice) {
+            throw new NotFoundException('Invoice not found');
+        }
+
+        // Query payments for this invoice
+        const payments = await this.paymentsRepository
+            .createQueryBuilder('payment')
+            .where('payment.invoiceId = :invoiceId', { invoiceId: id })
+            .andWhere('payment.companyId = :companyId', { companyId })
+            .andWhere('payment.isActive = true')
+            .orderBy('payment.paidAt', 'DESC')
+            .getMany();
+
+        return {
+            data: payments || [],
+            total: payments?.length || 0
+        };
     }
 }
