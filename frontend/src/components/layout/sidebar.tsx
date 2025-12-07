@@ -13,6 +13,7 @@ import {
   CreditCard,
   Settings,
   BarChart3,
+  UserCog,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
@@ -77,6 +78,14 @@ const navItems: NavItem[] = [
   },
 ];
 
+const adminItems: NavItem[] = [
+  {
+    title: 'Users',
+    href: '/users',
+    icon: UserCog,
+  },
+];
+
 const settingsItems: NavItem[] = [
   {
     title: 'Settings',
@@ -123,6 +132,34 @@ export function Sidebar() {
                     {item.badge}
                   </span>
                 )}
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Administration Section */}
+        <div className="px-3">
+          <Separator className="my-3" />
+          <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Administration
+          </div>
+          {adminItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                )}
+              >
+                <Icon className="h-5 w-5" />
+                <span>{item.title}</span>
               </Link>
             );
           })}
