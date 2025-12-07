@@ -58,4 +58,5 @@ backups/*.sql.gz
 
 # Deployment
 deploy-*.log
-.tempz.md
+.tempz.md.pnpm-store/
+package-lock.json
