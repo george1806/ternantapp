@@ -274,7 +274,7 @@ export class SuperAdminCompaniesService {
     /**
      * Create a new company with owner
      */
-    async create(createCompanyDto: CreateCompanyDto) {
+    async create(createCompanyDto: CreateCompanyDto, currentUser: User) {
         // Check if company slug already exists
         const existingCompany = await this.companyRepository.findOne({
             where: { slug: createCompanyDto.slug }
@@ -314,7 +314,7 @@ export class SuperAdminCompaniesService {
             password: createCompanyDto.ownerPassword,
             role: UserRole.OWNER,
             phone: createCompanyDto.ownerPhone
-        });
+        }, currentUser);
 
         return {
             company: savedCompany,

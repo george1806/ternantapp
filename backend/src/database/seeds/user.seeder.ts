@@ -21,6 +21,20 @@ export class UserSeeder {
         const users = [];
         const password = await bcrypt.hash('Password123!', 12);
 
+        // Platform Admin (not tied to any company)
+        users.push({
+            companyId: null,
+            firstName: 'Platform',
+            lastName: 'Admin',
+            email: 'admin@platform.com',
+            passwordHash: password,
+            role: UserRole.ADMIN,
+            status: UserStatus.ACTIVE,
+            profile: {
+                phone: '+254-700-000-000'
+            }
+        });
+
         for (const company of companies) {
             // Owner
             users.push({
@@ -36,45 +50,31 @@ export class UserSeeder {
                 }
             });
 
-            // Admin
+            // Worker 1
             users.push({
                 companyId: company.id,
-                firstName: 'Sarah',
-                lastName: 'Admin',
-                email: `admin@${company.slug}.com`,
+                firstName: 'Mike',
+                lastName: 'Worker',
+                email: `worker1@${company.slug}.com`,
                 passwordHash: password,
-                role: UserRole.ADMIN,
+                role: UserRole.WORKER,
                 status: UserStatus.ACTIVE,
                 profile: {
                     phone: '+254-700-000-002'
                 }
             });
 
-            // Staff
-            users.push({
-                companyId: company.id,
-                firstName: 'Mike',
-                lastName: 'Staff',
-                email: `staff@${company.slug}.com`,
-                passwordHash: password,
-                role: UserRole.STAFF,
-                status: UserStatus.ACTIVE,
-                profile: {
-                    phone: '+254-700-000-003'
-                }
-            });
-
-            // Auditor
+            // Worker 2
             users.push({
                 companyId: company.id,
                 firstName: 'Jane',
-                lastName: 'Auditor',
-                email: `auditor@${company.slug}.com`,
+                lastName: 'Worker',
+                email: `worker2@${company.slug}.com`,
                 passwordHash: password,
-                role: UserRole.AUDITOR,
+                role: UserRole.WORKER,
                 status: UserStatus.ACTIVE,
                 profile: {
-                    phone: '+254-700-000-004'
+                    phone: '+254-700-000-003'
                 }
             });
         }
@@ -82,9 +82,12 @@ export class UserSeeder {
         const savedUsers: User[] = [];
 
         for (const userData of users) {
-            let user = await userRepository.findOne({
-                where: { companyId: userData.companyId, email: userData.email }
-            });
+            // For platform admin (no companyId), check by email only
+            const where = userData.companyId
+                ? { companyId: userData.companyId, email: userData.email }
+                : { email: userData.email };
+
+            let user = await userRepository.findOne({ where });
 
             if (!user) {
                 user = userRepository.create(userData);
@@ -98,7 +101,8 @@ export class UserSeeder {
         }
 
         console.log(`✅ Seeded ${savedUsers.length} users\n`);
-        console.log(`📝 Default password for all users: Password123!\n`);
+        console.log(`📝 Default password for all users: Password123!`);
+        console.log(`📧 Platform Admin: admin@platform.com\n`);
         return savedUsers;
     }
 

@@ -24,8 +24,9 @@ import { UpdateUserDto } from '../dto/update-user.dto';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
-import { TenantId } from '../../../common/decorators/tenant.decorator';
+import { TenantId, CurrentUser } from '../../../common/decorators/tenant.decorator';
 import { UserRole } from '../../../common/enums';
+import { User } from '../entities/user.entity';
 
 @ApiTags('Users')
 @Controller('users')
@@ -39,27 +40,38 @@ export class UsersController {
     @ApiOperation({ summary: 'Create a new user (Owner/Admin only)' })
     @ApiResponse({ status: 201, description: 'User created successfully' })
     @ApiResponse({ status: 409, description: 'User with this email already exists' })
-    create(@TenantId() companyId: string, @Body() createUserDto: CreateUserDto) {
-        return this.usersService.create(companyId, createUserDto);
+    create(
+        @TenantId() companyId: string,
+        @CurrentUser() currentUser: User,
+        @Body() createUserDto: CreateUserDto
+    ) {
+        return this.usersService.create(companyId, createUserDto, currentUser);
     }
 
     @Get()
-    @ApiOperation({ summary: 'Get all users in company' })
+    @Roles(UserRole.OWNER, UserRole.ADMIN)
+    @ApiOperation({ summary: 'Get all users (Admin: all companies, Owner: own company)' })
     @ApiQuery({ name: 'includeInactive', required: false, type: Boolean })
     @ApiResponse({ status: 200, description: 'Users retrieved successfully' })
     findAll(
         @TenantId() companyId: string,
+        @CurrentUser() currentUser: User,
         @Query('includeInactive') includeInactive?: boolean
     ) {
-        return this.usersService.findAll(companyId, includeInactive);
+        return this.usersService.findAll(companyId, currentUser, includeInactive);
     }
 
     @Get(':id')
+    @Roles(UserRole.OWNER, UserRole.ADMIN)
     @ApiOperation({ summary: 'Get user by ID' })
     @ApiResponse({ status: 200, description: 'User found' })
     @ApiResponse({ status: 404, description: 'User not found' })
-    findOne(@TenantId() companyId: string, @Param('id') id: string) {
-        return this.usersService.findOne(id, companyId);
+    findOne(
+        @TenantId() companyId: string,
+        @CurrentUser() currentUser: User,
+        @Param('id') id: string
+    ) {
+        return this.usersService.findOne(id, companyId, currentUser);
     }
 
     @Patch(':id')
@@ -69,10 +81,11 @@ export class UsersController {
     @ApiResponse({ status: 404, description: 'User not found' })
     update(
         @TenantId() companyId: string,
+        @CurrentUser() currentUser: User,
         @Param('id') id: string,
         @Body() updateUserDto: UpdateUserDto
     ) {
-        return this.usersService.update(id, companyId, updateUserDto);
+        return this.usersService.update(id, companyId, updateUserDto, currentUser);
     }
 
     @Delete(':id')
@@ -81,8 +94,12 @@ export class UsersController {
     @ApiOperation({ summary: 'Deactivate user (Owner/Admin only)' })
     @ApiResponse({ status: 204, description: 'User deactivated successfully' })
     @ApiResponse({ status: 404, description: 'User not found' })
-    remove(@TenantId() companyId: string, @Param('id') id: string) {
-        return this.usersService.remove(id, companyId);
+    remove(
+        @TenantId() companyId: string,
+        @CurrentUser() currentUser: User,
+        @Param('id') id: string
+    ) {
+        return this.usersService.remove(id, companyId, currentUser);
     }
 
     @Post(':id/activate')
@@ -90,7 +107,11 @@ export class UsersController {
     @ApiOperation({ summary: 'Activate user (Owner/Admin only)' })
     @ApiResponse({ status: 200, description: 'User activated successfully' })
     @ApiResponse({ status: 404, description: 'User not found' })
-    activate(@TenantId() companyId: string, @Param('id') id: string) {
-        return this.usersService.activate(id, companyId);
+    activate(
+        @TenantId() companyId: string,
+        @CurrentUser() currentUser: User,
+        @Param('id') id: string
+    ) {
+        return this.usersService.activate(id, companyId, currentUser);
     }
 }

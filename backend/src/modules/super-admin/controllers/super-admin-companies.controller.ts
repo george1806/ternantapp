@@ -17,6 +17,8 @@ import { SuperAdminCompaniesService } from '../services/super-admin-companies.se
 import { CreateCompanyDto } from '../dto/create-company.dto';
 import { UpdateCompanyDto } from '../dto/update-company.dto';
 import { CompanyStatsDto } from '../dto/company-stats.dto';
+import { CurrentUser } from '../../../common/decorators/tenant.decorator';
+import { User } from '../../users/entities/user.entity';
 
 /**
  * Super Admin Companies Controller
@@ -78,8 +80,8 @@ export class SuperAdminCompaniesController {
      * Create a new company (with owner)
      */
     @Post()
-    async create(@Body() createCompanyDto: CreateCompanyDto) {
-        return this.superAdminCompaniesService.create(createCompanyDto);
+    async create(@CurrentUser() currentUser: User, @Body() createCompanyDto: CreateCompanyDto) {
+        return this.superAdminCompaniesService.create(createCompanyDto, currentUser);
     }
 
     /**

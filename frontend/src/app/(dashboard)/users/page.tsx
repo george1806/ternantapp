@@ -81,10 +81,9 @@ export default function UsersPage() {
 
   const getRoleBadge = (role: string) => {
     const variants: Record<string, { variant: any; label: string }> = {
-      OWNER: { variant: 'default', label: 'Owner' },
-      ADMIN: { variant: 'secondary', label: 'Admin' },
-      STAFF: { variant: 'outline', label: 'Staff' },
-      AUDITOR: { variant: 'outline', label: 'Auditor' },
+      ADMIN: { variant: 'default', label: 'Admin' },
+      OWNER: { variant: 'secondary', label: 'Owner' },
+      WORKER: { variant: 'outline', label: 'Worker' },
     };
 
     const config = variants[role] || { variant: 'outline', label: role };
@@ -191,10 +190,9 @@ export default function UsersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="OWNER">Owner</SelectItem>
                 <SelectItem value="ADMIN">Admin</SelectItem>
-                <SelectItem value="STAFF">Staff</SelectItem>
-                <SelectItem value="AUDITOR">Auditor</SelectItem>
+                <SelectItem value="OWNER">Owner</SelectItem>
+                <SelectItem value="WORKER">Worker</SelectItem>
               </SelectContent>
             </Select>
           </div>

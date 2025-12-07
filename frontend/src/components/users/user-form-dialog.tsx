@@ -47,14 +47,14 @@ const createUserSchema = z.object({
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
       'Password must contain uppercase, lowercase, number and special character'
     ),
-  role: z.enum(['OWNER', 'ADMIN', 'STAFF', 'AUDITOR']),
+  role: z.enum(['ADMIN', 'OWNER', 'WORKER']),
   phone: z.string().optional(),
 });
 
 const updateUserSchema = z.object({
   firstName: z.string().min(2, 'First name must be at least 2 characters').max(100),
   lastName: z.string().min(2, 'Last name must be at least 2 characters').max(100),
-  role: z.enum(['OWNER', 'ADMIN', 'STAFF', 'AUDITOR']),
+  role: z.enum(['ADMIN', 'OWNER', 'WORKER']),
   phone: z.string().optional(),
 });
 
@@ -80,7 +80,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
       lastName: '',
       email: '',
       password: '',
-      role: 'STAFF',
+      role: 'WORKER',
       phone: '',
     },
   });
@@ -90,7 +90,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
     defaultValues: {
       firstName: '',
       lastName: '',
-      role: 'STAFF',
+      role: 'WORKER',
       phone: '',
     },
   });
@@ -111,7 +111,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
         lastName: '',
         email: '',
         password: '',
-        role: 'STAFF',
+        role: 'WORKER',
         phone: '',
       });
     }
@@ -244,14 +244,13 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="OWNER">Owner</SelectItem>
                       <SelectItem value="ADMIN">Admin</SelectItem>
-                      <SelectItem value="STAFF">Staff</SelectItem>
-                      <SelectItem value="AUDITOR">Auditor</SelectItem>
+                      <SelectItem value="OWNER">Owner</SelectItem>
+                      <SelectItem value="WORKER">Worker</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    Owner: Full access | Admin: Manage users & content | Staff: Limited access | Auditor: Read-only
+                    Admin: Platform admin, manages all users | Owner: Company owner, manages workers | Worker: Company employee
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

@@ -118,7 +118,7 @@ export class SuperAdminUsersService {
             }),
             this.userRepository.count({ where: { role: UserRole.OWNER } }),
             this.userRepository.count({ where: { role: UserRole.ADMIN } }),
-            this.userRepository.count({ where: { role: UserRole.STAFF } })
+            this.userRepository.count({ where: { role: UserRole.WORKER } })
         ]);
 
         // Get recent users

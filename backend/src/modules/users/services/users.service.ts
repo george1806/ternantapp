@@ -3,7 +3,8 @@ import {
     NotFoundException,
     ConflictException,
     Inject,
-    BadRequestException
+    BadRequestException,
+    ForbiddenException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -13,7 +14,7 @@ import * as bcrypt from 'bcryptjs';
 import { User } from '../entities/user.entity';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
-import { UserStatus } from '../../../common/enums';
+import { UserStatus, UserRole } from '../../../common/enums';
 
 @Injectable()
 export class UsersService {
@@ -26,18 +27,34 @@ export class UsersService {
 
     /**
      * Create a new user with hashed password
+     * Role-based access control:
+     * - ADMIN: Can create OWNER and WORKER users for any company
+     * - OWNER: Can only create WORKER users in their own company
+     * - If currentUser is not provided (system operation), skip authorization
      */
-    async create(companyId: string, createUserDto: CreateUserDto): Promise<User> {
-        // Check if email already exists in this company
+    async create(companyId: string, createUserDto: CreateUserDto, currentUser?: User): Promise<User> {
+        // Role-based authorization (skip for system operations like registration)
+        if (currentUser) {
+            this.validateUserCreation(currentUser, createUserDto.role, companyId);
+        }
+
+        // Check if email already exists
         const existing = await this.userRepository.findOne({
-            where: { companyId, email: createUserDto.email }
+            where: { email: createUserDto.email }
         });
 
         if (existing) {
             throw new ConflictException(
-                'User with this email already exists in your company'
+                'User with this email already exists'
             );
         }
+
+        // Determine target company ID
+        // ADMIN can create users for any company, OWNER creates for their company
+        // System operations (no currentUser) use the provided companyId
+        const targetCompanyId = currentUser
+            ? (currentUser.role === UserRole.ADMIN ? companyId : currentUser.companyId)
+            : companyId;
 
         // Hash password
         const passwordHash = await bcrypt.hash(createUserDto.password, 12);
@@ -45,7 +62,7 @@ export class UsersService {
         // Create user
         const user = this.userRepository.create({
             ...createUserDto,
-            companyId,
+            companyId: targetCompanyId,
             passwordHash,
             status: UserStatus.ACTIVE,
             profile: {
@@ -64,10 +81,52 @@ export class UsersService {
     }
 
     /**
-     * Find all users in a company
+     * Validate user creation based on role hierarchy
+     * - Only ADMIN can create ADMIN users
+     * - ADMIN can create OWNER and WORKER users
+     * - OWNER can only create WORKER users in their company
+     * - WORKER cannot create any users
      */
-    async findAll(companyId: string, includeInactive = false): Promise<User[]> {
-        const where: any = { companyId };
+    private validateUserCreation(currentUser: User, targetRole: UserRole, targetCompanyId: string): void {
+        // Only ADMIN and OWNER can create users
+        if (currentUser.role === UserRole.WORKER) {
+            throw new ForbiddenException('Workers cannot create users');
+        }
+
+        // Only ADMIN can create ADMIN users
+        if (targetRole === UserRole.ADMIN && currentUser.role !== UserRole.ADMIN) {
+            throw new ForbiddenException('Only Admin users can create other Admin users');
+        }
+
+        // OWNER can only create WORKER users
+        if (currentUser.role === UserRole.OWNER) {
+            if (targetRole !== UserRole.WORKER) {
+                throw new ForbiddenException('Owners can only create Worker users');
+            }
+
+            // OWNER can only create users in their own company
+            if (targetCompanyId !== currentUser.companyId) {
+                throw new ForbiddenException('Owners can only create users in their own company');
+            }
+        }
+
+        // ADMIN cannot create OWNER users with a company they don't have access to
+        // (Note: ADMIN has access to all companies, so this is just a placeholder for future validation)
+    }
+
+    /**
+     * Find all users based on role:
+     * - ADMIN: Can see all users across all companies
+     * - OWNER: Can only see users in their company
+     */
+    async findAll(companyId: string, currentUser: User, includeInactive = false): Promise<User[]> {
+        const where: any = {};
+
+        // ADMIN can see all users across all companies
+        // OWNER can only see users in their company
+        if (currentUser.role !== UserRole.ADMIN) {
+            where.companyId = companyId;
+        }
 
         if (!includeInactive) {
             where.status = UserStatus.ACTIVE;
@@ -75,6 +134,7 @@ export class UsersService {
 
         const users = await this.userRepository.find({
             where,
+            relations: ['company'],
             order: { createdAt: 'DESC' },
             select: [
                 'id',
@@ -97,19 +157,35 @@ export class UsersService {
 
     /**
      * Find user by ID with caching
+     * ADMIN can access any user, OWNER can only access users in their company
      */
-    async findOne(id: string, companyId: string): Promise<User> {
+    async findOne(id: string, companyId: string, currentUser: User): Promise<User> {
         const cacheKey = `user:${id}`;
 
         // Try cache first
         const cached = await this.cacheManager.get<User>(cacheKey);
-        if (cached && cached.companyId === companyId) {
-            return cached;
+        if (cached) {
+            // ADMIN can access any user
+            if (currentUser.role === UserRole.ADMIN) {
+                return cached;
+            }
+            // OWNER can only access users in their company
+            if (cached.companyId === companyId) {
+                return cached;
+            }
         }
 
         // Fetch from database
+        const where: any = { id };
+
+        // ADMIN can access any user, OWNER only in their company
+        if (currentUser.role !== UserRole.ADMIN) {
+            where.companyId = companyId;
+        }
+
         const user = await this.userRepository.findOne({
-            where: { id, companyId },
+            where,
+            relations: ['company'],
             select: [
                 'id',
                 'companyId',
@@ -186,19 +262,38 @@ export class UsersService {
     }
 
     /**
-     * Update user
+     * Update user with role-based authorization
      */
     async update(
         id: string,
         companyId: string,
-        updateUserDto: UpdateUserDto
+        updateUserDto: UpdateUserDto,
+        currentUser: User
     ): Promise<User> {
-        const user = await this.userRepository.findOne({
-            where: { id, companyId }
-        });
+        // Find the target user
+        const where: any = { id };
+
+        // ADMIN can update any user, OWNER only in their company
+        if (currentUser.role !== UserRole.ADMIN) {
+            where.companyId = companyId;
+        }
+
+        const user = await this.userRepository.findOne({ where });
 
         if (!user) {
             throw new NotFoundException(`User with ID ${id} not found`);
+        }
+
+        // Validate role change authorization
+        if (updateUserDto.role && updateUserDto.role !== user.role) {
+            this.validateRoleChange(currentUser, user, updateUserDto.role);
+        }
+
+        // OWNER cannot modify OWNER or ADMIN users
+        if (currentUser.role === UserRole.OWNER) {
+            if (user.role !== UserRole.WORKER) {
+                throw new ForbiddenException('Owners can only modify Worker users');
+            }
         }
 
         // Update profile if phone is provided
@@ -221,6 +316,33 @@ export class UsersService {
         // Return without password
         const { passwordHash, ...userWithoutPassword } = updated;
         return userWithoutPassword as User;
+    }
+
+    /**
+     * Validate role change based on current user permissions
+     * - Only ADMIN can assign ADMIN role
+     * - OWNER cannot change roles at all
+     * - Cannot change own role
+     */
+    private validateRoleChange(currentUser: User, targetUser: User, newRole: UserRole): void {
+        // Users cannot change their own role
+        if (currentUser.id === targetUser.id) {
+            throw new ForbiddenException('Cannot change your own role');
+        }
+
+        // OWNER cannot change roles
+        if (currentUser.role === UserRole.OWNER) {
+            throw new ForbiddenException('Owners cannot change user roles');
+        }
+
+        // Only ADMIN can assign or remove ADMIN role
+        if (newRole === UserRole.ADMIN && currentUser.role !== UserRole.ADMIN) {
+            throw new ForbiddenException('Only Admin users can assign Admin role');
+        }
+
+        if (targetUser.role === UserRole.ADMIN && currentUser.role !== UserRole.ADMIN) {
+            throw new ForbiddenException('Only Admin users can modify Admin users');
+        }
     }
 
     /**
@@ -279,15 +401,33 @@ export class UsersService {
     }
 
     /**
-     * Soft delete user (deactivate)
+     * Soft delete user (deactivate) with role-based authorization
      */
-    async remove(id: string, companyId: string): Promise<void> {
-        const user = await this.userRepository.findOne({
-            where: { id, companyId }
-        });
+    async remove(id: string, companyId: string, currentUser: User): Promise<void> {
+        // Find the target user
+        const where: any = { id };
+
+        // ADMIN can deactivate any user, OWNER only in their company
+        if (currentUser.role !== UserRole.ADMIN) {
+            where.companyId = companyId;
+        }
+
+        const user = await this.userRepository.findOne({ where });
 
         if (!user) {
             throw new NotFoundException(`User with ID ${id} not found`);
+        }
+
+        // OWNER cannot deactivate OWNER or ADMIN users
+        if (currentUser.role === UserRole.OWNER) {
+            if (user.role !== UserRole.WORKER) {
+                throw new ForbiddenException('Owners can only deactivate Worker users');
+            }
+        }
+
+        // Cannot deactivate ADMIN users
+        if (user.role === UserRole.ADMIN) {
+            throw new ForbiddenException('Cannot deactivate Admin users');
         }
 
         user.status = UserStatus.INACTIVE;
@@ -298,15 +438,28 @@ export class UsersService {
     }
 
     /**
-     * Activate user
+     * Activate user with role-based authorization
      */
-    async activate(id: string, companyId: string): Promise<User> {
-        const user = await this.userRepository.findOne({
-            where: { id, companyId }
-        });
+    async activate(id: string, companyId: string, currentUser: User): Promise<User> {
+        // Find the target user
+        const where: any = { id };
+
+        // ADMIN can activate any user, OWNER only in their company
+        if (currentUser.role !== UserRole.ADMIN) {
+            where.companyId = companyId;
+        }
+
+        const user = await this.userRepository.findOne({ where });
 
         if (!user) {
             throw new NotFoundException(`User with ID ${id} not found`);
+        }
+
+        // OWNER cannot activate OWNER or ADMIN users
+        if (currentUser.role === UserRole.OWNER) {
+            if (user.role !== UserRole.WORKER) {
+                throw new ForbiddenException('Owners can only activate Worker users');
+            }
         }
 
         user.status = UserStatus.ACTIVE;

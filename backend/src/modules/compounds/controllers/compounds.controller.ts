@@ -60,7 +60,7 @@ export class CompoundsController {
      * Get all compounds for the company
      */
     @Get()
-    @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.STAFF, UserRole.AUDITOR)
+    @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.WORKER)
     @ApiOperation({ summary: 'Get all compounds for the company' })
     @ApiQuery({ name: 'includeInactive', required: false, type: Boolean })
     @ApiQuery({ name: 'page', required: false, type: Number })
@@ -105,7 +105,7 @@ export class CompoundsController {
      * Search compounds by name or location
      */
     @Get('search')
-    @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.STAFF, UserRole.AUDITOR)
+    @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.WORKER)
     @ApiOperation({ summary: 'Search compounds by name or location' })
     @ApiQuery({ name: 'q', required: true, type: String, description: 'Search term' })
     @ApiResponse({ status: 200, description: 'Returns matching compounds' })
@@ -117,7 +117,7 @@ export class CompoundsController {
      * Count compounds for the company
      */
     @Get('count')
-    @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.STAFF, UserRole.AUDITOR)
+    @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.WORKER)
     @ApiOperation({ summary: 'Count active compounds for the company' })
     @ApiResponse({ status: 200, description: 'Returns compound count' })
     async count(@TenantId() companyId: string) {
@@ -129,7 +129,7 @@ export class CompoundsController {
      * Get compound by ID
      */
     @Get(':id')
-    @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.STAFF, UserRole.AUDITOR)
+    @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.WORKER)
     @ApiOperation({ summary: 'Get compound by ID' })
     @ApiResponse({ status: 200, description: 'Returns compound details' })
     @ApiResponse({ status: 404, description: 'Compound not found' })
@@ -141,7 +141,7 @@ export class CompoundsController {
      * Get compound with apartment statistics
      */
     @Get(':id/stats')
-    @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.STAFF, UserRole.AUDITOR)
+    @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.WORKER)
     @ApiOperation({ summary: 'Get compound with apartment statistics' })
     @ApiResponse({ status: 200, description: 'Returns compound with apartment details' })
     @ApiResponse({ status: 404, description: 'Compound not found' })

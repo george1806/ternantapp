@@ -42,7 +42,7 @@ export class User {
     @Column({ name: 'password_hash', length: 255 })
     passwordHash: string;
 
-    @Column({ type: 'enum', enum: UserRole, default: UserRole.STAFF })
+    @Column({ type: 'enum', enum: UserRole, default: UserRole.WORKER })
     role: UserRole;
 
     @Column({ type: 'boolean', default: false, name: 'is_super_admin' })

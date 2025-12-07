@@ -25,14 +25,14 @@ export async function createSuperAdminSeed(dataSource: DataSource) {
     // Hash password
     const passwordHash = await bcrypt.hash('SuperAdmin@2025', 10);
 
-    // Create super admin user
+    // Create super admin user (Platform Admin)
     const superAdmin = userRepository.create({
-        companyId: null, // Super admin doesn't belong to any company
+        companyId: null, // Platform admin doesn't belong to any company
         firstName: 'Super',
         lastName: 'Admin',
         email: 'superadmin@ternantapp.com',
         passwordHash,
-        role: UserRole.SUPER_ADMIN,
+        role: UserRole.ADMIN,
         isSuperAdmin: true,
         status: UserStatus.ACTIVE,
         emailVerifiedAt: new Date()
