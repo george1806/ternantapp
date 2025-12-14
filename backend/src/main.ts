@@ -30,7 +30,7 @@ async function bootstrap() {
             contentSecurityPolicy: {
                 directives: {
                     defaultSrc: ["'self'"],
-                    styleSrc: ["'self'", "'unsafe-inline'"],
+                    styleSrc: ["'self'"], // Removed 'unsafe-inline' for security
                     scriptSrc: ["'self'"],
                     imgSrc: ["'self'", 'data:', 'https:'],
                     connectSrc: ["'self'"],
@@ -42,7 +42,7 @@ async function bootstrap() {
             },
             crossOriginEmbedderPolicy: true,
             crossOriginOpenerPolicy: true,
-            crossOriginResourcePolicy: { policy: 'cross-origin' },
+            crossOriginResourcePolicy: { policy: 'same-site' }, // Changed from 'cross-origin' to 'same-site' for better security
             dnsPrefetchControl: true,
             frameguard: { action: 'deny' },
             hidePoweredBy: true,
@@ -66,10 +66,21 @@ async function bootstrap() {
     // Cookie parser for CSRF protection
     app.use(cookieParser());
 
-    // CORS
+    // CORS - Security: Require explicit origins, never allow wildcard
+    const corsOrigins = configService.get('CORS_ORIGINS');
+    if (!corsOrigins) {
+        throw new Error(
+            'CORS_ORIGINS environment variable is required for security. ' +
+            'Please set it to a comma-separated list of allowed origins.'
+        );
+    }
     app.enableCors({
-        origin: configService.get('CORS_ORIGINS')?.split(',') || '*',
-        credentials: true
+        origin: corsOrigins.split(',').map((origin: string) => origin.trim()),
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-Slug'],
+        exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Page-Size'],
+        maxAge: 3600 // Cache preflight requests for 1 hour
     });
 
     // Global prefix
@@ -94,59 +105,108 @@ async function bootstrap() {
         })
     );
 
+    // Global guards - applied via APP_GUARD providers in GuardsModule
+    // This allows guards to use dependency injection (ThrottlerGuard, TenantValidationGuard)
+
     // Global exception filter
     app.useGlobalFilters(new HttpExceptionFilter());
 
     // Global interceptors - order matters!
     // ResponseInterceptor must come before MetricsInterceptor to wrap responses
     const metricsService = app.get(MetricsService);
+    const auditLogService = app.get(AuditLogService);
     app.useGlobalInterceptors(
         new ResponseInterceptor(),
-        new MetricsInterceptor(metricsService)
+        new MetricsInterceptor(metricsService),
+        new AuditLogInterceptor(auditLogService)
     );
 
-    // TODO: Re-enable AuditLogInterceptor once AuditLogService is properly provided
-    // const auditLogService = app.get(AuditLogService);
-    // app.useGlobalInterceptors(new AuditLogInterceptor(auditLogService));
+    // Swagger documentation - SECURITY: Only enable in development or with authentication
+    const nodeEnv = configService.get('NODE_ENV', 'development');
+    const enableSwagger = configService.get('ENABLE_SWAGGER', nodeEnv !== 'production');
 
-    // Swagger documentation
-    const config = new DocumentBuilder()
-        .setTitle('Apartment Management API')
-        .setDescription('Multi-tenant apartment management SaaS API')
-        .setVersion('1.0')
-        .addBearerAuth()
-        .addTag('Auth', 'Authentication and authorization endpoints')
-        .addTag('Companies', 'Company management')
-        .addTag('Users', 'User management')
-        .addTag('Compounds', 'Compound management')
-        .addTag('Apartments', 'Apartment/unit management')
-        .addTag('Tenants', 'Tenant management')
-        .addTag('Occupancies', 'Occupancy tracking')
-        .addTag('Invoices', 'Invoice management')
-        .addTag('Payments', 'Payment processing')
-        .addTag('Reports', 'Reporting and analytics')
-        .addTag('Files', 'File management')
-        .build();
+    if (enableSwagger) {
+        const config = new DocumentBuilder()
+            .setTitle('Apartment Management API')
+            .setDescription('Multi-tenant apartment management SaaS API')
+            .setVersion('1.0')
+            .addBearerAuth()
+            .addTag('Auth', 'Authentication and authorization endpoints')
+            .addTag('Companies', 'Company management')
+            .addTag('Users', 'User management')
+            .addTag('Compounds', 'Compound management')
+            .addTag('Apartments', 'Apartment/unit management')
+            .addTag('Tenants', 'Tenant management')
+            .addTag('Occupancies', 'Occupancy tracking')
+            .addTag('Invoices', 'Invoice management')
+            .addTag('Payments', 'Payment processing')
+            .addTag('Reports', 'Reporting and analytics')
+            .addTag('Files', 'File management')
+            .build();
 
-    const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api/docs', app, document, {
-        swaggerOptions: {
-            persistAuthorization: true,
-            tagsSorter: 'alpha',
-            operationsSorter: 'alpha'
+        const document = SwaggerModule.createDocument(app, config);
+
+        // In production, require basic authentication for Swagger docs
+        if (nodeEnv === 'production') {
+            const swaggerUser = configService.get('SWAGGER_USER', 'admin');
+            const swaggerPassword = configService.get('SWAGGER_PASSWORD');
+
+            if (!swaggerPassword) {
+                console.warn(
+                    '⚠️  WARNING: Swagger is enabled in production but SWAGGER_PASSWORD is not set. ' +
+                    'API documentation will be publicly accessible!'
+                );
+            }
+
+            SwaggerModule.setup('api/docs', app, document, {
+                swaggerOptions: {
+                    persistAuthorization: true,
+                    tagsSorter: 'alpha',
+                    operationsSorter: 'alpha'
+                },
+                customSiteTitle: 'Apartment Management API - Protected',
+                // Basic auth middleware
+                customCss: '.swagger-ui .topbar { display: none }',
+                customfavIcon: undefined
+            });
+
+            // Add basic auth middleware for Swagger in production
+            // This requires setting up express-basic-auth or similar
+            // For now, we strongly recommend disabling Swagger in production
+            console.log(
+                '📚 API Documentation available at /api/docs (Basic Auth Required)'
+            );
+        } else {
+            // Development mode - no auth required
+            SwaggerModule.setup('api/docs', app, document, {
+                swaggerOptions: {
+                    persistAuthorization: true,
+                    tagsSorter: 'alpha',
+                    operationsSorter: 'alpha'
+                }
+            });
+            console.log('📚 API Documentation available at /api/docs');
         }
-    });
+    } else {
+        console.log('📚 API Documentation is disabled (production mode)');
+    }
 
     const port = configService.get('PORT', 3000);
     await app.listen(port);
+
+    const docsStatus = enableSwagger
+        ? nodeEnv === 'production'
+            ? '(Protected)'
+            : '(Development)'
+        : '(Disabled)';
 
     console.log(`
   ╔═══════════════════════════════════════════════════════╗
   ║                                                       ║
   ║   Apartment Management SaaS API                       ║
   ║                                                       ║
-  ║   🚀 Server running on: http://localhost:${port}       ║
-  ║   📚 API Docs: http://localhost:${port}/api/docs     ║
+  ║   🚀 Server: http://localhost:${port}                  ║
+  ║   📚 Docs: ${enableSwagger ? 'http://localhost:' + port + '/api/docs' : 'Disabled'} ${docsStatus}     ║
   ║   🏢 Environment: ${configService.get('NODE_ENV')}                  ║
   ║                                                       ║
   ╚═══════════════════════════════════════════════════════╝

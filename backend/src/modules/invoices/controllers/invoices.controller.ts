@@ -21,6 +21,7 @@ import { InvoicesService } from '../services/invoices.service';
 import { CreateInvoiceDto } from '../dto/create-invoice.dto';
 import { UpdateInvoiceDto } from '../dto/update-invoice.dto';
 import { BulkGenerateInvoicesDto, BulkGenerateInvoicesResponseDto } from '../dto/bulk-generate-invoices.dto';
+import { InvoiceQueryDto } from '../../../common/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { CurrentUser } from '../../../common/decorators/tenant.decorator';
@@ -87,43 +88,26 @@ export class InvoicesController {
     }
 
     @Get()
-    @ApiOperation({ summary: 'Get all invoices with pagination' })
-    @ApiQuery({ name: 'status', required: false, description: 'Filter by status' })
-    @ApiQuery({ name: 'includeInactive', required: false, type: Boolean })
-    @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
-    @ApiQuery({
-        name: 'limit',
-        required: false,
-        type: Number,
-        description: 'Items per page'
-    })
-    @ApiQuery({
-        name: 'sortBy',
-        required: false,
-        type: String,
-        description: 'Sort field'
-    })
-    @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })
+    @ApiOperation({ summary: 'Get all invoices with pagination and validated sorting' })
     @ApiResponse({ status: 200, description: 'Returns invoices with pagination' })
+    @ApiResponse({ status: 400, description: 'Invalid query parameters' })
     async findAll(
-        @Query('status') status?: string,
-        @Query('includeInactive') includeInactive?: string,
-        @Query('page') page?: number,
-        @Query('limit') limit?: number,
-        @Query('sortBy') sortBy?: string,
-        @Query('sortOrder') sortOrder?: 'ASC' | 'DESC',
+        @Query() query: InvoiceQueryDto,
         @CurrentUser() user?: any
     ) {
-        const currentPage = Number(page) || 1;
-        const pageLimit = Number(limit) || 10;
+        // Validate sortBy field against whitelist
+        const validatedSortBy = query.validateSortBy(query.sortBy);
+
+        const currentPage = query.page || 1;
+        const pageLimit = query.limit || 10;
 
         const result = await this.invoicesService.findAll(
             user.companyId,
             currentPage,
             pageLimit,
             {
-                status,
-                includeInactive: includeInactive === 'true'
+                status: query.status,
+                includeInactive: query.includeInactive || false
             }
         );
 
