@@ -68,4 +68,42 @@ export const tenantsService = {
   delete: (id: string) => {
     return api.delete(`/tenants/${id}`);
   },
+
+  /**
+   * Blacklist a tenant with reason
+   */
+  blacklist: (id: string, data: { reason: string }) => {
+    return api.post(`/tenants/${id}/blacklist`, data);
+  },
+
+  /**
+   * Add document to tenant
+   */
+  addDocument: (id: string, data: {
+    type: 'id' | 'contract' | 'reference_letter' | 'other';
+    description?: string;
+    fileUrl: string;
+  }) => {
+    return api.post(`/tenants/${id}/documents`, data);
+  },
+
+  /**
+   * Add reference to tenant
+   */
+  addReference: (id: string, data: {
+    name: string;
+    relationship: 'previous_landlord' | 'employer' | 'personal';
+    phone: string;
+    email?: string;
+    notes?: string;
+  }) => {
+    return api.post(`/tenants/${id}/references`, data);
+  },
+
+  /**
+   * Get tenant history with occupancy details
+   */
+  getHistory: (id: string) => {
+    return api.get(`/tenants/${id}/history`);
+  },
 };

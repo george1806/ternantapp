@@ -20,6 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { PropertyFormDialog } from '@/components/properties/property-form-dialog';
+import { useDebouncedSearch } from '@/hooks/use-debounced-search';
 import Link from 'next/link';
 
 /**
@@ -37,7 +38,7 @@ import Link from 'next/link';
 export default function PropertiesPage() {
   const [compounds, setCompounds] = useState<Compound[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const { debouncedValue: searchQuery, value: searchInput, setValue: setSearchInput, isDebouncing } = useDebouncedSearch();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedCompound, setSelectedCompound] = useState<Compound | undefined>();
   const { toast } = useToast();
@@ -171,13 +172,18 @@ export default function PropertiesPage() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search by property name or location..."
-                value={searchQuery}
+                value={searchInput}
                 onChange={(e) => {
-                  setSearchQuery(e.target.value);
+                  setSearchInput(e.target.value);
                   setCurrentPage(1); // Reset to first page on search
                 }}
                 className="pl-10"
               />
+              {isDebouncing && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                </div>
+              )}
             </div>
             <Button variant="outline">
               <Building2 className="mr-2 h-4 w-4" />

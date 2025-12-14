@@ -56,4 +56,24 @@ export const paymentsService = {
   getByInvoice: (invoiceId: string) => {
     return api.get<{ data: Payment[] }>(`/invoices/${invoiceId}/payments`);
   },
+
+  /**
+   * Get payment statistics
+   */
+  getStats: (params?: { dateFrom?: string; dateTo?: string }) => {
+    return api.get<{
+      totalAmount: number;
+      totalCount: number;
+      byMethod: Record<string, { count: number; amount: number }>;
+      averageAmount: number;
+      largestPayment: number;
+    }>('/payments/stats', { params });
+  },
+
+  /**
+   * Get payments by date range
+   */
+  getByDateRange: (params: { dateFrom: string; dateTo: string }) => {
+    return api.get<{ data: Payment[] }>('/payments/date-range', { params });
+  },
 };

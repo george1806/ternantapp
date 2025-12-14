@@ -23,6 +23,16 @@ export interface LoginResponse {
   };
 }
 
+export interface Session {
+  id: string;
+  userId: string;
+  deviceInfo: string;
+  ipAddress: string;
+  lastActive: string;
+  createdAt: string;
+  isCurrent: boolean;
+}
+
 export const authService = {
   /**
    * Login with email and password
@@ -39,6 +49,13 @@ export const authService = {
   },
 
   /**
+   * Logout from all devices
+   */
+  logoutAll: () => {
+    return api.post('/auth/logout-all');
+  },
+
+  /**
    * Get current user profile
    */
   getProfile: () => {
@@ -52,5 +69,19 @@ export const authService = {
     return api.post<{ data: { access_token: string } }>('/auth/refresh', {
       refresh_token: refreshToken,
     });
+  },
+
+  /**
+   * Get all active sessions for current user
+   */
+  getSessions: () => {
+    return api.get<Session[]>('/auth/sessions');
+  },
+
+  /**
+   * Get current authenticated user details
+   */
+  getMe: () => {
+    return api.get<User>('/auth/me');
   },
 };

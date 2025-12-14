@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Search, FileText, Calendar, DollarSign, Eye, Trash2 } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, DollarSign, Eye, Trash2, Zap } from 'lucide-react';
 import { invoicesService, type InvoiceFilters } from '@/services/invoices.service';
 import type { Invoice } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ import { getApiErrorMessage } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth';
 import { InvoiceFormDialog } from '@/components/invoices/invoice-form-dialog';
+import { BulkGenerateDialog } from '@/components/invoices/bulk-generate-dialog';
 import Link from 'next/link';
 
 /**
@@ -45,6 +46,7 @@ export default function InvoicesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled' | 'all'>('all');
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [bulkGenerateDialogOpen, setBulkGenerateDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -160,10 +162,16 @@ export default function InvoicesPage() {
           <h1 className="text-3xl font-bold tracking-tight">Invoices</h1>
           <p className="text-muted-foreground mt-1">Manage rental invoices and payments</p>
         </div>
-        <Button className="gap-2" onClick={() => setInvoiceDialogOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Create Invoice
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-2" onClick={() => setBulkGenerateDialogOpen(true)}>
+            <Zap className="h-4 w-4" />
+            Bulk Generate
+          </Button>
+          <Button className="gap-2" onClick={() => setInvoiceDialogOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Create Invoice
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -453,6 +461,13 @@ export default function InvoicesPage() {
       <InvoiceFormDialog
         open={invoiceDialogOpen}
         onOpenChange={setInvoiceDialogOpen}
+        onSuccess={fetchInvoices}
+      />
+
+      {/* Bulk Generate Dialog */}
+      <BulkGenerateDialog
+        open={bulkGenerateDialogOpen}
+        onOpenChange={setBulkGenerateDialogOpen}
         onSuccess={fetchInvoices}
       />
     </div>

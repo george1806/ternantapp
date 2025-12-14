@@ -39,6 +39,7 @@ import { getApiErrorMessage } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth';
 import { PaymentFormDialog } from '@/components/payments/payment-form-dialog';
+import { SendInvoiceDialog } from '@/components/invoices/send-invoice-dialog';
 import type { Invoice, Payment } from '@/types';
 
 /**
@@ -77,8 +78,9 @@ export default function InvoiceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [actionInProgress, setActionInProgress] = useState(false);
-  const { toast } = useToast();
+  const { toast} = useToast();
 
   useEffect(() => {
     fetchInvoiceDetails();
@@ -130,28 +132,9 @@ export default function InvoiceDetailPage() {
     }
   };
 
-  const handleSendInvoice = async () => {
+  const handleSendInvoice = () => {
     if (!invoice) return;
-
-    try {
-      setActionInProgress(true);
-      await invoicesService.markAsSent(invoice.id);
-
-      toast({
-        title: 'Success',
-        description: 'Invoice sent successfully',
-      });
-
-      fetchInvoiceDetails();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: getApiErrorMessage(error),
-        variant: 'destructive',
-      });
-    } finally {
-      setActionInProgress(false);
-    }
+    setSendDialogOpen(true);
   };
 
   const handleCancelInvoice = async () => {
@@ -625,6 +608,29 @@ export default function InvoiceDetailPage() {
           fetchInvoiceDetails();
         }}
       />
+
+      {/* Send Invoice Dialog */}
+      {invoice && (
+        <SendInvoiceDialog
+          open={sendDialogOpen}
+          onOpenChange={setSendDialogOpen}
+          invoice={{
+            id: invoice.id,
+            invoiceNumber: invoice.invoiceNumber,
+            tenant: invoice.occupancy?.tenant
+              ? {
+                  firstName: invoice.occupancy.tenant.firstName,
+                  lastName: invoice.occupancy.tenant.lastName,
+                  email: invoice.occupancy.tenant.email,
+                }
+              : undefined,
+            totalAmount: invoice.totalAmount,
+          }}
+          onSuccess={() => {
+            fetchInvoiceDetails();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -22,12 +22,13 @@ import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { getInitials } from '@/lib/utils';
 import { TenantFormDialog } from '@/components/tenants/tenant-form-dialog';
+import { useDebouncedSearch } from '@/hooks/use-debounced-search';
 import Link from 'next/link';
 
 export default function TenantsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const { debouncedValue: searchQuery, value: searchInput, setValue: setSearchInput, isDebouncing } = useDebouncedSearch();
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | undefined>();
@@ -146,13 +147,18 @@ export default function TenantsPage() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search by name, email, or phone..."
-                value={searchQuery}
+                value={searchInput}
                 onChange={(e) => {
-                  setSearchQuery(e.target.value);
+                  setSearchInput(e.target.value);
                   setCurrentPage(1);
                 }}
                 className="pl-10"
               />
+              {isDebouncing && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <Button

@@ -31,6 +31,7 @@ import { formatCurrency } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth';
 import Link from 'next/link';
 import { ApartmentFormDialog } from '@/components/apartments/apartment-form-dialog';
+import { ApartmentStats } from '@/components/apartments/apartment-stats';
 
 /**
  * Apartments/Units Management Page
@@ -165,17 +166,6 @@ export default function ApartmentsPage() {
     fetchApartments();
   };
 
-  const getTotalStats = () => {
-    const totalUnits = apartments.length;
-    const available = apartments.filter((a) => a.status === 'available').length;
-    const occupied = apartments.filter((a) => a.status === 'occupied').length;
-    const maintenance = apartments.filter((a) => a.status === 'maintenance').length;
-
-    return { totalUnits, available, occupied, maintenance };
-  };
-
-  const stats = getTotalStats();
-
   if (loading && apartments.length === 0) {
     return (
       <div className="space-y-6">
@@ -202,54 +192,8 @@ export default function ApartmentsPage() {
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      {apartments.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Units</CardTitle>
-              <Home className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{total}</div>
-              <p className="text-xs text-muted-foreground mt-1">Across all properties</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Available</CardTitle>
-              <Home className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.available}</div>
-              <p className="text-xs text-muted-foreground mt-1">Ready for occupancy</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Occupied</CardTitle>
-              <Home className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.occupied}</div>
-              <p className="text-xs text-muted-foreground mt-1">Currently rented</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Maintenance</CardTitle>
-              <Home className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{stats.maintenance}</div>
-              <p className="text-xs text-muted-foreground mt-1">Under repair</p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {/* Apartment Statistics */}
+      <ApartmentStats compoundId={compoundFilter} />
 
       {/* Search and Filter Bar */}
       <Card>

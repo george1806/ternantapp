@@ -32,6 +32,8 @@ import { useAuthStore } from '@/store/auth';
 import { format, differenceInDays, parseISO } from 'date-fns';
 import Link from 'next/link';
 import { OccupancyFormDialog } from '@/components/occupancies/occupancy-form-dialog';
+import { OccupancyStats } from '@/components/occupancies/occupancy-stats';
+import { DepositPaymentDialog } from '@/components/occupancies/deposit-payment-dialog';
 
 /**
  * Occupancies Management Page
@@ -60,6 +62,8 @@ export default function OccupanciesPage() {
   const [statusFilter, setStatusFilter] = useState<'pending' | 'active' | 'ended' | 'cancelled' | 'all'>('all');
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const [selectedOccupancy, setSelectedOccupancy] = useState<Occupancy | null>(null);
+  const [depositDialogOpen, setDepositDialogOpen] = useState(false);
+  const [depositOccupancy, setDepositOccupancy] = useState<Occupancy | null>(null);
   const { toast } = useToast();
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -204,20 +208,14 @@ export default function OccupanciesPage() {
     fetchOccupancies();
   };
 
-  const getTotalStats = () => {
-    const totalOccupancies = occupancies.length;
-    const activeOccupancies = occupancies.filter((o) => o.status === 'active').length;
-    const pendingOccupancies = occupancies.filter((o) => o.status === 'pending').length;
-    const expiringOccupancies = occupancies.filter((o) => {
-      if (o.status !== 'active') return false;
-      const daysUntilExpiry = differenceInDays(parseISO(o.leaseEndDate), new Date());
-      return daysUntilExpiry >= 0 && daysUntilExpiry <= 30;
-    }).length;
-
-    return { totalOccupancies, activeOccupancies, pendingOccupancies, expiringOccupancies };
+  const handleRecordDeposit = (occupancy: Occupancy) => {
+    setDepositOccupancy(occupancy);
+    setDepositDialogOpen(true);
   };
 
-  const stats = getTotalStats();
+  const handleDepositSuccess = () => {
+    fetchOccupancies();
+  };
 
   if (loading && occupancies.length === 0) {
     return (
@@ -245,54 +243,8 @@ export default function OccupanciesPage() {
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      {occupancies.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Leases</CardTitle>
-              <Home className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{total}</div>
-              <p className="text-xs text-muted-foreground mt-1">All occupancies</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active</CardTitle>
-              <User className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.activeOccupancies}</div>
-              <p className="text-xs text-muted-foreground mt-1">Currently occupied</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending</CardTitle>
-              <Calendar className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.pendingOccupancies}</div>
-              <p className="text-xs text-muted-foreground mt-1">Awaiting move-in</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Expiring Soon</CardTitle>
-              <AlertCircle className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{stats.expiringOccupancies}</div>
-              <p className="text-xs text-muted-foreground mt-1">Next 30 days</p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {/* Occupancy Statistics */}
+      <OccupancyStats />
 
       {/* Search and Filter Bar */}
       <Card>
@@ -509,6 +461,17 @@ export default function OccupanciesPage() {
                               <Eye className="h-3.5 w-3.5" />
                             </Button>
                           </Link>
+                          {occupancy.status === 'pending' && occupancy.securityDeposit && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRecordDeposit(occupancy)}
+                              className="text-primary"
+                            >
+                              <DollarSign className="h-3.5 w-3.5 mr-1" />
+                              Record Deposit
+                            </Button>
+                          )}
                           {occupancy.status === 'active' && (
                             <Button
                               variant="ghost"
@@ -575,6 +538,16 @@ export default function OccupanciesPage() {
         occupancy={selectedOccupancy}
         onSuccess={handleFormSuccess}
       />
+
+      {/* Deposit Payment Dialog */}
+      {depositOccupancy && (
+        <DepositPaymentDialog
+          open={depositDialogOpen}
+          onOpenChange={setDepositDialogOpen}
+          occupancy={depositOccupancy}
+          onSuccess={handleDepositSuccess}
+        />
+      )}
     </div>
   );
 }

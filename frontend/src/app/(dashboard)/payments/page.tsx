@@ -22,6 +22,7 @@ import { getApiErrorMessage } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth';
 import { PaymentFormDialog } from '@/components/payments/payment-form-dialog';
+import { PaymentStatsCards } from '@/components/payments/payment-stats-cards';
 import Link from 'next/link';
 
 /**
@@ -110,19 +111,6 @@ export default function PaymentsPage() {
     }
   };
 
-  const getTotalStats = () => {
-    const totalAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
-    const mobileTotal = payments
-      .filter((p) => p.method === 'MOBILE')
-      .reduce((sum, p) => sum + p.amount, 0);
-    const bankTotal = payments
-      .filter((p) => p.method === 'BANK')
-      .reduce((sum, p) => sum + p.amount, 0);
-
-    return { totalAmount, mobileTotal, bankTotal };
-  };
-
-  const stats = getTotalStats();
 
   if (loading) {
     return (
@@ -150,47 +138,8 @@ export default function PaymentsPage() {
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      {payments.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Received</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{formatCurrency(stats.totalAmount, currency)}</div>
-              <p className="text-xs text-muted-foreground mt-1">{payments.length} transactions</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Mobile Money</CardTitle>
-              <CreditCard className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(stats.mobileTotal, currency)}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {payments.filter((p) => p.method === 'MOBILE').length} via mobile money
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Bank Transfers</CardTitle>
-              <CreditCard className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(stats.bankTotal, currency)}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {payments.filter((p) => p.method === 'BANK').length} via bank
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {/* Payment Analytics Stats */}
+      <PaymentStatsCards />
 
       {/* Search and Filter Bar */}
       <Card>

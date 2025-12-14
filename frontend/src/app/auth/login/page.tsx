@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Building2, Loader2 } from 'lucide-react';
+import Link from 'next/link';
 import { api, getApiErrorMessage, setJustLoggedIn } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/components/ui/button';
@@ -127,6 +128,13 @@ export default function LoginPage() {
           </form>
         </CardContent>
       </Card>
+
+      <div className="mt-6 text-center text-sm text-muted-foreground">
+        Don't have an account?{' '}
+        <Link href="/auth/register" className="text-primary hover:underline font-medium">
+          Create account
+        </Link>
+      </div>
     </div>
   );
 }

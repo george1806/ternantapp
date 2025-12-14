@@ -14,6 +14,7 @@ import {
   Settings,
   BarChart3,
   UserCog,
+  Bell,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
@@ -70,6 +71,11 @@ const navItems: NavItem[] = [
     title: 'Payments',
     href: '/payments',
     icon: CreditCard,
+  },
+  {
+    title: 'Reminders',
+    href: '/reminders',
+    icon: Bell,
   },
   {
     title: 'Reports',

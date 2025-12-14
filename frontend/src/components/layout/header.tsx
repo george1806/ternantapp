@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/components/ui/button';
@@ -12,8 +13,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Bell, LogOut, User, Settings } from 'lucide-react';
+import { Bell, LogOut, User, Settings, Monitor } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { SessionsDialog } from '@/components/auth/sessions-dialog';
 
 /**
  * Header Component
@@ -29,6 +31,7 @@ import { Badge } from '@/components/ui/badge';
 export function Header() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
+  const [isSessionsDialogOpen, setIsSessionsDialogOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -98,6 +101,10 @@ export function Header() {
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Settings</span>
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsSessionsDialogOpen(true)}>
+                <Monitor className="mr-2 h-4 w-4" />
+                <span>Active Sessions</span>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-red-600">
                 <LogOut className="mr-2 h-4 w-4" />
@@ -107,6 +114,12 @@ export function Header() {
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Sessions Dialog */}
+      <SessionsDialog
+        open={isSessionsDialogOpen}
+        onOpenChange={setIsSessionsDialogOpen}
+      />
     </header>
   );
 }

@@ -83,4 +83,25 @@ export const apartmentsService = {
       params: { ...params, status: 'available' },
     });
   },
+
+  /**
+   * Get apartment statistics
+   */
+  getStats: (params?: { compoundId?: string }) => {
+    return api.get<{
+      total: number;
+      available: number;
+      occupied: number;
+      maintenance: number;
+      reserved: number;
+      occupancyRate: number;
+    }>('/apartments/stats', { params });
+  },
+
+  /**
+   * Get apartment count with filters
+   */
+  getCount: (params?: ApartmentFilters) => {
+    return api.get<{ count: number }>('/apartments/count', { params });
+  },
 };

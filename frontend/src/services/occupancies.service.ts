@@ -116,4 +116,33 @@ export const occupanciesService = {
       },
     });
   },
+
+  /**
+   * Get occupancy statistics
+   */
+  getStats: () => {
+    return api.get<{
+      total: number;
+      active: number;
+      pending: number;
+      ended: number;
+      cancelled: number;
+      expiringThisMonth: number;
+      expiringNextMonth: number;
+      averageLeaseDuration: number;
+    }>('/occupancies/stats');
+  },
+
+  /**
+   * Record deposit payment for occupancy
+   */
+  recordDepositPayment: (id: string, data: {
+    amount: number;
+    paymentMethod: 'CASH' | 'BANK' | 'MOBILE' | 'CARD' | 'OTHER';
+    paymentDate: string;
+    reference?: string;
+    notes?: string;
+  }) => {
+    return api.post<{ data: Occupancy }>(`/occupancies/${id}/deposit-payment`, data);
+  },
 };

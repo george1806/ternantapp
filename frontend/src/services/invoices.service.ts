@@ -89,4 +89,41 @@ export const invoicesService = {
   downloadPdf: (id: string) => {
     return api.get(`/invoices/${id}/pdf`, { responseType: 'blob' });
   },
+
+  /**
+   * Bulk generate rent invoices for multiple occupancies
+   */
+  bulkGenerate: (data: {
+    occupancyIds: string[];
+    dueDate: string;
+    issueDate?: string;
+  }) => {
+    return api.post<{
+      generated: Invoice[];
+      failed: Array<{ occupancyId: string; reason: string }>;
+    }>('/invoices/bulk-generate', data);
+  },
+
+  /**
+   * Send invoice to tenant
+   */
+  send: (id: string, data?: { message?: string }) => {
+    return api.post<{ success: boolean; sentAt: string }>(`/invoices/${id}/send`, data || {});
+  },
+
+  /**
+   * Get payments for a specific invoice
+   */
+  getPayments: (id: string) => {
+    return api.get(`/invoices/${id}/payments`);
+  },
+
+  /**
+   * Get invoices due soon (within specified days)
+   */
+  getDueSoon: (days: number = 7) => {
+    return api.get<{ data: Invoice[]; count: number }>('/invoices/due-soon', {
+      params: { days },
+    });
+  },
 };

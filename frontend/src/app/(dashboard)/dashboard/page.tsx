@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { dashboardService, type DashboardStats } from '@/services/dashboard.service';
 import type { Invoice, Payment } from '@/types';
 import { StatsCard } from '@/components/dashboard/stats-card';
+import { ExpiringLeasesWidget } from '@/components/dashboard/expiring-leases-widget';
+import { DueSoonInvoicesWidget } from '@/components/dashboard/due-soon-invoices-widget';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -259,6 +261,12 @@ export default function DashboardPage() {
             </p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Widgets Grid */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <ExpiringLeasesWidget />
+        <DueSoonInvoicesWidget />
       </div>
 
       {/* Recent Activity Tables */}
