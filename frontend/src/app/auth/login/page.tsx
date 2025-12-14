@@ -42,14 +42,22 @@ export default function LoginPage() {
       setError('');
 
       const response = await api.post<LoginResponse>('/auth/login', data);
-      const { tokens, user } = response.data;
 
-      console.log('Login successful:', { user, hasToken: !!tokens.accessToken });
+      // Handle both response structures: {data: {user, access_token}} or {user, tokens}
+      const responseData = response.data?.data || response.data;
+      const user = responseData.user;
+      const accessToken = responseData.access_token || responseData.tokens?.accessToken;
+
+      console.log('Login successful:', { user, hasToken: !!accessToken });
+
+      if (!accessToken) {
+        throw new Error('No access token received from server');
+      }
 
       // Set flag to prevent 401 interceptor from logging out during dashboard load
       setJustLoggedIn(true);
 
-      setAuth(user, tokens.accessToken);
+      setAuth(user, accessToken);
 
       // Wait a tick to ensure Zustand state has been updated and persisted
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -126,15 +134,15 @@ export default function LoginPage() {
               </p>
             </div>
           </form>
+
+          <div className="mt-6 text-center text-sm text-muted-foreground border-t pt-4">
+            Don't have an account?{' '}
+            <Link href="/auth/register" className="text-primary hover:underline font-medium">
+              Create account
+            </Link>
+          </div>
         </CardContent>
       </Card>
-
-      <div className="mt-6 text-center text-sm text-muted-foreground">
-        Don't have an account?{' '}
-        <Link href="/auth/register" className="text-primary hover:underline font-medium">
-          Create account
-        </Link>
-      </div>
     </div>
   );
 }
