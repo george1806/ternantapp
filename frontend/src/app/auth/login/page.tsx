@@ -43,21 +43,36 @@ export default function LoginPage() {
 
       const response = await api.post<LoginResponse>('/auth/login', data);
 
-      // Handle both response structures: {data: {user, access_token}} or {user, tokens}
+      // Handle hybrid authentication system:
+      // - Web browsers: tokens in httpOnly cookies (response has no tokens)
+      // - Mobile/API: tokens in response body
       const responseData = response.data?.data || response.data;
       const user = responseData.user;
-      const accessToken = responseData.access_token || responseData.tokens?.accessToken;
+      const tokenDelivery = responseData.tokenDelivery;
 
-      console.log('Login successful:', { user, hasToken: !!accessToken });
+      console.log('Login successful:', {
+        user: user?.email,
+        tokenDelivery,
+        hasCookies: document.cookie.includes('accessToken')
+      });
 
-      if (!accessToken) {
-        throw new Error('No access token received from server');
+      // For web clients, tokens are in httpOnly cookies (can't read them in JS)
+      // For mobile/API clients, tokens are in the response body
+      if (tokenDelivery === 'cookies') {
+        // Tokens are in httpOnly cookies - we can't read them but they're there
+        // Store user info and use a dummy token (actual token is in cookie)
+        setAuth(user, 'cookie-based-auth');
+      } else {
+        // Mobile/API client - tokens in response body
+        const accessToken = responseData.access_token || responseData.tokens?.accessToken;
+        if (!accessToken) {
+          throw new Error('No access token received from server');
+        }
+        setAuth(user, accessToken);
       }
 
       // Set flag to prevent 401 interceptor from logging out during dashboard load
       setJustLoggedIn(true);
-
-      setAuth(user, accessToken);
 
       // Wait a tick to ensure Zustand state has been updated and persisted
       await new Promise(resolve => setTimeout(resolve, 100));
