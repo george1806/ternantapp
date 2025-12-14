@@ -3,30 +3,30 @@ services:
   # Database - MySQL 8.0
   # ================================
   mysql:
-    image: mysql:8.0
-    container_name: apartment-mysql
+    image: mysql:${MYSQL_VERSION:-8.0}
+    container_name: ${MYSQL_CONTAINER_NAME:-apartment-mysql}
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root_password_dev
-      MYSQL_DATABASE: apartment_management
-      MYSQL_USER: apartment_user
-      MYSQL_PASSWORD: apartment_pass_dev
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password_dev}
+      MYSQL_DATABASE: ${DB_DATABASE:-apartment_management}
+      MYSQL_USER: ${DB_USERNAME:-apartment_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-apartment_pass_dev}
     ports:
-      - '3307:3306'
+      - '${MYSQL_PORT:-3307}:3306'
     volumes:
       - mysql_data:/var/lib/mysql
     command: >
       --default-authentication-plugin=mysql_native_password
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
-      --max_connections=500
-      --innodb_buffer_pool_size=1G
-      --innodb_log_file_size=256M
+      --max_connections=${MYSQL_MAX_CONNECTIONS:-500}
+      --innodb_buffer_pool_size=${MYSQL_BUFFER_POOL_SIZE:-1G}
+      --innodb_log_file_size=${MYSQL_LOG_FILE_SIZE:-256M}
       --innodb_flush_log_at_trx_commit=2
       --slow_query_log=1
       --long_query_time=2
     healthcheck:
-      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-proot_password_dev']
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-p${MYSQL_ROOT_PASSWORD:-root_password_dev}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -38,11 +38,11 @@ services:
   # Cache & Sessions - Redis 7
   # ================================
   redis:
-    image: redis:7-alpine
-    container_name: apartment-redis
+    image: redis:${REDIS_VERSION:-7-alpine}
+    container_name: ${REDIS_CONTAINER_NAME:-apartment-redis}
     restart: unless-stopped
     ports:
-      - '6380:6379'
+      - '${REDIS_PORT_EXTERNAL:-6380}:6379'
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -59,14 +59,14 @@ services:
   # Email Testing - Mailpit
   # ================================
   mailpit:
-    image: axllent/mailpit:latest
-    container_name: apartment-mailpit
+    image: axllent/mailpit:${MAILPIT_VERSION:-latest}
+    container_name: ${MAILPIT_CONTAINER_NAME:-apartment-mailpit}
     restart: unless-stopped
     ports:
-      - '1025:1025'  # SMTP
-      - '8025:8025'  # Web UI
+      - '${MAILPIT_SMTP_PORT:-1025}:1025'  # SMTP
+      - '${MAILPIT_UI_PORT:-8025}:8025'    # Web UI
     environment:
-      MP_MAX_MESSAGES: 5000
+      MP_MAX_MESSAGES: ${MAILPIT_MAX_MESSAGES:-5000}
       MP_DATABASE: /data/mailpit.db
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
@@ -88,97 +88,97 @@ services:
     build:
       context: .
       dockerfile: ./backend/Dockerfile
-      target: development
-    container_name: apartment-backend
+      target: ${BUILD_TARGET:-development}
+    container_name: ${BACKEND_CONTAINER_NAME:-apartment-backend}
     restart: unless-stopped
     ports:
-      - '3000:3000'
+      - '${BACKEND_PORT:-3000}:3000'
     environment:
       # Application
-      NODE_ENV: development
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 3000
-      API_PREFIX: api
-      APP_NAME: Apartment Management SaaS
-      BASE_URL: http://localhost:3000
-      FRONTEND_URL: http://localhost:3001
+      API_PREFIX: ${API_PREFIX:-api}
+      APP_NAME: ${APP_NAME:-Apartment Management SaaS}
+      BASE_URL: ${BASE_URL:-http://localhost:3000}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3001}
 
       # Database - Use service names for container networking
       DB_TYPE: mysql
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_USERNAME: apartment_user
-      DB_PASSWORD: apartment_pass_dev
-      DB_DATABASE: apartment_management
-      DB_LOGGING: "true"
-      DB_SYNCHRONIZE: "false"
-      DB_RUN_MIGRATIONS: "true"
-      DB_MIGRATIONS_RUN: "false"
+      DB_HOST: ${DB_HOST:-mysql}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USERNAME: ${DB_USERNAME:-apartment_user}
+      DB_PASSWORD: ${DB_PASSWORD:-apartment_pass_dev}
+      DB_DATABASE: ${DB_DATABASE:-apartment_management}
+      DB_LOGGING: ${DB_LOGGING:-true}
+      DB_SYNCHRONIZE: ${DB_SYNCHRONIZE:-false}
+      DB_RUN_MIGRATIONS: ${DB_RUN_MIGRATIONS:-true}
+      DB_MIGRATIONS_RUN: ${DB_MIGRATIONS_RUN:-false}
 
       # Database Connection Pool
-      DB_POOL_SIZE: 20
-      DB_POOL_ACQUIRE_TIMEOUT: 30000
-      DB_POOL_IDLE_TIMEOUT: 10000
-      DB_POOL_MAX_REUSES: 100
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-20}
+      DB_POOL_ACQUIRE_TIMEOUT: ${DB_POOL_ACQUIRE_TIMEOUT:-30000}
+      DB_POOL_IDLE_TIMEOUT: ${DB_POOL_IDLE_TIMEOUT:-10000}
+      DB_POOL_MAX_REUSES: ${DB_POOL_MAX_REUSES:-100}
 
       # Redis - Use service name
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ""
-      REDIS_DB: 0
-      REDIS_TTL: 3600
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT_INTERNAL:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_TTL: ${REDIS_TTL:-3600}
 
-      # JWT
-      JWT_SECRET: ApartmentMgmt_Prod_Secret_Key_Change_In_Production_2024
-      JWT_EXPIRES_IN: 15m
-      JWT_REFRESH_SECRET: ApartmentMgmt_Refresh_Secret_Key_Change_In_Production_2024
-      JWT_REFRESH_EXPIRES_IN: 7d
+      # JWT - SECURITY: Use environment variables or .env file for secrets
+      JWT_SECRET: ${JWT_SECRET:-INSECURE_DEV_SECRET_CHANGE_ME}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-INSECURE_DEV_REFRESH_SECRET_CHANGE_ME}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
 
       # Session Management
-      SESSION_PREFIX: "session:"
-      SESSION_TTL: 900
-      REFRESH_SESSION_PREFIX: "refresh:"
-      REFRESH_SESSION_TTL: 604800
+      SESSION_PREFIX: ${SESSION_PREFIX:-session:}
+      SESSION_TTL: ${SESSION_TTL:-900}
+      REFRESH_SESSION_PREFIX: ${REFRESH_SESSION_PREFIX:-refresh:}
+      REFRESH_SESSION_TTL: ${REFRESH_SESSION_TTL:-604800}
 
       # Email - Use service name
-      MAIL_HOST: mailpit
-      MAIL_PORT: 1025
-      MAIL_USER: ""
-      MAIL_PASSWORD: ""
-      MAIL_FROM_NAME: Apartment Management
-      MAIL_FROM_EMAIL: noreply@apartment.app
-      MAIL_SECURE: "false"
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_USER: ${MAIL_USER:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Apartment Management}
+      MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-noreply@apartment.app}
+      MAIL_SECURE: ${MAIL_SECURE:-false}
 
       # Rate Limiting
-      THROTTLE_TTL: 60
-      THROTTLE_LIMIT: 100
+      THROTTLE_TTL: ${THROTTLE_TTL:-60}
+      THROTTLE_LIMIT: ${THROTTLE_LIMIT:-100}
 
       # Queue (BullMQ) - Use service name
-      QUEUE_REDIS_HOST: redis
-      QUEUE_REDIS_PORT: 6379
-      QUEUE_REDIS_PASSWORD: ""
-      QUEUE_REDIS_DB: 1
-      QUEUE_JOB_ATTEMPTS: 3
-      QUEUE_JOB_BACKOFF_DELAY: 60000
-      QUEUE_COMPLETED_JOB_AGE: 86400
-      QUEUE_FAILED_JOB_AGE: 604800
+      QUEUE_REDIS_HOST: ${QUEUE_REDIS_HOST:-redis}
+      QUEUE_REDIS_PORT: ${QUEUE_REDIS_PORT:-6379}
+      QUEUE_REDIS_PASSWORD: ${QUEUE_REDIS_PASSWORD:-}
+      QUEUE_REDIS_DB: ${QUEUE_REDIS_DB:-1}
+      QUEUE_JOB_ATTEMPTS: ${QUEUE_JOB_ATTEMPTS:-3}
+      QUEUE_JOB_BACKOFF_DELAY: ${QUEUE_JOB_BACKOFF_DELAY:-60000}
+      QUEUE_COMPLETED_JOB_AGE: ${QUEUE_COMPLETED_JOB_AGE:-86400}
+      QUEUE_FAILED_JOB_AGE: ${QUEUE_FAILED_JOB_AGE:-604800}
 
       # Reminders
-      REMINDER_DUE_SOON_DAYS: 3
-      REMINDER_DUE_SOON_CRON: "0 8 * * *"
-      REMINDER_OVERDUE_CRON: "0 9 * * *"
-      REMINDER_OVERDUE_INTERVAL_DAYS: 7
-      REMINDER_MAX_RETRIES: 3
+      REMINDER_DUE_SOON_DAYS: ${REMINDER_DUE_SOON_DAYS:-3}
+      REMINDER_DUE_SOON_CRON: ${REMINDER_DUE_SOON_CRON:-0 8 * * *}
+      REMINDER_OVERDUE_CRON: ${REMINDER_OVERDUE_CRON:-0 9 * * *}
+      REMINDER_OVERDUE_INTERVAL_DAYS: ${REMINDER_OVERDUE_INTERVAL_DAYS:-7}
+      REMINDER_MAX_RETRIES: ${REMINDER_MAX_RETRIES:-3}
 
       # Security
-      CORS_ORIGINS: "http://localhost:3001,http://frontend:3001"
-      CSRF_ENABLED: "true"
-      HELMET_ENABLED: "true"
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001,http://frontend:3001}
+      CSRF_ENABLED: ${CSRF_ENABLED:-true}
+      HELMET_ENABLED: ${HELMET_ENABLED:-true}
 
       # Features
-      FEATURE_TENANT_PORTAL: "true"
-      FEATURE_FILE_UPLOAD: "true"
-      FEATURE_AUDIT_LOG: "true"
-      FEATURE_QUEUE_ENABLED: "true"
+      FEATURE_TENANT_PORTAL: ${FEATURE_TENANT_PORTAL:-true}
+      FEATURE_FILE_UPLOAD: ${FEATURE_FILE_UPLOAD:-true}
+      FEATURE_AUDIT_LOG: ${FEATURE_AUDIT_LOG:-true}
+      FEATURE_QUEUE_ENABLED: ${FEATURE_QUEUE_ENABLED:-true}
     volumes:
       # Mount source code for hot-reload in development
       - ./backend/src:/app/backend/src:cached
@@ -209,16 +209,16 @@ services:
     build:
       context: .
       dockerfile: ./frontend/Dockerfile
-      target: development
+      target: ${BUILD_TARGET:-development}
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:3000/api/v1
-    container_name: apartment-frontend
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api/v1}
+    container_name: ${FRONTEND_CONTAINER_NAME:-apartment-frontend}
     restart: unless-stopped
     ports:
-      - '3001:3001'
+      - '${FRONTEND_PORT:-3001}:3001'
     environment:
-      NODE_ENV: development
-      NEXT_PUBLIC_API_URL: http://localhost:3000/api/v1
+      NODE_ENV: ${NODE_ENV:-development}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api/v1}
       PORT: 3001
       HOSTNAME: "0.0.0.0"
     volumes:
@@ -251,17 +251,17 @@ services:
   # Optional: MySQL Admin UI
   # ================================
   phpmyadmin:
-    image: phpmyadmin:latest
-    container_name: apartment-phpmyadmin
+    image: phpmyadmin:${PHPMYADMIN_VERSION:-latest}
+    container_name: ${PHPMYADMIN_CONTAINER_NAME:-apartment-phpmyadmin}
     restart: unless-stopped
     environment:
-      PMA_HOST: mysql
-      PMA_PORT: 3306
-      PMA_USER: apartment_user
-      PMA_PASSWORD: apartment_pass_dev
-      UPLOAD_LIMIT: 100M
+      PMA_HOST: ${DB_HOST:-mysql}
+      PMA_PORT: ${DB_PORT:-3306}
+      PMA_USER: ${DB_USERNAME:-apartment_user}
+      PMA_PASSWORD: ${DB_PASSWORD:-apartment_pass_dev}
+      UPLOAD_LIMIT: ${PHPMYADMIN_UPLOAD_LIMIT:-100M}
     ports:
-      - '8082:80'
+      - '${PHPMYADMIN_PORT:-8082}:80'
     depends_on:
       mysql:
         condition: service_healthy
@@ -272,13 +272,13 @@ services:
   # Optional: Redis Commander
   # ================================
   redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: apartment-redis-commander
+    image: rediscommander/redis-commander:${REDIS_COMMANDER_VERSION:-latest}
+    container_name: ${REDIS_COMMANDER_CONTAINER_NAME:-apartment-redis-commander}
     restart: unless-stopped
     environment:
-      REDIS_HOSTS: local:redis:6379
+      REDIS_HOSTS: local:${REDIS_HOST:-redis}:${REDIS_PORT_INTERNAL:-6379}
     ports:
-      - '8081:8081'
+      - '${REDIS_COMMANDER_PORT:-8081}:8081'
     depends_on:
       redis:
         condition: service_healthy
@@ -302,4 +302,4 @@ volumes:
 networks:
   apartment_network:
     driver: bridge
-    name: apartment_network
+    name: ${NETWORK_NAME:-apartment_network}
