@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
+import { useAuthStore } from '@/store/auth';
 
 const createUserSchema = z.object({
   firstName: z.string().min(2, 'First name must be at least 2 characters').max(100),
@@ -71,7 +72,34 @@ interface UserFormDialogProps {
 export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserFormDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const { user: currentUser } = useAuthStore();
   const isEditing = !!user;
+
+  // Filter available roles based on current user's role
+  // - ADMIN: can create ADMIN, OWNER, WORKER
+  // - OWNER: can only create WORKER
+  // - WORKER: cannot create users (shouldn't reach here)
+  const getAvailableRoles = () => {
+    const userRole = currentUser?.role;
+
+    if (userRole === 'ADMIN') {
+      return [
+        { value: 'ADMIN', label: 'Admin', description: 'Platform admin, manages all users' },
+        { value: 'OWNER', label: 'Owner', description: 'Company owner, manages workers' },
+        { value: 'WORKER', label: 'Worker', description: 'Company employee' },
+      ];
+    }
+
+    if (userRole === 'OWNER') {
+      return [
+        { value: 'WORKER', label: 'Worker', description: 'Company employee' },
+      ];
+    }
+
+    return [];
+  };
+
+  const availableRoles = getAvailableRoles();
 
   const createForm = useForm<CreateUserFormData>({
     resolver: zodResolver(createUserSchema),
@@ -244,13 +272,17 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="ADMIN">Admin</SelectItem>
-                      <SelectItem value="OWNER">Owner</SelectItem>
-                      <SelectItem value="WORKER">Worker</SelectItem>
+                      {availableRoles.map((role) => (
+                        <SelectItem key={role.value} value={role.value}>
+                          {role.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    Admin: Platform admin, manages all users | Owner: Company owner, manages workers | Worker: Company employee
+                    {currentUser?.role === 'ADMIN'
+                      ? 'Admin: Platform admin | Owner: Company owner | Worker: Company employee'
+                      : 'Worker: Company employee with limited permissions'}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
