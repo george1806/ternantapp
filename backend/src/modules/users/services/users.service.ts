@@ -15,6 +15,7 @@ import { User } from '../entities/user.entity';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { UserStatus, UserRole } from '../../../common/enums';
+import { MESSAGES, APP_CONFIG } from '../../../common/constants';
 
 @Injectable()
 export class UsersService {
@@ -44,9 +45,7 @@ export class UsersService {
         });
 
         if (existing) {
-            throw new ConflictException(
-                'User with this email already exists'
-            );
+            throw new ConflictException(MESSAGES.USER.ALREADY_EXISTS);
         }
 
         // Determine target company ID
@@ -57,7 +56,10 @@ export class UsersService {
             : companyId;
 
         // Hash password
-        const passwordHash = await bcrypt.hash(createUserDto.password, 12);
+        const passwordHash = await bcrypt.hash(
+            createUserDto.password,
+            APP_CONFIG.PASSWORD.BCRYPT_ROUNDS
+        );
 
         // Create user
         const user = this.userRepository.create({
@@ -90,23 +92,23 @@ export class UsersService {
     private validateUserCreation(currentUser: User, targetRole: UserRole, targetCompanyId: string): void {
         // Only ADMIN and OWNER can create users
         if (currentUser.role === UserRole.WORKER) {
-            throw new ForbiddenException('Workers cannot create users');
+            throw new ForbiddenException(MESSAGES.PERMISSION.INSUFFICIENT_PERMISSIONS);
         }
 
         // Only ADMIN can create ADMIN users
         if (targetRole === UserRole.ADMIN && currentUser.role !== UserRole.ADMIN) {
-            throw new ForbiddenException('Only Admin users can create other Admin users');
+            throw new ForbiddenException(MESSAGES.USER.NO_PERMISSION_CREATE_ADMIN);
         }
 
         // OWNER can only create WORKER users
         if (currentUser.role === UserRole.OWNER) {
             if (targetRole !== UserRole.WORKER) {
-                throw new ForbiddenException('Owners can only create Worker users');
+                throw new ForbiddenException(MESSAGES.USER.NO_PERMISSION_CREATE_OWNER);
             }
 
             // OWNER can only create users in their own company
             if (targetCompanyId !== currentUser.companyId) {
-                throw new ForbiddenException('Owners can only create users in their own company');
+                throw new ForbiddenException(MESSAGES.PERMISSION.INSUFFICIENT_PERMISSIONS);
             }
         }
 
@@ -204,7 +206,7 @@ export class UsersService {
         });
 
         if (!user) {
-            throw new NotFoundException(`User with ID ${id} not found`);
+            throw new NotFoundException(MESSAGES.USER.NOT_FOUND);
         }
 
         // Cache for 5 minutes
@@ -281,7 +283,7 @@ export class UsersService {
         const user = await this.userRepository.findOne({ where });
 
         if (!user) {
-            throw new NotFoundException(`User with ID ${id} not found`);
+            throw new NotFoundException(MESSAGES.USER.NOT_FOUND);
         }
 
         // Validate role change authorization
@@ -292,7 +294,7 @@ export class UsersService {
         // OWNER cannot modify OWNER or ADMIN users
         if (currentUser.role === UserRole.OWNER) {
             if (user.role !== UserRole.WORKER) {
-                throw new ForbiddenException('Owners can only modify Worker users');
+                throw new ForbiddenException(MESSAGES.PERMISSION.INSUFFICIENT_PERMISSIONS);
             }
         }
 
@@ -327,21 +329,21 @@ export class UsersService {
     private validateRoleChange(currentUser: User, targetUser: User, newRole: UserRole): void {
         // Users cannot change their own role
         if (currentUser.id === targetUser.id) {
-            throw new ForbiddenException('Cannot change your own role');
+            throw new ForbiddenException(MESSAGES.USER.CANNOT_MODIFY_SELF_ROLE);
         }
 
         // OWNER cannot change roles
         if (currentUser.role === UserRole.OWNER) {
-            throw new ForbiddenException('Owners cannot change user roles');
+            throw new ForbiddenException(MESSAGES.PERMISSION.OWNER_ONLY);
         }
 
         // Only ADMIN can assign or remove ADMIN role
         if (newRole === UserRole.ADMIN && currentUser.role !== UserRole.ADMIN) {
-            throw new ForbiddenException('Only Admin users can assign Admin role');
+            throw new ForbiddenException(MESSAGES.PERMISSION.ADMIN_ONLY);
         }
 
         if (targetUser.role === UserRole.ADMIN && currentUser.role !== UserRole.ADMIN) {
-            throw new ForbiddenException('Only Admin users can modify Admin users');
+            throw new ForbiddenException(MESSAGES.PERMISSION.ADMIN_ONLY);
         }
     }
 
@@ -358,19 +360,23 @@ export class UsersService {
         });
 
         if (!user) {
-            throw new NotFoundException(`User with ID ${id} not found`);
+            throw new NotFoundException(MESSAGES.USER.NOT_FOUND);
         }
 
         // Validate password strength
         const passwordRegex =
             /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
-        if (!passwordRegex.test(newPassword) || newPassword.length < 8) {
-            throw new BadRequestException(
-                'Password must be at least 8 characters and contain uppercase, lowercase, number and special character'
-            );
+        if (
+            !passwordRegex.test(newPassword) ||
+            newPassword.length < APP_CONFIG.PASSWORD.MIN_LENGTH
+        ) {
+            throw new BadRequestException(MESSAGES.VALIDATION.INVALID_PASSWORD);
         }
 
-        user.passwordHash = await bcrypt.hash(newPassword, 12);
+        user.passwordHash = await bcrypt.hash(
+            newPassword,
+            APP_CONFIG.PASSWORD.BCRYPT_ROUNDS
+        );
         await this.userRepository.save(user);
 
         // Invalidate cache
@@ -415,19 +421,19 @@ export class UsersService {
         const user = await this.userRepository.findOne({ where });
 
         if (!user) {
-            throw new NotFoundException(`User with ID ${id} not found`);
+            throw new NotFoundException(MESSAGES.USER.NOT_FOUND);
         }
 
         // OWNER cannot deactivate OWNER or ADMIN users
         if (currentUser.role === UserRole.OWNER) {
             if (user.role !== UserRole.WORKER) {
-                throw new ForbiddenException('Owners can only deactivate Worker users');
+                throw new ForbiddenException(MESSAGES.PERMISSION.INSUFFICIENT_PERMISSIONS);
             }
         }
 
         // Cannot deactivate ADMIN users
         if (user.role === UserRole.ADMIN) {
-            throw new ForbiddenException('Cannot deactivate Admin users');
+            throw new ForbiddenException(MESSAGES.PERMISSION.ADMIN_ONLY);
         }
 
         user.status = UserStatus.INACTIVE;
@@ -452,13 +458,13 @@ export class UsersService {
         const user = await this.userRepository.findOne({ where });
 
         if (!user) {
-            throw new NotFoundException(`User with ID ${id} not found`);
+            throw new NotFoundException(MESSAGES.USER.NOT_FOUND);
         }
 
         // OWNER cannot activate OWNER or ADMIN users
         if (currentUser.role === UserRole.OWNER) {
             if (user.role !== UserRole.WORKER) {
-                throw new ForbiddenException('Owners can only activate Worker users');
+                throw new ForbiddenException(MESSAGES.PERMISSION.INSUFFICIENT_PERMISSIONS);
             }
         }
 
@@ -476,7 +482,7 @@ export class UsersService {
      * Cache user by ID
      */
     private async cacheUser(user: User): Promise<void> {
-        const ttl = 300000; // 5 minutes
+        const ttl = APP_CONFIG.CACHE.SHORT_TTL; // 5 minutes
         const { passwordHash, ...userToCache } = user;
         await this.cacheManager.set(`user:${user.id}`, userToCache, ttl);
     }

@@ -78,6 +78,15 @@ export class User {
     @Column({ type: 'timestamp', nullable: true, name: 'reset_token_expires_at' })
     resetTokenExpiresAt: Date;
 
+    @Column({ type: 'int', default: 0, name: 'login_attempts' })
+    loginAttempts: number;
+
+    @Column({ type: 'timestamp', nullable: true, name: 'locked_until' })
+    lockedUntil: Date | null;
+
+    @Column({ type: 'timestamp', nullable: true, name: 'last_failed_login' })
+    lastFailedLogin: Date | null;
+
     @ManyToOne(() => Company, (company) => company.users, {
         onDelete: 'CASCADE',
         nullable: true

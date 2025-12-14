@@ -10,6 +10,7 @@ import { DataSource } from 'typeorm';
 import { UsersService } from '../../users/services/users.service';
 import { CompaniesService } from '../../companies/services/companies.service';
 import { SessionService } from '../../../common/services/session.service';
+import { BruteForceProtectionService } from './brute-force-protection.service';
 import { LoginDto } from '../dto/login.dto';
 import { RegisterCompanyDto } from '../dto/register-company.dto';
 import { JwtPayload, UserSession, RefreshSession } from '../interfaces/session.interface';
@@ -34,6 +35,7 @@ export class AuthService {
         private readonly usersService: UsersService,
         private readonly companiesService: CompaniesService,
         private readonly sessionService: SessionService,
+        private readonly bruteForceProtection: BruteForceProtectionService,
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
         private readonly dataSource: DataSource
@@ -125,8 +127,12 @@ export class AuthService {
         const user = await this.usersService.findByEmailWithCompany(loginDto.email);
 
         if (!user) {
+            // Don't reveal whether user exists - generic error message
             throw new UnauthorizedException('Invalid credentials');
         }
+
+        // SECURITY: Check if account is locked due to brute force attempts
+        await this.bruteForceProtection.checkAccountLocked(user);
 
         // Check user status
         if (user.status !== UserStatus.ACTIVE) {
@@ -140,8 +146,13 @@ export class AuthService {
         );
 
         if (!isPasswordValid) {
+            // SECURITY: Record failed login attempt for brute force protection
+            await this.bruteForceProtection.recordFailedAttempt(user);
             throw new UnauthorizedException('Invalid credentials');
         }
+
+        // SECURITY: Record successful login and reset failed attempts
+        await this.bruteForceProtection.recordSuccessfulLogin(user);
 
         // Update last login
         await this.usersService.updateLastLogin(user.id, metadata?.ipAddress || '');

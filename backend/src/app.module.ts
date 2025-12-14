@@ -31,6 +31,8 @@ import { QueueModule } from './common/queue/queue.module';
 import { EmailModule } from './common/email/email.module';
 import { HealthModule } from './common/health/health.module';
 import { MetricsModule } from './common/metrics/metrics.module';
+import { GuardsModule } from './common/guards/guards.module';
+import { AuditLogModule } from './common/audit-log/audit-log.module';
 
 @Module({
     imports: [
@@ -104,6 +106,8 @@ import { MetricsModule } from './common/metrics/metrics.module';
 
         // Common modules
         // TenantModule,
+        GuardsModule,
+        AuditLogModule,
         QueueModule,
         EmailModule,
         HealthModule,
