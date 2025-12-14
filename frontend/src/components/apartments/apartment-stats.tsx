@@ -79,7 +79,7 @@ export function ApartmentStats({ compoundId }: ApartmentStatsProps) {
         <CardContent>
           <div className="text-2xl font-bold">{stats.total}</div>
           <p className="text-xs text-muted-foreground mt-1">
-            {stats.occupancyRate.toFixed(1)}% occupied
+            {(stats.occupancyRate ?? 0).toFixed(1)}% occupied
           </p>
         </CardContent>
       </Card>
