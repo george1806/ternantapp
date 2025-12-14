@@ -55,6 +55,10 @@ TernantApp is a production-ready, enterprise-grade multi-tenant SaaS platform fo
   - **ADMIN**: Platform super-admin (manages all companies)
   - **OWNER**: Company owner (full company access)
   - **WORKER**: Employee (limited permissions)
+- **Role-Based User Creation**:
+  - **ADMIN** → Can create: ADMIN, OWNER, WORKER (full control)
+  - **OWNER** → Can create: WORKER only (company staff)
+  - **WORKER** → Cannot create users
 - **Secure Authentication**:
   - JWT tokens (15min access, 7-day refresh)
   - Hybrid delivery (cookies for web, tokens for mobile)
