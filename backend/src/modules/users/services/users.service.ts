@@ -264,6 +264,24 @@ export class UsersService {
     }
 
     /**
+     * Get current user profile with company information
+     */
+    async getProfile(currentUser: User): Promise<{ data: User }> {
+        const user = await this.userRepository.findOne({
+            where: { id: currentUser.id },
+            relations: ['company']
+        });
+
+        if (!user) {
+            throw new NotFoundException(MESSAGES.USER.NOT_FOUND);
+        }
+
+        // Return without password
+        const { passwordHash, ...userWithoutPassword } = user;
+        return { data: userWithoutPassword as User };
+    }
+
+    /**
      * Update user with role-based authorization
      */
     async update(

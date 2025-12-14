@@ -35,6 +35,13 @@ import { User } from '../entities/user.entity';
 export class UsersController {
     constructor(private readonly usersService: UsersService) {}
 
+    @Get('profile')
+    @ApiOperation({ summary: 'Get current user profile' })
+    @ApiResponse({ status: 200, description: 'Profile retrieved successfully' })
+    getProfile(@CurrentUser() currentUser: User) {
+        return this.usersService.getProfile(currentUser);
+    }
+
     @Post()
     @Roles(UserRole.OWNER, UserRole.ADMIN)
     @ApiOperation({ summary: 'Create a new user (Owner/Admin only)' })
