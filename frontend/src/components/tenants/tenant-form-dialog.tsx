@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useRouter } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
@@ -27,6 +28,7 @@ import { tenantsService } from '@/services/tenants.service';
 import { getApiErrorMessage } from '@/lib/api';
 import type { Tenant } from '@/types';
 import { Loader2 } from 'lucide-react';
+import { TenantSuccessDialog } from './tenant-success-dialog';
 
 /**
  * Tenant Form Dialog Component
@@ -46,16 +48,16 @@ const tenantFormSchema = z.object({
   firstName: z.string().min(2, 'First name must be at least 2 characters'),
   lastName: z.string().min(2, 'Last name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
-  phone: z.string().min(10, 'Phone number must be at least 10 characters'),
+  phone: z.string().optional().refine((val) => !val || val.length >= 10, {
+    message: 'Phone number must be at least 10 characters if provided',
+  }),
   idNumber: z.string().optional(),
   dateOfBirth: z.string().optional(),
-  nationality: z.string().optional(),
-  occupation: z.string().optional(),
-  employer: z.string().optional(),
+  employerName: z.string().optional(),
   emergencyContactName: z.string().optional(),
   emergencyContactPhone: z.string().optional(),
-  emergencyContactRelation: z.string().optional(),
-  status: z.enum(['active', 'inactive']),
+  emergencyContactRelationship: z.string().optional(),
+  status: z.enum(['active', 'inactive', 'blacklisted']),
 });
 
 type TenantFormData = z.infer<typeof tenantFormSchema>;
@@ -65,6 +67,7 @@ interface TenantFormDialogProps {
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
   tenant?: Tenant;
+  onCreateLease?: (tenantId: string) => void;
 }
 
 export function TenantFormDialog({
@@ -72,8 +75,12 @@ export function TenantFormDialog({
   onOpenChange,
   onSuccess,
   tenant,
+  onCreateLease,
 }: TenantFormDialogProps) {
+  const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
+  const [createdTenant, setCreatedTenant] = useState<Tenant | null>(null);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const { toast } = useToast();
   const isEditing = !!tenant;
 
@@ -91,15 +98,13 @@ export function TenantFormDialog({
           firstName: tenant.firstName,
           lastName: tenant.lastName,
           email: tenant.email,
-          phone: tenant.phone,
+          phone: tenant.phone || '',
           idNumber: tenant.idNumber || '',
           dateOfBirth: tenant.dateOfBirth || '',
-          nationality: tenant.nationality || '',
-          occupation: tenant.occupation || '',
-          employer: tenant.employer || '',
+          employerName: tenant.employerName || '',
           emergencyContactName: tenant.emergencyContactName || '',
           emergencyContactPhone: tenant.emergencyContactPhone || '',
-          emergencyContactRelation: tenant.emergencyContactRelation || '',
+          emergencyContactRelationship: tenant.emergencyContactRelationship || '',
           status: tenant.status,
         }
       : {
@@ -109,12 +114,10 @@ export function TenantFormDialog({
           phone: '',
           idNumber: '',
           dateOfBirth: '',
-          nationality: 'Kenyan',
-          occupation: '',
-          employer: '',
+          employerName: '',
           emergencyContactName: '',
           emergencyContactPhone: '',
-          emergencyContactRelation: '',
+          emergencyContactRelationship: '',
           status: 'active',
         },
   });
@@ -125,23 +128,43 @@ export function TenantFormDialog({
     try {
       setSubmitting(true);
 
+      // Transform empty strings to undefined for optional fields
+      const cleanedData = {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone || undefined,
+        idNumber: data.idNumber || undefined,
+        dateOfBirth: data.dateOfBirth || undefined,
+        employerName: data.employerName || undefined,
+        emergencyContactName: data.emergencyContactName || undefined,
+        emergencyContactPhone: data.emergencyContactPhone || undefined,
+        emergencyContactRelationship: data.emergencyContactRelationship || undefined,
+        status: data.status,
+      };
+
       if (isEditing && tenant) {
-        await tenantsService.update(tenant.id, data);
+        await tenantsService.update(tenant.id, cleanedData);
         toast({
           title: 'Success',
           description: 'Tenant updated successfully',
         });
+        reset();
+        onOpenChange(false);
+        onSuccess();
       } else {
-        await tenantsService.create(data);
-        toast({
-          title: 'Success',
-          description: 'Tenant created successfully',
-        });
-      }
+        // Create new tenant
+        const response = await tenantsService.create(cleanedData);
+        const newTenant = response.data;
 
-      reset();
-      onOpenChange(false);
-      onSuccess();
+        // Store created tenant and show success dialog
+        setCreatedTenant(newTenant);
+        setShowSuccessDialog(true);
+
+        reset();
+        onOpenChange(false);
+        onSuccess();
+      }
     } catch (error) {
       console.error('Failed to save tenant:', error);
       toast({
@@ -159,8 +182,21 @@ export function TenantFormDialog({
     onOpenChange(false);
   };
 
+  const handleCreateLease = () => {
+    if (createdTenant && onCreateLease) {
+      onCreateLease(createdTenant.id);
+    }
+  };
+
+  const handleViewTenant = () => {
+    if (createdTenant) {
+      router.push(`/tenants/${createdTenant.id}`);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl">
@@ -231,7 +267,7 @@ export function TenantFormDialog({
 
               <div className="space-y-2">
                 <Label htmlFor="phone" className="text-sm font-medium">
-                  Phone <span className="text-destructive">*</span>
+                  Phone
                 </Label>
                 <Input
                   id="phone"
@@ -270,36 +306,24 @@ export function TenantFormDialog({
               </div>
             </div>
 
-            {/* Nationality & Status Row */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="nationality" className="text-sm font-medium">
-                  Nationality
-                </Label>
-                <Input
-                  id="nationality"
-                  placeholder="e.g., Kenyan"
-                  {...register('nationality')}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="status" className="text-sm font-medium">
-                  Status <span className="text-destructive">*</span>
-                </Label>
-                <Select
-                  value={statusValue}
-                  onValueChange={(value) => setValue('status', value as 'active' | 'inactive')}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Status Row */}
+            <div className="space-y-2">
+              <Label htmlFor="status" className="text-sm font-medium">
+                Status <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={statusValue}
+                onValueChange={(value) => setValue('status', value as 'active' | 'inactive' | 'blacklisted')}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="blacklisted">Blacklisted</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -307,28 +331,15 @@ export function TenantFormDialog({
           <div className="space-y-4">
             <h3 className="text-lg font-semibold border-b pb-2">Employment Information</h3>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="occupation" className="text-sm font-medium">
-                  Occupation
-                </Label>
-                <Input
-                  id="occupation"
-                  placeholder="e.g., Software Engineer"
-                  {...register('occupation')}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="employer" className="text-sm font-medium">
-                  Employer
-                </Label>
-                <Input
-                  id="employer"
-                  placeholder="e.g., Tech Company Ltd"
-                  {...register('employer')}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="employerName" className="text-sm font-medium">
+                Employer Name
+              </Label>
+              <Input
+                id="employerName"
+                placeholder="e.g., Tech Company Ltd"
+                {...register('employerName')}
+              />
             </div>
           </div>
 
@@ -361,13 +372,13 @@ export function TenantFormDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="emergencyContactRelation" className="text-sm font-medium">
+              <Label htmlFor="emergencyContactRelationship" className="text-sm font-medium">
                 Relationship
               </Label>
               <Input
-                id="emergencyContactRelation"
+                id="emergencyContactRelationship"
                 placeholder="e.g., Spouse, Parent, Sibling"
-                {...register('emergencyContactRelation')}
+                {...register('emergencyContactRelationship')}
               />
             </div>
           </div>
@@ -390,5 +401,14 @@ export function TenantFormDialog({
         </form>
       </DialogContent>
     </Dialog>
+
+      <TenantSuccessDialog
+        open={showSuccessDialog}
+        onOpenChange={setShowSuccessDialog}
+        tenant={createdTenant}
+        onCreateLease={handleCreateLease}
+        onViewTenant={handleViewTenant}
+      />
+    </>
   );
 }

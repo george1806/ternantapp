@@ -42,19 +42,26 @@ export class CompoundsService {
     }
 
     /**
-     * Find all compounds for a company with pagination
+     * Find all compounds for a company with pagination and stats
      */
     async findAll(
         companyId: string,
         page: number = 1,
         limit: number = 10,
         filters?: { includeInactive?: boolean; search?: string }
-    ): Promise<{ data: Compound[]; total: number }> {
+    ): Promise<{ data: any[]; total: number }> {
         const skip = (page - 1) * limit;
 
         const query = this.compoundRepository
             .createQueryBuilder('compound')
-            .where('compound.companyId = :companyId', { companyId });
+            .leftJoin('compound.apartments', 'apartment')
+            .addSelect('COUNT(apartment.id)', 'totalUnits')
+            .addSelect(
+                'SUM(CASE WHEN apartment.status = :availableStatus THEN 1 ELSE 0 END)',
+                'vacantUnits'
+            )
+            .where('compound.companyId = :companyId', { companyId })
+            .setParameter('availableStatus', 'available');
 
         if (!filters?.includeInactive) {
             query.andWhere('compound.isActive = :isActive', { isActive: true });
@@ -67,12 +74,41 @@ export class CompoundsService {
             );
         }
 
-        query.orderBy('compound.name', 'ASC');
-
-        const [data, total] = await query
+        query
+            .groupBy('compound.id')
+            .orderBy('compound.name', 'ASC')
             .skip(skip)
-            .take(limit)
-            .getManyAndCount();
+            .take(limit);
+
+        const rawAndEntities = await query.getRawAndEntities();
+
+        // Combine raw data (stats) with entities
+        const data = rawAndEntities.entities.map((compound, index) => {
+            const raw = rawAndEntities.raw[index];
+            return {
+                ...compound,
+                totalUnits: parseInt(raw.totalUnits) || 0,
+                vacantUnits: parseInt(raw.vacantUnits) || 0
+            };
+        });
+
+        // Get total count without pagination
+        const countQuery = this.compoundRepository
+            .createQueryBuilder('compound')
+            .where('compound.companyId = :companyId', { companyId });
+
+        if (!filters?.includeInactive) {
+            countQuery.andWhere('compound.isActive = :isActive', { isActive: true });
+        }
+
+        if (filters?.search) {
+            countQuery.andWhere(
+                '(compound.name LIKE :search OR compound.city LIKE :search OR compound.addressLine LIKE :search)',
+                { search: `%${filters.search}%` }
+            );
+        }
+
+        const total = await countQuery.getCount();
 
         return { data, total };
     }
@@ -105,21 +141,37 @@ export class CompoundsService {
     }
 
     /**
-     * Find compound with apartments count
+     * Find compound with apartments stats
      */
-    async findOneWithStats(id: string, companyId: string): Promise<Compound> {
-        const compound = await this.compoundRepository
+    async findOneWithStats(id: string, companyId: string): Promise<any> {
+        const query = this.compoundRepository
             .createQueryBuilder('compound')
-            .leftJoinAndSelect('compound.apartments', 'apartments')
+            .leftJoin('compound.apartments', 'apartment')
+            .addSelect('COUNT(apartment.id)', 'totalUnits')
+            .addSelect(
+                'SUM(CASE WHEN apartment.status = :availableStatus THEN 1 ELSE 0 END)',
+                'vacantUnits'
+            )
             .where('compound.id = :id', { id })
             .andWhere('compound.companyId = :companyId', { companyId })
-            .getOne();
+            .setParameter('availableStatus', 'available')
+            .groupBy('compound.id');
 
-        if (!compound) {
+        const rawAndEntity = await query.getRawAndEntities();
+
+        if (!rawAndEntity.entities[0]) {
             throw new NotFoundException(`Compound with ID ${id} not found`);
         }
 
-        return compound;
+        const compound = rawAndEntity.entities[0];
+        const raw = rawAndEntity.raw[0];
+
+        // Combine entity with stats
+        return {
+            ...compound,
+            totalUnits: parseInt(raw.totalUnits) || 0,
+            vacantUnits: parseInt(raw.vacantUnits) || 0
+        };
     }
 
     /**

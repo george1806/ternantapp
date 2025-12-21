@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Plus, Search, Building2, MapPin, Pencil, Trash2 } from 'lucide-react';
 import { compoundsService, type CompoundFilters } from '@/services/compounds.service';
 import type { Compound } from '@/types';
@@ -36,6 +37,7 @@ import Link from 'next/link';
  */
 
 export default function PropertiesPage() {
+  const router = useRouter();
   const [compounds, setCompounds] = useState<Compound[]>([]);
   const [loading, setLoading] = useState(true);
   const { debouncedValue: searchQuery, value: searchInput, setValue: setSearchInput, isDebouncing } = useDebouncedSearch();
@@ -47,19 +49,26 @@ export default function PropertiesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const limit = 10;
 
   useEffect(() => {
-    fetchCompounds();
+    setCurrentPage(1);
+    setCompounds([]);
+    fetchCompounds(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, searchQuery]);
+  }, [searchQuery]);
 
-  const fetchCompounds = async () => {
+  const fetchCompounds = async (page: number = currentPage, append: boolean = false) => {
     try {
-      setLoading(true);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
 
       const filters: CompoundFilters = {
-        page: currentPage,
+        page,
         limit,
         search: searchQuery || undefined,
         sortBy: 'createdAt',
@@ -69,13 +78,18 @@ export default function PropertiesPage() {
       const response = await compoundsService.getAll(filters);
 
       if (response.data?.data) {
-        setCompounds(response.data.data);
+        if (append) {
+          setCompounds(prev => [...prev, ...response.data.data]);
+        } else {
+          setCompounds(response.data.data);
+        }
         setTotal(response.data.meta?.total || 0);
         setTotalPages(response.data.meta?.totalPages || 1);
       } else {
-        // Backend endpoint might not exist yet
         console.warn('Properties endpoint not available, using empty state');
-        setCompounds([]);
+        if (!append) {
+          setCompounds([]);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch compounds:', error);
@@ -84,10 +98,19 @@ export default function PropertiesPage() {
         description: getApiErrorMessage(error),
         variant: 'destructive',
       });
-      setCompounds([]);
+      if (!append) {
+        setCompounds([]);
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
+  };
+
+  const loadMore = () => {
+    const nextPage = currentPage + 1;
+    setCurrentPage(nextPage);
+    fetchCompounds(nextPage, true);
   };
 
   const getOccupancyRate = (compound: Compound): string => {
@@ -97,10 +120,10 @@ export default function PropertiesPage() {
   };
 
   const getOccupancyBadge = (rate: number) => {
-    if (rate >= 90) return <Badge variant="success">{rate}% Occupied</Badge>;
-    if (rate >= 70) return <Badge variant="default">{rate}% Occupied</Badge>;
-    if (rate >= 50) return <Badge variant="warning">{rate}% Occupied</Badge>;
-    return <Badge variant="destructive">{rate}% Occupied</Badge>;
+    if (rate >= 90) return <Badge variant="success" className="opacity-80">{rate}% Occupied</Badge>;
+    if (rate >= 70) return <Badge variant="default" className="opacity-80">{rate}% Occupied</Badge>;
+    if (rate >= 50) return <Badge variant="warning" className="opacity-80">{rate}% Occupied</Badge>;
+    return <Badge variant="destructive" className="opacity-80">{rate}% Occupied</Badge>;
   };
 
   const handleAddProperty = () => {
@@ -229,134 +252,130 @@ export default function PropertiesPage() {
         </Card>
       )}
 
-      {/* Properties Table */}
+      {/* Properties Grid */}
       {compounds.length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>All Properties</CardTitle>
-                <CardDescription className="mt-1">
-                  {total} {total === 1 ? 'property' : 'properties'} total
-                </CardDescription>
-              </div>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">All Properties</h2>
+              <p className="text-muted-foreground mt-1">
+                {total} {total === 1 ? 'property' : 'properties'} total
+              </p>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="font-semibold">Property Name</TableHead>
-                    <TableHead className="font-semibold">Location</TableHead>
-                    <TableHead className="font-semibold text-center">Total Units</TableHead>
-                    <TableHead className="font-semibold text-center">Occupied</TableHead>
-                    <TableHead className="font-semibold text-center">Vacant</TableHead>
-                    <TableHead className="font-semibold text-center">Occupancy</TableHead>
-                    <TableHead className="font-semibold text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {compounds.map((compound) => {
-                    const occupancyRate = parseFloat(getOccupancyRate(compound));
-                    const occupied = (compound.totalUnits || 0) - (compound.vacantUnits || 0);
+          </div>
 
-                    return (
-                      <TableRow key={compound.id} className="hover:bg-muted/30">
-                        <TableCell>
-                          <Link
-                            href={`/properties/${compound.id}`}
-                            className="font-medium text-primary hover:underline flex items-center gap-2"
-                          >
-                            <Building2 className="h-4 w-4" />
-                            {compound.name}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <MapPin className="h-3.5 w-3.5" />
-                            {compound.city}, {compound.region || compound.country}
+          {/* Properties List */}
+          <div className="space-y-3">
+            {compounds.map((compound) => {
+              const occupancyRate = parseFloat(getOccupancyRate(compound));
+              const occupied = (compound.totalUnits || 0) - (compound.vacantUnits || 0);
+
+              return (
+                <Card
+                  key={compound.id}
+                  className="shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => router.push(`/properties/${compound.id}`)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      {/* Icon */}
+                      <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950 shrink-0">
+                        <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        {/* Header */}
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-semibold truncate">
+                              {compound.name}
+                            </h3>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
+                              <p className="text-sm text-muted-foreground truncate">
+                                {compound.city}
+                              </p>
+                            </div>
                           </div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="outline" className="font-mono">
-                            {compound.totalUnits}
+                          <div className="shrink-0">
+                            {getOccupancyBadge(occupancyRate)}
+                          </div>
+                        </div>
+
+                        {/* Stats */}
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          <Badge variant="outline" className="font-normal">
+                            Total: <span className="font-semibold ml-1 text-foreground">{compound.totalUnits || 0}</span>
                           </Badge>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <span className="font-medium text-green-600">{occupied}</span>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <span className="font-medium text-orange-600">
-                            {compound.vacantUnits || 0}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {getOccupancyBadge(occupancyRate)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Link href={`/properties/${compound.id}`}>
-                              <Button variant="ghost" size="sm">
-                                View
-                              </Button>
-                            </Link>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditProperty(compound)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteProperty(compound)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                          <Badge variant="outline" className="font-normal">
+                            Rented: <span className="font-semibold ml-1 text-emerald-600 dark:text-emerald-500">{occupied}</span>
+                          </Badge>
+                          <Badge variant="outline" className="font-normal">
+                            Vacant: <span className="font-semibold ml-1 text-amber-600 dark:text-amber-500">{compound.vacantUnits || 0}</span>
+                          </Badge>
+                        </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-sm text-muted-foreground">
-                  Showing {(currentPage - 1) * limit + 1} to{' '}
-                  {Math.min(currentPage * limit, total)} of {total} properties
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </Button>
-                  <div className="text-sm">
-                    Page {currentPage} of {totalPages}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                        {/* Actions */}
+                        <div className="flex gap-2">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="flex-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/properties/${compound.id}`);
+                            }}
+                          >
+                            View Details
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditProperty(compound);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteProperty(compound);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Load More */}
+          {currentPage < totalPages && (
+            <div className="flex flex-col items-center gap-4 pt-4">
+              <p className="text-sm text-muted-foreground">
+                Showing {compounds.length} of {total} properties
+              </p>
+              <Button
+                variant="outline"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="w-full sm:w-auto min-w-[200px]"
+              >
+                {loadingMore ? 'Loading...' : 'Load More'}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Property Form Dialog */}

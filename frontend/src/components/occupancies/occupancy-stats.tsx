@@ -64,7 +64,9 @@ export function OccupancyStats() {
   }
 
   // Format average lease duration from days to months
-  const avgLeaseMonths = Math.round(stats.averageLeaseDuration / 30);
+  const avgLeaseMonths = stats.averageLeaseDuration
+    ? Math.round(stats.averageLeaseDuration / 30)
+    : 0;
 
   return (
     <div className="grid gap-4 md:grid-cols-6">

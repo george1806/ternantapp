@@ -114,16 +114,14 @@ export interface Tenant {
   firstName: string;
   lastName: string;
   email: string;
-  phone: string;
+  phone?: string;
   idNumber?: string;
   dateOfBirth?: string;
-  nationality?: string;
-  occupation?: string;
-  employer?: string;
+  employerName?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
-  emergencyContactRelation?: string;
-  status: 'active' | 'inactive';
+  emergencyContactRelationship?: string;
+  status: 'active' | 'inactive' | 'blacklisted';
   notes?: string;
   isActive: boolean;
   occupancies?: Occupancy[];
@@ -131,7 +129,7 @@ export interface Tenant {
   updatedAt: string;
 }
 
-export type TenantStatus = 'active' | 'inactive';
+export type TenantStatus = 'active' | 'inactive' | 'blacklisted';
 
 /**
  * Occupancy Types

@@ -156,12 +156,16 @@ export class ApartmentsController {
 
     @Get('stats')
     @ApiOperation({ summary: 'Get apartment availability statistics' })
+    @ApiQuery({ name: 'compoundId', required: false, description: 'Filter by compound ID' })
     @ApiResponse({
         status: 200,
         description: 'Availability statistics'
     })
-    async getStats(@CurrentUser() user: any) {
-        return this.apartmentsService.getAvailabilityStats(user.companyId);
+    async getStats(
+        @CurrentUser() user: any,
+        @Query('compoundId') compoundId?: string
+    ) {
+        return this.apartmentsService.getAvailabilityStats(user.companyId, compoundId);
     }
 
     @Get(':id')
@@ -223,5 +227,59 @@ export class ApartmentsController {
     @ApiResponse({ status: 404, description: 'Apartment not found' })
     async activate(@Param('id') id: string, @CurrentUser() user: any) {
         return this.apartmentsService.activate(id, user.companyId);
+    }
+
+    @Get(':id/current-occupancy')
+    @ApiOperation({ summary: 'Get current active occupancy for apartment' })
+    @ApiResponse({
+        status: 200,
+        description: 'Returns current occupancy if apartment is occupied'
+    })
+    @ApiResponse({ status: 404, description: 'Apartment not found' })
+    async getCurrentOccupancy(
+        @Param('id') id: string,
+        @CurrentUser() user: any
+    ) {
+        const occupancy = await this.apartmentsService.getCurrentOccupancy(
+            id,
+            user.companyId
+        );
+        return { data: occupancy };
+    }
+
+    @Get(':id/occupancy-history')
+    @ApiOperation({ summary: 'Get occupancy history for apartment' })
+    @ApiResponse({
+        status: 200,
+        description: 'Returns list of all past and present occupancies'
+    })
+    @ApiResponse({ status: 404, description: 'Apartment not found' })
+    async getOccupancyHistory(
+        @Param('id') id: string,
+        @CurrentUser() user: any
+    ) {
+        const occupancies = await this.apartmentsService.getOccupancyHistory(
+            id,
+            user.companyId
+        );
+        return { data: occupancies };
+    }
+
+    @Get(':id/financial-summary')
+    @ApiOperation({ summary: 'Get financial summary for apartment' })
+    @ApiResponse({
+        status: 200,
+        description: 'Returns financial metrics for the apartment'
+    })
+    @ApiResponse({ status: 404, description: 'Apartment not found' })
+    async getFinancialSummary(
+        @Param('id') id: string,
+        @CurrentUser() user: any
+    ) {
+        const summary = await this.apartmentsService.getFinancialSummary(
+            id,
+            user.companyId
+        );
+        return { data: summary };
     }
 }

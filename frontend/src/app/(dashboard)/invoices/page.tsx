@@ -52,19 +52,26 @@ export default function InvoicesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const limit = 10;
 
   useEffect(() => {
-    fetchInvoices();
+    setCurrentPage(1);
+    setInvoices([]);
+    fetchInvoices(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, searchQuery, statusFilter]);
+  }, [searchQuery, statusFilter]);
 
-  const fetchInvoices = async () => {
+  const fetchInvoices = async (page: number = currentPage, append: boolean = false) => {
     try {
-      setLoading(true);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
 
       const filters: InvoiceFilters = {
-        page: currentPage,
+        page,
         limit,
         search: searchQuery || undefined,
         status: statusFilter === 'all' ? undefined : statusFilter,
@@ -75,12 +82,18 @@ export default function InvoicesPage() {
       const response = await invoicesService.getAll(filters);
 
       if (response.data?.data) {
-        setInvoices(response.data.data);
+        if (append) {
+          setInvoices(prev => [...prev, ...response.data.data]);
+        } else {
+          setInvoices(response.data.data);
+        }
         setTotal(response.data.meta?.total || 0);
         setTotalPages(response.data.meta?.totalPages || 1);
       } else {
         console.warn('Invoices endpoint not available');
-        setInvoices([]);
+        if (!append) {
+          setInvoices([]);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch invoices:', error);
@@ -89,10 +102,19 @@ export default function InvoicesPage() {
         description: getApiErrorMessage(error),
         variant: 'destructive',
       });
-      setInvoices([]);
+      if (!append) {
+        setInvoices([]);
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
+  };
+
+  const loadMore = () => {
+    const nextPage = currentPage + 1;
+    setCurrentPage(nextPage);
+    fetchInvoices(nextPage, true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -332,129 +354,117 @@ export default function InvoicesPage() {
         </Card>
       )}
 
-      {/* Invoices Table */}
+      {/* Invoices List */}
       {invoices.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>All Invoices</CardTitle>
-            <CardDescription>{total} total invoices</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="font-semibold">Invoice #</TableHead>
-                    <TableHead className="font-semibold">Tenant</TableHead>
-                    <TableHead className="font-semibold">Property</TableHead>
-                    <TableHead className="font-semibold">Issue Date</TableHead>
-                    <TableHead className="font-semibold">Due Date</TableHead>
-                    <TableHead className="font-semibold text-right">Amount</TableHead>
-                    <TableHead className="font-semibold text-center">Status</TableHead>
-                    <TableHead className="font-semibold text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {invoices.map((invoice) => (
-                    <TableRow key={invoice.id} className="hover:bg-muted/30">
-                      <TableCell>
-                        <Link
-                          href={`/invoices/${invoice.id}`}
-                          className="font-medium text-primary hover:underline"
-                        >
-                          #{invoice.invoiceNumber}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          {invoice.occupancy?.tenant
-                            ? `${invoice.occupancy.tenant.firstName} ${invoice.occupancy.tenant.lastName}`
-                            : '-'}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          {invoice.occupancy?.apartment
-                            ? `${invoice.occupancy.apartment.unitNumber}`
-                            : '-'}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5 text-sm">
-                          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                          {formatDate(invoice.issueDate)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5 text-sm">
-                          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                          {formatDate(invoice.dueDate)}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="font-medium">{formatCurrency(invoice.totalAmount, currency)}</div>
-                        {invoice.paidAmount > 0 && invoice.paidAmount < invoice.totalAmount && (
-                          <div className="text-xs text-muted-foreground">
-                            {formatCurrency(invoice.paidAmount, currency)} paid
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">{getStatusBadge(invoice.status)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link href={`/invoices/${invoice.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-3.5 w-3.5" />
-                            </Button>
-                          </Link>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive"
-                            onClick={() => handleDeleteInvoice(invoice)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">All Invoices</h2>
+              <p className="text-muted-foreground mt-1">
+                {total} {total === 1 ? 'invoice' : 'invoices'} total
+              </p>
             </div>
+          </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-sm text-muted-foreground">
-                  Showing {(currentPage - 1) * limit + 1} to {Math.min(currentPage * limit, total)}{' '}
-                  of {total} invoices
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-sm">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          <div className="space-y-3">
+            {invoices.map((invoice) => (
+              <Card
+                key={invoice.id}
+                className="shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => window.location.href = `/invoices/${invoice.id}`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    {/* Icon */}
+                    <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950 shrink-0">
+                      <FileText className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold truncate">
+                            Invoice #{invoice.invoiceNumber}
+                          </h3>
+                          <p className="text-sm text-muted-foreground truncate">
+                            {invoice.occupancy?.tenant
+                              ? `${invoice.occupancy.tenant.firstName} ${invoice.occupancy.tenant.lastName}`
+                              : 'No Tenant'}
+                            {invoice.occupancy?.apartment && ` • Unit ${invoice.occupancy.apartment.unitNumber}`}
+                          </p>
+                        </div>
+                        <div className="shrink-0">
+                          {getStatusBadge(invoice.status)}
+                        </div>
+                      </div>
+
+                      {/* Details */}
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <Badge variant="outline" className="font-normal gap-1">
+                          <Calendar className="h-3 w-3" />
+                          Due: {formatDate(invoice.dueDate)}
+                        </Badge>
+                        <Badge variant="outline" className="font-normal">
+                          <span className="font-semibold text-blue-600 dark:text-blue-500">{formatCurrency(invoice.totalAmount, currency)}</span>
+                        </Badge>
+                        {invoice.paidAmount > 0 && invoice.paidAmount < invoice.totalAmount && (
+                          <Badge variant="outline" className="font-normal">
+                            Paid: <span className="font-semibold text-emerald-600 dark:text-emerald-500">{formatCurrency(invoice.paidAmount, currency)}</span>
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="flex-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.location.href = `/invoices/${invoice.id}`;
+                          }}
+                        >
+                          View Details
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteInvoice(invoice);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Load More */}
+          {currentPage < totalPages && (
+            <div className="flex flex-col items-center gap-4 pt-4">
+              <p className="text-sm text-muted-foreground">
+                Showing {invoices.length} of {total} invoices
+              </p>
+              <Button
+                variant="outline"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="w-full sm:w-auto min-w-[200px]"
+              >
+                {loadingMore ? 'Loading...' : 'Load More'}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Invoice Form Dialog */}

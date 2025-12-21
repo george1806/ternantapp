@@ -145,4 +145,18 @@ export const occupanciesService = {
   }) => {
     return api.post<{ data: Occupancy }>(`/occupancies/${id}/deposit-payment`, data);
   },
+
+  /**
+   * End a lease (marks as ended and sets move-out date)
+   */
+  endLease: (id: string, data: { moveOutDate: string; notes?: string }) => {
+    return api.post<{ data: Occupancy }>(`/occupancies/${id}/end`, data);
+  },
+
+  /**
+   * Cancel a lease (marks as cancelled)
+   */
+  cancelLease: (id: string, data: { reason: string }) => {
+    return api.post<{ data: Occupancy }>(`/occupancies/${id}/cancel`, data);
+  },
 };

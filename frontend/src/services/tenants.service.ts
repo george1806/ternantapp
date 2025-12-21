@@ -14,15 +14,14 @@ export interface CreateTenantDto {
   firstName: string;
   lastName: string;
   email: string;
-  phone: string;
+  phone?: string;
   idNumber?: string;
   dateOfBirth?: string;
-  nationality?: string;
-  occupation?: string;
-  employer?: string;
+  employerName?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   emergencyContactRelationship?: string;
+  status?: 'active' | 'inactive' | 'blacklisted';
   notes?: string;
 }
 

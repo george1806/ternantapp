@@ -63,10 +63,12 @@ export class PaymentsController {
         description: 'Sort field'
     })
     @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })
+    @ApiQuery({ name: 'compoundId', required: false, type: String, description: 'Filter by compound/property ID' })
     @ApiResponse({ status: 200, description: 'Returns payments with pagination' })
     async findAll(
         @Query('invoiceId') invoiceId?: string,
         @Query('includeInactive') includeInactive?: string,
+        @Query('compoundId') compoundId?: string,
         @Query('page') page?: number,
         @Query('limit') limit?: number,
         @Query('sortBy') sortBy?: string,
@@ -82,7 +84,8 @@ export class PaymentsController {
             pageLimit,
             {
                 invoiceId,
-                includeInactive: includeInactive === 'true'
+                includeInactive: includeInactive === 'true',
+                compoundId
             }
         );
 

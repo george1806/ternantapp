@@ -39,16 +39,30 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | undefined>();
   const { toast } = useToast();
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const limit = 10;
+
   useEffect(() => {
-    fetchUsers();
+    setCurrentPage(1);
+    setUsers([]);
+    fetchUsers(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, roleFilter]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (page: number = currentPage, append: boolean = false) => {
     try {
-      setLoading(true);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
 
       const filters: UserFilters = {
+        page,
+        limit,
         search: searchQuery || undefined,
         role: roleFilter === 'all' ? undefined : roleFilter,
         includeInactive: true,
@@ -59,12 +73,26 @@ export default function UsersPage() {
       const response = await usersService.getAll(filters);
 
       if (response.data?.data) {
-        setUsers(response.data.data);
+        if (append) {
+          setUsers(prev => [...prev, ...response.data.data]);
+        } else {
+          setUsers(response.data.data);
+        }
+        setTotal(response.data.meta?.total || response.data.data.length);
+        setTotalPages(response.data.meta?.totalPages || 1);
       } else if (Array.isArray(response.data)) {
-        setUsers(response.data);
+        if (append) {
+          setUsers(prev => [...prev, ...response.data]);
+        } else {
+          setUsers(response.data);
+        }
+        setTotal(response.data.length);
+        setTotalPages(1);
       } else {
         console.warn('Users endpoint returned unexpected format');
-        setUsers([]);
+        if (!append) {
+          setUsers([]);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch users:', error);
@@ -73,10 +101,19 @@ export default function UsersPage() {
         description: getApiErrorMessage(error),
         variant: 'destructive',
       });
-      setUsers([]);
+      if (!append) {
+        setUsers([]);
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
+  };
+
+  const loadMore = () => {
+    const nextPage = currentPage + 1;
+    setCurrentPage(nextPage);
+    fetchUsers(nextPage, true);
   };
 
   const getRoleBadge = (role: string) => {
@@ -214,83 +251,105 @@ export default function UsersPage() {
               )}
             </div>
           ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar>
-                            <AvatarFallback>
-                              {getInitials(`${user.firstName} ${user.lastName}`)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium">
+            <div className="space-y-3">
+              {users.map((user) => (
+                <Card
+                  key={user.id}
+                  className="shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      {/* Avatar */}
+                      <Avatar className="h-12 w-12 shrink-0">
+                        <AvatarFallback className="bg-primary text-primary-foreground">
+                          {getInitials(`${user.firstName} ${user.lastName}`)}
+                        </AvatarFallback>
+                      </Avatar>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        {/* Header */}
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-semibold truncate">
                               {user.firstName} {user.lastName}
+                            </h3>
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              {getRoleBadge(user.role)}
+                              {getStatusBadge(user.status)}
                             </div>
                           </div>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Mail className="h-4 w-4" />
-                          {user.email}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {user.profile?.phone && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Phone className="h-4 w-4" />
-                            {user.profile.phone}
+
+                        {/* Contact Info */}
+                        <div className="space-y-1 mb-3">
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="text-sm truncate">{user.email}</span>
                           </div>
-                        )}
-                      </TableCell>
-                      <TableCell>{getRoleBadge(user.role)}</TableCell>
-                      <TableCell>{getStatusBadge(user.status)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
+                          {user.profile?.phone && (
+                            <div className="flex items-center gap-2">
+                              <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                              <span className="text-sm truncate">{user.profile.phone}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-2">
                           <Button
-                            variant="ghost"
-                            size="icon"
+                            variant="outline"
+                            size="sm"
                             onClick={() => handleEditUser(user)}
+                            className="flex-1"
                           >
-                            <Pencil className="h-4 w-4" />
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit
                           </Button>
                           {user.status === 'ACTIVE' ? (
                             <Button
-                              variant="ghost"
-                              size="icon"
+                              variant="outline"
+                              size="sm"
+                              className="text-destructive"
                               onClick={() => handleDeleteUser(user)}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Deactivate
                             </Button>
                           ) : (
                             <Button
-                              variant="ghost"
-                              size="icon"
+                              variant="outline"
+                              size="sm"
+                              className="text-emerald-600"
                               onClick={() => handleActivateUser(user)}
                             >
-                              <Check className="h-4 w-4" />
+                              <Check className="h-4 w-4 mr-2" />
+                              Activate
                             </Button>
                           )}
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+            {/* Load More */}
+            {currentPage < totalPages && (
+              <div className="flex flex-col items-center gap-4 pt-4">
+                <p className="text-sm text-muted-foreground">
+                  Showing {users.length} of {total} users
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="w-full sm:w-auto min-w-[200px]"
+                >
+                  {loadingMore ? 'Loading...' : 'Load More'}
+                </Button>
+              </div>
+            )}
             </div>
           )}
         </CardContent>

@@ -104,6 +104,14 @@ export class InvoiceQueryDto extends PaginationQueryDto {
     @IsOptional()
     includeInactive?: boolean;
 
+    @ApiPropertyOptional({
+        description: 'Filter by compound/property ID',
+        type: String
+    })
+    @IsOptional()
+    @IsString()
+    compoundId?: string;
+
     protected getAllowedSortFields(): string[] {
         return ['invoiceNumber', 'amount', 'dueDate', 'status', 'createdAt', 'updatedAt'];
     }
@@ -129,6 +137,14 @@ export class PaymentQueryDto extends PaginationQueryDto {
     @IsOptional()
     @IsString()
     paymentMethod?: string;
+
+    @ApiPropertyOptional({
+        description: 'Filter by compound/property ID',
+        type: String
+    })
+    @IsOptional()
+    @IsString()
+    compoundId?: string;
 
     protected getAllowedSortFields(): string[] {
         return ['amount', 'paymentDate', 'paymentMethod', 'createdAt', 'updatedAt'];

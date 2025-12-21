@@ -22,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { getInitials } from '@/lib/utils';
 import { TenantFormDialog } from '@/components/tenants/tenant-form-dialog';
+import { OccupancyFormDialog } from '@/components/occupancies/occupancy-form-dialog';
 import { useDebouncedSearch } from '@/hooks/use-debounced-search';
 import Link from 'next/link';
 
@@ -32,24 +33,33 @@ export default function TenantsPage() {
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | undefined>();
+  const [occupancyDialogOpen, setOccupancyDialogOpen] = useState(false);
+  const [preselectedTenantId, setPreselectedTenantId] = useState<string | undefined>();
   const { toast } = useToast();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const limit = 10;
 
   useEffect(() => {
-    fetchTenants();
+    setCurrentPage(1);
+    setTenants([]);
+    fetchTenants(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, searchQuery, statusFilter]);
+  }, [searchQuery, statusFilter]);
 
-  const fetchTenants = async () => {
+  const fetchTenants = async (page: number = currentPage, append: boolean = false) => {
     try {
-      setLoading(true);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
 
       const filters: TenantFilters = {
-        page: currentPage,
+        page,
         limit,
         search: searchQuery || undefined,
         status: statusFilter === 'all' ? undefined : statusFilter,
@@ -60,12 +70,18 @@ export default function TenantsPage() {
       const response = await tenantsService.getAll(filters);
 
       if (response.data?.data) {
-        setTenants(response.data.data);
+        if (append) {
+          setTenants(prev => [...prev, ...response.data.data]);
+        } else {
+          setTenants(response.data.data);
+        }
         setTotal(response.data.meta?.total || 0);
         setTotalPages(response.data.meta?.totalPages || 1);
       } else {
         console.warn('Tenants endpoint not available');
-        setTenants([]);
+        if (!append) {
+          setTenants([]);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch tenants:', error);
@@ -74,10 +90,19 @@ export default function TenantsPage() {
         description: getApiErrorMessage(error),
         variant: 'destructive',
       });
-      setTenants([]);
+      if (!append) {
+        setTenants([]);
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
+  };
+
+  const loadMore = () => {
+    const nextPage = currentPage + 1;
+    setCurrentPage(nextPage);
+    fetchTenants(nextPage, true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -115,6 +140,15 @@ export default function TenantsPage() {
   };
 
   const handleDialogSuccess = () => {
+    fetchTenants();
+  };
+
+  const handleCreateLease = (tenantId: string) => {
+    setPreselectedTenantId(tenantId);
+    setOccupancyDialogOpen(true);
+  };
+
+  const handleOccupancySuccess = () => {
     fetchTenants();
   };
 
@@ -215,121 +249,127 @@ export default function TenantsPage() {
       )}
 
       {tenants.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>All Tenants</CardTitle>
-            <CardDescription>{total} total</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Tenant</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Occupation</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tenants.map((tenant) => (
-                    <TableRow key={tenant.id} className="hover:bg-muted/30">
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarFallback className="bg-primary text-primary-foreground">
-                              {getInitials(`${tenant.firstName} ${tenant.lastName}`)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <Link
-                              href={`/tenants/${tenant.id}`}
-                              className="font-medium text-primary hover:underline"
-                            >
-                              {tenant.firstName} {tenant.lastName}
-                            </Link>
-                            {tenant.idNumber && (
-                              <p className="text-xs text-muted-foreground">ID: {tenant.idNumber}</p>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 text-sm">
-                            <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-sm">{tenant.email}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                            <Phone className="h-3.5 w-3.5" />
-                            <span>{tenant.phone}</span>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          {tenant.occupation || <span className="text-muted-foreground">-</span>}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">{getStatusBadge(tenant.status)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link href={`/tenants/${tenant.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-3.5 w-3.5" />
-                            </Button>
-                          </Link>
-                          <Button variant="ghost" size="sm" onClick={() => handleEditTenant(tenant)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive"
-                            onClick={() => handleDeleteTenant(tenant)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">All Tenants</h2>
+              <p className="text-muted-foreground mt-1">
+                {total} {total === 1 ? 'tenant' : 'tenants'} total
+              </p>
             </div>
+          </div>
 
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-sm text-muted-foreground">
-                  Showing {(currentPage - 1) * limit + 1} to {Math.min(currentPage * limit, total)}{' '}
-                  of {total}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-sm">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          <div className="space-y-3">
+            {tenants.map((tenant) => (
+              <Card
+                key={tenant.id}
+                className="shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => window.location.href = `/tenants/${tenant.id}`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    {/* Avatar */}
+                    <Avatar className="h-12 w-12 shrink-0">
+                      <AvatarFallback className="bg-primary text-primary-foreground">
+                        {getInitials(`${tenant.firstName} ${tenant.lastName}`)}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold truncate">
+                            {tenant.firstName} {tenant.lastName}
+                          </h3>
+                          {tenant.idNumber && (
+                            <p className="text-sm text-muted-foreground truncate">
+                              ID: {tenant.idNumber}
+                            </p>
+                          )}
+                        </div>
+                        <div className="shrink-0">
+                          {getStatusBadge(tenant.status)}
+                        </div>
+                      </div>
+
+                      {/* Contact Info */}
+                      <div className="space-y-1 mb-3">
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="text-sm truncate">{tenant.email}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="text-sm truncate">{tenant.phone}</span>
+                        </div>
+                        {tenant.occupation && (
+                          <p className="text-sm text-muted-foreground">
+                            {tenant.occupation}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="flex-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.location.href = `/tenants/${tenant.id}`;
+                          }}
+                        >
+                          View Details
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditTenant(tenant);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTenant(tenant);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Load More */}
+          {currentPage < totalPages && (
+            <div className="flex flex-col items-center gap-4 pt-4">
+              <p className="text-sm text-muted-foreground">
+                Showing {tenants.length} of {total} tenants
+              </p>
+              <Button
+                variant="outline"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="w-full sm:w-auto min-w-[200px]"
+              >
+                {loadingMore ? 'Loading...' : 'Load More'}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Tenant Form Dialog */}
@@ -338,6 +378,14 @@ export default function TenantsPage() {
         onOpenChange={setDialogOpen}
         onSuccess={handleDialogSuccess}
         tenant={selectedTenant}
+        onCreateLease={handleCreateLease}
+      />
+
+      <OccupancyFormDialog
+        open={occupancyDialogOpen}
+        onOpenChange={setOccupancyDialogOpen}
+        onSuccess={handleOccupancySuccess}
+        preselectedTenantId={preselectedTenantId}
       />
     </div>
   );

@@ -2,7 +2,9 @@ import {
     Injectable,
     NotFoundException,
     ConflictException,
-    BadRequestException
+    BadRequestException,
+    Inject,
+    forwardRef
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindOptionsWhere, Like } from 'typeorm';
@@ -10,10 +12,12 @@ import { Apartment } from '../entities/apartment.entity';
 import { CreateApartmentDto } from '../dto/create-apartment.dto';
 import { UpdateApartmentDto } from '../dto/update-apartment.dto';
 import { Compound } from '../../compounds/entities/compound.entity';
+import { Occupancy } from '../../occupancies/entities/occupancy.entity';
+import { DashboardService } from '../../dashboard/dashboard.service';
 
 /**
  * Apartments Service
- * Business logic for apartment management
+ * Business logic for apartment management with dashboard cache invalidation
  *
  * Author: george1806
  */
@@ -23,7 +27,11 @@ export class ApartmentsService {
         @InjectRepository(Apartment)
         private apartmentsRepository: Repository<Apartment>,
         @InjectRepository(Compound)
-        private compoundsRepository: Repository<Compound>
+        private compoundsRepository: Repository<Compound>,
+        @InjectRepository(Occupancy)
+        private occupanciesRepository: Repository<Occupancy>,
+        @Inject(forwardRef(() => DashboardService))
+        private dashboardService: DashboardService
     ) {}
 
     /**
@@ -148,34 +156,39 @@ export class ApartmentsService {
     }
 
     /**
-     * Get available apartments count by compound
+     * Get available apartments count optionally filtered by compound
      */
-    async getAvailabilityStats(companyId: string): Promise<{
+    async getAvailabilityStats(companyId: string, compoundId?: string): Promise<{
         total: number;
         available: number;
         occupied: number;
         maintenance: number;
         reserved: number;
+        occupancyRate: number;
     }> {
+        const baseWhere = { companyId, isActive: true, ...(compoundId && { compoundId }) };
+
         const [total, available, occupied, maintenance, reserved] = await Promise.all([
             this.apartmentsRepository.count({
-                where: { companyId, isActive: true }
+                where: baseWhere
             }),
             this.apartmentsRepository.count({
-                where: { companyId, status: 'available', isActive: true }
+                where: { ...baseWhere, status: 'available' }
             }),
             this.apartmentsRepository.count({
-                where: { companyId, status: 'occupied', isActive: true }
+                where: { ...baseWhere, status: 'occupied' }
             }),
             this.apartmentsRepository.count({
-                where: { companyId, status: 'maintenance', isActive: true }
+                where: { ...baseWhere, status: 'maintenance' }
             }),
             this.apartmentsRepository.count({
-                where: { companyId, status: 'reserved', isActive: true }
+                where: { ...baseWhere, status: 'reserved' }
             })
         ]);
 
-        return { total, available, occupied, maintenance, reserved };
+        const occupancyRate = total > 0 ? (occupied / total) * 100 : 0;
+
+        return { total, available, occupied, maintenance, reserved, occupancyRate };
     }
 
     /**
@@ -261,6 +274,7 @@ export class ApartmentsService {
 
     /**
      * Update apartment status
+     * Invalidates dashboard cache after successful status update
      */
     async updateStatus(
         id: string,
@@ -269,6 +283,129 @@ export class ApartmentsService {
     ): Promise<Apartment> {
         const apartment = await this.findOne(id, companyId);
         apartment.status = status;
-        return this.apartmentsRepository.save(apartment);
+        const savedApartment = await this.apartmentsRepository.save(apartment);
+
+        // Invalidate dashboard cache after successful status update
+        const compoundId = apartment.compound?.id;
+        await this.dashboardService.invalidateCache(companyId, compoundId, true);
+
+        return savedApartment;
+    }
+
+    /**
+     * Get current active occupancy for an apartment
+     */
+    async getCurrentOccupancy(
+        apartmentId: string,
+        companyId: string
+    ): Promise<Occupancy | null> {
+        // First verify apartment exists and belongs to company
+        await this.findOne(apartmentId, companyId);
+
+        const occupancy = await this.occupanciesRepository.findOne({
+            where: {
+                apartmentId,
+                companyId,
+                status: 'active',
+                isActive: true
+            },
+            relations: ['tenant', 'apartment', 'apartment.compound']
+        });
+
+        return occupancy;
+    }
+
+    /**
+     * Get occupancy history for an apartment
+     */
+    async getOccupancyHistory(
+        apartmentId: string,
+        companyId: string
+    ): Promise<Occupancy[]> {
+        // First verify apartment exists and belongs to company
+        await this.findOne(apartmentId, companyId);
+
+        const occupancies = await this.occupanciesRepository.find({
+            where: {
+                apartmentId,
+                companyId,
+                isActive: true
+            },
+            relations: ['tenant'],
+            order: { createdAt: 'DESC' }
+        });
+
+        return occupancies;
+    }
+
+    /**
+     * Get financial summary for an apartment
+     */
+    async getFinancialSummary(
+        apartmentId: string,
+        companyId: string
+    ): Promise<{
+        totalRevenue: number;
+        currentMonthlyRevenue: number;
+        totalDaysRented: number;
+        totalDaysVacant: number;
+        occupancyRate: number;
+    }> {
+        // First verify apartment exists and belongs to company
+        const apartment = await this.findOne(apartmentId, companyId);
+
+        // Get all completed and active occupancies
+        const occupancies = await this.occupanciesRepository.find({
+            where: {
+                apartmentId,
+                companyId,
+                isActive: true
+            }
+        });
+
+        let totalRevenue = 0;
+        let totalDaysRented = 0;
+        let currentMonthlyRevenue = 0;
+
+        const now = new Date();
+
+        for (const occupancy of occupancies) {
+            const startDate = new Date(occupancy.leaseStartDate);
+            const endDate = occupancy.status === 'ended' && occupancy.moveOutDate
+                ? new Date(occupancy.moveOutDate)
+                : occupancy.status === 'active'
+                    ? now
+                    : new Date(occupancy.leaseEndDate);
+
+            // Calculate days rented
+            const daysRented = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+            totalDaysRented += daysRented;
+
+            // Calculate revenue (days * daily rent)
+            const monthlyRent = occupancy.monthlyRent;
+            const dailyRent = monthlyRent / 30;
+            totalRevenue += daysRented * dailyRent;
+
+            // Add to current monthly revenue if active
+            if (occupancy.status === 'active') {
+                currentMonthlyRevenue += monthlyRent;
+            }
+        }
+
+        // Calculate total days since apartment was created
+        const apartmentCreatedDate = new Date(apartment.createdAt);
+        const totalDays = Math.floor((now.getTime() - apartmentCreatedDate.getTime()) / (1000 * 60 * 60 * 24));
+        const totalDaysVacant = totalDays - totalDaysRented;
+
+        // Calculate occupancy rate
+        const occupancyRate = totalDays > 0 ? (totalDaysRented / totalDays) * 100 : 0;
+
+        return {
+            totalRevenue: Math.round(totalRevenue * 100) / 100,
+            currentMonthlyRevenue,
+            totalDaysRented,
+            totalDaysVacant: Math.max(0, totalDaysVacant),
+            occupancyRate: Math.round(occupancyRate * 100) / 100
+        };
     }
 }

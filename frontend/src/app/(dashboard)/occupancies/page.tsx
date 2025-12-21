@@ -69,6 +69,7 @@ export default function OccupanciesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const limit = 10;
 
   useEffect(() => {
@@ -77,9 +78,11 @@ export default function OccupanciesPage() {
   }, []);
 
   useEffect(() => {
-    fetchOccupancies();
+    setCurrentPage(1);
+    setOccupancies([]);
+    fetchOccupancies(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, searchQuery, compoundFilter, statusFilter]);
+  }, [searchQuery, compoundFilter, statusFilter]);
 
   const fetchCompounds = async () => {
     try {
@@ -92,12 +95,16 @@ export default function OccupanciesPage() {
     }
   };
 
-  const fetchOccupancies = async () => {
+  const fetchOccupancies = async (page: number = currentPage, append: boolean = false) => {
     try {
-      setLoading(true);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
 
       const filters: OccupancyFilters = {
-        page: currentPage,
+        page,
         limit,
         search: searchQuery || undefined,
         compoundId: compoundFilter === 'all' ? undefined : compoundFilter,
@@ -109,12 +116,18 @@ export default function OccupanciesPage() {
       const response = await occupanciesService.getAll(filters);
 
       if (response.data?.data) {
-        setOccupancies(response.data.data);
+        if (append) {
+          setOccupancies(prev => [...prev, ...response.data.data]);
+        } else {
+          setOccupancies(response.data.data);
+        }
         setTotal(response.data.meta?.total || 0);
         setTotalPages(response.data.meta?.totalPages || 1);
       } else {
         console.warn('Occupancies endpoint not available');
-        setOccupancies([]);
+        if (!append) {
+          setOccupancies([]);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch occupancies:', error);
@@ -123,10 +136,19 @@ export default function OccupanciesPage() {
         description: getApiErrorMessage(error),
         variant: 'destructive',
       });
-      setOccupancies([]);
+      if (!append) {
+        setOccupancies([]);
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
+  };
+
+  const loadMore = () => {
+    const nextPage = currentPage + 1;
+    setCurrentPage(nextPage);
+    fetchOccupancies(nextPage, true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -371,164 +393,145 @@ export default function OccupanciesPage() {
         </Card>
       )}
 
-      {/* Occupancies Table */}
+      {/* Occupancies List */}
       {occupancies.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>All Occupancies</CardTitle>
-            <CardDescription>{total} total lease agreements</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="font-semibold">Tenant</TableHead>
-                    <TableHead className="font-semibold">Unit</TableHead>
-                    <TableHead className="font-semibold">Lease Period</TableHead>
-                    <TableHead className="font-semibold text-right">Monthly Rent</TableHead>
-                    <TableHead className="font-semibold text-center">Status</TableHead>
-                    <TableHead className="font-semibold text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {occupancies.map((occupancy) => (
-                    <TableRow key={occupancy.id} className="hover:bg-muted/30">
-                      <TableCell>
-                        {occupancy.tenant ? (
-                          <Link
-                            href={`/tenants/${occupancy.tenant.id}`}
-                            className="text-sm font-medium text-primary hover:underline"
-                          >
-                            {occupancy.tenant.firstName} {occupancy.tenant.lastName}
-                          </Link>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">-</span>
-                        )}
-                        {occupancy.tenant?.phone && (
-                          <p className="text-xs text-muted-foreground mt-1">{occupancy.tenant.phone}</p>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {occupancy.apartment ? (
-                          <div>
-                            <Link
-                              href={`/apartments/${occupancy.apartment.id}`}
-                              className="text-sm font-medium text-primary hover:underline"
-                            >
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">All Occupancies</h2>
+              <p className="text-muted-foreground mt-1">
+                {total} {total === 1 ? 'lease agreement' : 'lease agreements'} total
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {occupancies.map((occupancy) => (
+              <Card
+                key={occupancy.id}
+                className="shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => window.location.href = `/occupancies/${occupancy.id}`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    {/* Icon */}
+                    <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950 shrink-0">
+                      <User className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold truncate">
+                            {occupancy.tenant
+                              ? `${occupancy.tenant.firstName} ${occupancy.tenant.lastName}`
+                              : 'No Tenant'}
+                          </h3>
+                          {occupancy.apartment && (
+                            <p className="text-sm text-muted-foreground truncate">
                               Unit {occupancy.apartment.unitNumber}
-                            </Link>
-                            {occupancy.apartment.compound && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {occupancy.apartment.compound.name}
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-3 w-3 text-muted-foreground" />
-                            <span>{format(parseISO(occupancy.leaseStartDate), 'MMM d, yyyy')}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-muted-foreground">to</span>
-                            <span>{format(parseISO(occupancy.leaseEndDate), 'MMM d, yyyy')}</span>
-                          </div>
+                              {occupancy.apartment.compound && ` • ${occupancy.apartment.compound.name}`}
+                            </p>
+                          )}
                         </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="font-medium">{formatCurrency(occupancy.monthlyRent, currency)}</div>
-                        {occupancy.securityDeposit && (
-                          <div className="text-xs text-muted-foreground">
-                            Deposit: {formatCurrency(occupancy.securityDeposit, currency)}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex flex-col gap-1 items-center">
+                        <div className="shrink-0 flex flex-col gap-1 items-end">
                           {getStatusBadge(occupancy.status)}
                           {getLeaseStatusBadge(occupancy)}
                         </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link href={`/occupancies/${occupancy.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-3.5 w-3.5" />
-                            </Button>
-                          </Link>
-                          {occupancy.status === 'pending' && occupancy.securityDeposit && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRecordDeposit(occupancy)}
-                              className="text-primary"
-                            >
-                              <DollarSign className="h-3.5 w-3.5 mr-1" />
-                              Record Deposit
-                            </Button>
-                          )}
-                          {occupancy.status === 'active' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEndOccupancy(occupancy)}
-                            >
-                              End Lease
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive"
-                            onClick={() => handleDeleteOccupancy(occupancy)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                      </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-sm text-muted-foreground">
-                  Showing {(currentPage - 1) * limit + 1} to {Math.min(currentPage * limit, total)}{' '}
-                  of {total} occupancies
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-sm">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                      {/* Lease Details */}
+                      <div className="flex flex-wrap gap-2 mb-3 text-sm">
+                        <Badge variant="outline" className="font-normal gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {format(parseISO(occupancy.leaseStartDate), 'MMM d, yy')} - {format(parseISO(occupancy.leaseEndDate), 'MMM d, yy')}
+                        </Badge>
+                        <Badge variant="outline" className="font-normal">
+                          <span className="font-semibold text-blue-600 dark:text-blue-500">{formatCurrency(occupancy.monthlyRent, currency)}</span>/mo
+                        </Badge>
+                        {occupancy.securityDeposit && (
+                          <Badge variant="outline" className="font-normal">
+                            Deposit: <span className="font-semibold text-foreground">{formatCurrency(occupancy.securityDeposit, currency)}</span>
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2 flex-wrap">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.location.href = `/occupancies/${occupancy.id}`;
+                          }}
+                        >
+                          View Details
+                        </Button>
+                        {occupancy.status === 'pending' && occupancy.securityDeposit && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRecordDeposit(occupancy);
+                            }}
+                            className="gap-1"
+                          >
+                            <DollarSign className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">Record Deposit</span>
+                          </Button>
+                        )}
+                        {occupancy.status === 'active' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEndOccupancy(occupancy);
+                            }}
+                          >
+                            End Lease
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteOccupancy(occupancy);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Load More */}
+          {currentPage < totalPages && (
+            <div className="flex flex-col items-center gap-4 pt-4">
+              <p className="text-sm text-muted-foreground">
+                Showing {occupancies.length} of {total} occupancies
+              </p>
+              <Button
+                variant="outline"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="w-full sm:w-auto min-w-[200px]"
+              >
+                {loadingMore ? 'Loading...' : 'Load More'}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Occupancy Form Dialog */}

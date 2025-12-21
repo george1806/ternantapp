@@ -61,6 +61,7 @@ export default function ApartmentsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const limit = 10;
 
   useEffect(() => {
@@ -69,9 +70,11 @@ export default function ApartmentsPage() {
   }, []);
 
   useEffect(() => {
-    fetchApartments();
+    setCurrentPage(1);
+    setApartments([]);
+    fetchApartments(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, searchQuery, compoundFilter, statusFilter]);
+  }, [searchQuery, compoundFilter, statusFilter]);
 
   const fetchCompounds = async () => {
     try {
@@ -84,12 +87,16 @@ export default function ApartmentsPage() {
     }
   };
 
-  const fetchApartments = async () => {
+  const fetchApartments = async (page: number = currentPage, append: boolean = false) => {
     try {
-      setLoading(true);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
 
       const filters: ApartmentFilters = {
-        page: currentPage,
+        page,
         limit,
         search: searchQuery || undefined,
         compoundId: compoundFilter === 'all' ? undefined : compoundFilter,
@@ -101,12 +108,18 @@ export default function ApartmentsPage() {
       const response = await apartmentsService.getAll(filters);
 
       if (response.data?.data) {
-        setApartments(response.data.data);
+        if (append) {
+          setApartments(prev => [...prev, ...response.data.data]);
+        } else {
+          setApartments(response.data.data);
+        }
         setTotal(response.data.meta?.total || 0);
         setTotalPages(response.data.meta?.totalPages || 1);
       } else {
         console.warn('Apartments endpoint not available');
-        setApartments([]);
+        if (!append) {
+          setApartments([]);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch apartments:', error);
@@ -115,10 +128,19 @@ export default function ApartmentsPage() {
         description: getApiErrorMessage(error),
         variant: 'destructive',
       });
-      setApartments([]);
+      if (!append) {
+        setApartments([]);
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
+  };
+
+  const loadMore = () => {
+    const nextPage = currentPage + 1;
+    setCurrentPage(nextPage);
+    fetchApartments(nextPage, true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -320,132 +342,129 @@ export default function ApartmentsPage() {
         </Card>
       )}
 
-      {/* Apartments Table */}
+      {/* Apartments List */}
       {apartments.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>All Units</CardTitle>
-            <CardDescription>{total} total apartments</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="font-semibold">Unit Number</TableHead>
-                    <TableHead className="font-semibold">Property</TableHead>
-                    <TableHead className="font-semibold">Details</TableHead>
-                    <TableHead className="font-semibold text-right">Monthly Rent</TableHead>
-                    <TableHead className="font-semibold text-center">Status</TableHead>
-                    <TableHead className="font-semibold text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {apartments.map((apartment) => (
-                    <TableRow key={apartment.id} className="hover:bg-muted/30">
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Home className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">Unit {apartment.unitNumber}</span>
-                        </div>
-                        {apartment.floor && (
-                          <p className="text-xs text-muted-foreground mt-1">Floor {apartment.floor}</p>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {apartment.compound ? (
-                          <Link
-                            href={`/properties/${apartment.compound.id}`}
-                            className="text-sm text-primary hover:underline"
-                          >
-                            {apartment.compound.name}
-                          </Link>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm space-y-1">
-                          <div className="flex items-center gap-3">
-                            <span>{apartment.bedrooms} BR</span>
-                            <span className="text-muted-foreground">•</span>
-                            <span>{apartment.bathrooms} BA</span>
-                            {apartment.areaSqm && (
-                              <>
-                                <span className="text-muted-foreground">•</span>
-                                <span>{apartment.areaSqm} m²</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="font-medium">{formatCurrency(apartment.monthlyRent, currency)}</div>
-                        <div className="text-xs text-muted-foreground">per month</div>
-                      </TableCell>
-                      <TableCell className="text-center">{getStatusBadge(apartment.status)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link href={`/apartments/${apartment.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-3.5 w-3.5" />
-                            </Button>
-                          </Link>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenEditDialog(apartment)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive"
-                            onClick={() => handleDeleteApartment(apartment)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">All Units</h2>
+              <p className="text-muted-foreground mt-1">
+                {total} {total === 1 ? 'unit' : 'units'} total
+              </p>
             </div>
+          </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-sm text-muted-foreground">
-                  Showing {(currentPage - 1) * limit + 1} to {Math.min(currentPage * limit, total)}{' '}
-                  of {total} apartments
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-sm">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          <div className="space-y-3">
+            {apartments.map((apartment) => (
+              <Card
+                key={apartment.id}
+                className="shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => window.location.href = `/apartments/${apartment.id}`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    {/* Icon */}
+                    <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950 shrink-0">
+                      <Home className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold truncate">
+                            Unit {apartment.unitNumber}
+                          </h3>
+                          {apartment.compound && (
+                            <p className="text-sm text-muted-foreground truncate">
+                              {apartment.compound.name}
+                              {apartment.floor && ` • Floor ${apartment.floor}`}
+                            </p>
+                          )}
+                        </div>
+                        <div className="shrink-0">
+                          {getStatusBadge(apartment.status)}
+                        </div>
+                      </div>
+
+                      {/* Details */}
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <Badge variant="outline" className="font-normal">
+                          <span className="font-semibold text-foreground">{apartment.bedrooms}</span> BR
+                        </Badge>
+                        <Badge variant="outline" className="font-normal">
+                          <span className="font-semibold text-foreground">{apartment.bathrooms}</span> BA
+                        </Badge>
+                        {apartment.areaSqm && (
+                          <Badge variant="outline" className="font-normal">
+                            <span className="font-semibold text-foreground">{apartment.areaSqm}</span> m²
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className="font-normal">
+                          <span className="font-semibold text-blue-600 dark:text-blue-500">{formatCurrency(apartment.monthlyRent, currency)}</span>/mo
+                        </Badge>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="flex-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.location.href = `/apartments/${apartment.id}`;
+                          }}
+                        >
+                          View Details
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEditDialog(apartment);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteApartment(apartment);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Load More */}
+          {currentPage < totalPages && (
+            <div className="flex flex-col items-center gap-4 pt-4">
+              <p className="text-sm text-muted-foreground">
+                Showing {apartments.length} of {total} units
+              </p>
+              <Button
+                variant="outline"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="w-full sm:w-auto min-w-[200px]"
+              >
+                {loadingMore ? 'Loading...' : 'Load More'}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Apartment Form Dialog */}

@@ -1,33 +1,44 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, FindOptionsWhere } from 'typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { Payment } from '../entities/payment.entity';
 import { CreatePaymentDto } from '../dto/create-payment.dto';
 import { UpdatePaymentDto } from '../dto/update-payment.dto';
 import { Invoice } from '../../invoices/entities/invoice.entity';
+import { DashboardService } from '../../dashboard/dashboard.service';
 
 /**
  * Payments Service
  * Business logic for payment management with invoice updates
+ * Includes dashboard cache invalidation for data consistency
  *
  * Author: george1806
  */
 @Injectable()
 export class PaymentsService {
+    private readonly RECENT_CACHE_TTL = 300000; // 5 minutes
+
     constructor(
         @InjectRepository(Payment)
         private paymentsRepository: Repository<Payment>,
         @InjectRepository(Invoice)
         private invoicesRepository: Repository<Invoice>,
-        private dataSource: DataSource
+        private dataSource: DataSource,
+        @Inject(forwardRef(() => DashboardService))
+        private dashboardService: DashboardService,
+        @Inject(CACHE_MANAGER)
+        private cacheManager: Cache
     ) {}
 
     /**
      * Create a new payment and update invoice
      * Uses transaction to ensure data consistency
+     * Invalidates dashboard cache after successful payment creation
      */
     async create(createDto: CreatePaymentDto, companyId: string): Promise<Payment> {
-        return this.dataSource.transaction(async (manager) => {
+        const payment = await this.dataSource.transaction(async (manager) => {
             // 1. Check for duplicate payment using idempotency key
             if (createDto.idempotencyKey) {
                 const existingPayment = await manager.findOne(Payment, {
@@ -42,7 +53,8 @@ export class PaymentsService {
 
             // 2. Verify invoice exists and get details
             const invoice = await manager.findOne(Invoice, {
-                where: { id: createDto.invoiceId, companyId, isActive: true }
+                where: { id: createDto.invoiceId, companyId, isActive: true },
+                relations: ['occupancy', 'occupancy.apartment']
             });
 
             if (!invoice) {
@@ -69,7 +81,7 @@ export class PaymentsService {
 
             const savedPayment = await manager.save(Payment, payment);
 
-            // 4. Update invoice
+            // 5. Update invoice
             invoice.amountPaid = newTotal;
 
             // Update invoice status based on payment
@@ -82,8 +94,20 @@ export class PaymentsService {
 
             await manager.save(Invoice, invoice);
 
+            // Store compoundId for cache invalidation
+            (savedPayment as any)._compoundId = invoice.occupancy?.apartment?.compoundId;
+
             return savedPayment;
         });
+
+        // Invalidate caches after successful transaction
+        const compoundId = (payment as any)._compoundId;
+        await Promise.all([
+            this.dashboardService.invalidateCache(companyId, compoundId, true),
+            this.invalidateRecentPaymentsCache(companyId, compoundId)
+        ]);
+
+        return payment;
     }
 
     /**
@@ -93,7 +117,7 @@ export class PaymentsService {
         companyId: string,
         page: number = 1,
         limit: number = 10,
-        filters?: { invoiceId?: string; includeInactive?: boolean }
+        filters?: { invoiceId?: string; includeInactive?: boolean; compoundId?: string }
     ): Promise<{ data: Payment[]; total: number }> {
         const skip = (page - 1) * limit;
 
@@ -109,6 +133,14 @@ export class PaymentsService {
 
         if (filters?.invoiceId) {
             query.andWhere('payment.invoiceId = :invoiceId', { invoiceId: filters.invoiceId });
+        }
+
+        // Filter by compound/property if provided
+        if (filters?.compoundId) {
+            query
+                .innerJoin('invoice.occupancy', 'occupancy')
+                .innerJoin('occupancy.apartment', 'apartment')
+                .andWhere('apartment.compoundId = :compoundId', { compoundId: filters.compoundId });
         }
 
         query.orderBy('payment.paidAt', 'DESC');
@@ -213,16 +245,17 @@ export class PaymentsService {
 
     /**
      * Update a payment
+     * Invalidates dashboard cache after successful update
      */
     async update(
         id: string,
         updateDto: UpdatePaymentDto,
         companyId: string
     ): Promise<Payment> {
-        return this.dataSource.transaction(async (manager) => {
+        const payment = await this.dataSource.transaction(async (manager) => {
             const payment = await manager.findOne(Payment, {
                 where: { id, companyId },
-                relations: ['invoice']
+                relations: ['invoice', 'invoice.occupancy', 'invoice.occupancy.apartment']
             });
 
             if (!payment) {
@@ -280,23 +313,41 @@ export class PaymentsService {
                 payment.paidAt = new Date(updateDto.paidAt);
             }
 
+            // Store compoundId for cache invalidation
+            (payment as any)._compoundId = payment.invoice?.occupancy?.apartment?.compoundId;
+
             return manager.save(Payment, payment);
         });
+
+        // Invalidate caches after successful transaction
+        const compoundId = (payment as any)._compoundId;
+        await Promise.all([
+            this.dashboardService.invalidateCache(companyId, compoundId, true),
+            this.invalidateRecentPaymentsCache(companyId, compoundId)
+        ]);
+
+        return payment;
     }
 
     /**
      * Soft delete (deactivate) a payment
+     * Invalidates caches after successful deletion
      */
     async remove(id: string, companyId: string): Promise<void> {
-        return this.dataSource.transaction(async (manager) => {
+        let compoundId: string | undefined;
+
+        await this.dataSource.transaction(async (manager) => {
             const payment = await manager.findOne(Payment, {
                 where: { id, companyId },
-                relations: ['invoice']
+                relations: ['invoice', 'invoice.occupancy', 'invoice.occupancy.apartment']
             });
 
             if (!payment) {
                 throw new NotFoundException(`Payment with ID "${id}" not found`);
             }
+
+            // Store compoundId for cache invalidation
+            compoundId = payment.invoice?.occupancy?.apartment?.compoundId;
 
             // Revert invoice amount
             const invoice = payment.invoice;
@@ -320,16 +371,23 @@ export class PaymentsService {
             payment.isActive = false;
             await manager.save(Payment, payment);
         });
+
+        // Invalidate caches after successful transaction
+        await Promise.all([
+            this.dashboardService.invalidateCache(companyId, compoundId, true),
+            this.invalidateRecentPaymentsCache(companyId, compoundId)
+        ]);
     }
 
     /**
      * Reactivate a deactivated payment
+     * Invalidates caches after successful reactivation
      */
     async activate(id: string, companyId: string): Promise<Payment> {
-        return this.dataSource.transaction(async (manager) => {
+        const payment = await this.dataSource.transaction(async (manager) => {
             const payment = await manager.findOne(Payment, {
                 where: { id, companyId },
-                relations: ['invoice']
+                relations: ['invoice', 'invoice.occupancy', 'invoice.occupancy.apartment']
             });
 
             if (!payment) {
@@ -360,7 +418,38 @@ export class PaymentsService {
 
             // Reactivate payment
             payment.isActive = true;
+
+            // Store compoundId for cache invalidation
+            (payment as any)._compoundId = payment.invoice?.occupancy?.apartment?.compoundId;
+
             return manager.save(Payment, payment);
         });
+
+        // Invalidate caches after successful transaction
+        const compoundId = (payment as any)._compoundId;
+        await Promise.all([
+            this.dashboardService.invalidateCache(companyId, compoundId, true),
+            this.invalidateRecentPaymentsCache(companyId, compoundId)
+        ]);
+
+        return payment;
+    }
+
+    /**
+     * Invalidate recent payments cache for company and optionally compound
+     * Private helper method for cache management
+     */
+    private async invalidateRecentPaymentsCache(companyId: string, compoundId?: string): Promise<void> {
+        const keysToDelete: string[] = [];
+
+        // Invalidate company-level recent payments cache
+        keysToDelete.push(`dashboard:recent:payments:${companyId}`);
+
+        // Invalidate compound-specific recent payments cache if compoundId provided
+        if (compoundId) {
+            keysToDelete.push(`dashboard:recent:payments:${companyId}:${compoundId}`);
+        }
+
+        await Promise.all(keysToDelete.map(key => this.cacheManager.del(key)));
     }
 }

@@ -2,28 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import {
-  ArrowLeft,
-  Download,
-  FileText,
-  Calendar,
-  DollarSign,
-  Phone,
-  Mail,
-  MapPin,
-  Plus,
-  Printer,
-  Send,
-  Trash2,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-} from 'lucide-react';
+import { ArrowLeft, Download, Mail, DollarSign, Calendar, FileText } from 'lucide-react';
 import { invoicesService } from '@/services/invoices.service';
-import { paymentsService, type CreatePaymentDto } from '@/services/payments.service';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
@@ -33,558 +15,317 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
-import { formatCurrency, formatDate } from '@/lib/utils';
-import { useAuthStore } from '@/store/auth';
-import { PaymentFormDialog } from '@/components/payments/payment-form-dialog';
-import { SendInvoiceDialog } from '@/components/invoices/send-invoice-dialog';
-import type { Invoice, Payment } from '@/types';
+import { format } from 'date-fns';
+import type { Invoice } from '@/types';
 
 /**
  * Invoice Detail Page
  *
- * Features:
- * - Display full invoice details
- * - Show invoice items/line items
- * - Payment history
- * - Record new payment
- * - Invoice actions (send, cancel, download PDF)
- * - Timeline of events
- * - Responsive design
+ * Displays detailed information about a single invoice
  */
 
-interface InvoiceDetail extends Invoice {
-  items?: Array<{
-    id: string;
-    description: string;
-    quantity: number;
-    unitPrice: number;
-    amount: number;
-    itemType: 'rent' | 'utility' | 'maintenance' | 'other';
-  }>;
-}
-
 export default function InvoiceDetailPage() {
-  const { user } = useAuthStore();
-  const currency = user?.company?.currency || 'KES';
   const params = useParams();
   const router = useRouter();
-  const invoiceId = params.id as string;
-
-  const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
-  const [payments, setPayments] = useState<Payment[]>([]);
+  const { toast } = useToast();
+  const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadingPayments, setLoadingPayments] = useState(false);
-  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
-  const [sendDialogOpen, setSendDialogOpen] = useState(false);
-  const [actionInProgress, setActionInProgress] = useState(false);
-  const { toast} = useToast();
 
   useEffect(() => {
-    fetchInvoiceDetails();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoiceId]);
+    if (params.id) {
+      loadInvoice(params.id as string);
+    }
+  }, [params.id]);
 
-  const fetchInvoiceDetails = async () => {
+  const loadInvoice = async (id: string) => {
     try {
       setLoading(true);
-      const response = await invoicesService.getById(invoiceId);
-
-      if (response.data?.data) {
-        setInvoice(response.data.data);
-        fetchPayments();
-      } else {
-        toast({
-          title: 'Error',
-          description: 'Invoice not found',
-          variant: 'destructive',
-        });
-        router.push('/invoices');
-      }
+      const response = await invoicesService.getById(id);
+      // Backend returns invoice directly, not wrapped in { data: invoice }
+      setInvoice(response.data as any);
     } catch (error) {
-      console.error('Failed to fetch invoice:', error);
+      console.error('Failed to load invoice:', error);
       toast({
+        variant: 'destructive',
         title: 'Error',
         description: getApiErrorMessage(error),
-        variant: 'destructive',
       });
-      router.push('/invoices');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchPayments = async () => {
-    try {
-      setLoadingPayments(true);
-      const response = await paymentsService.getByInvoice(invoiceId);
-
-      if (response.data?.data) {
-        setPayments(response.data.data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch payments:', error);
-      // Don't show error toast for this - it's optional data
-    } finally {
-      setLoadingPayments(false);
-    }
-  };
-
-  const handleSendInvoice = () => {
+  const handleDownloadPdf = async () => {
     if (!invoice) return;
-    setSendDialogOpen(true);
-  };
-
-  const handleCancelInvoice = async () => {
-    if (!invoice) return;
-    if (!confirm('Are you sure you want to cancel this invoice?')) return;
-
     try {
-      setActionInProgress(true);
-      await invoicesService.cancel(invoice.id);
-
       toast({
-        title: 'Success',
-        description: 'Invoice cancelled successfully',
+        title: 'Downloading...',
+        description: 'Generating PDF invoice...',
       });
-
-      fetchInvoiceDetails();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: getApiErrorMessage(error),
-        variant: 'destructive',
-      });
-    } finally {
-      setActionInProgress(false);
-    }
-  };
-
-  const handleDownloadPDF = async () => {
-    if (!invoice) return;
-
-    try {
-      setActionInProgress(true);
       const response = await invoicesService.downloadPdf(invoice.id);
-
-      // Create a download link
-      const url = window.URL.createObjectURL(response.data as Blob);
+      const blob = response.data;
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', `invoice-${invoice.invoiceNumber}.pdf`);
       document.body.appendChild(link);
       link.click();
-      link.parentElement?.removeChild(link);
+      link.remove();
       window.URL.revokeObjectURL(url);
-
       toast({
         title: 'Success',
-        description: 'Invoice PDF downloaded',
+        description: 'Invoice downloaded successfully!',
       });
     } catch (error) {
       toast({
+        variant: 'destructive',
         title: 'Error',
         description: getApiErrorMessage(error),
-        variant: 'destructive',
       });
-    } finally {
-      setActionInProgress(false);
     }
   };
 
-  const handleDeleteInvoice = async () => {
-    if (!invoice) return;
-    if (!confirm(`Delete invoice #${invoice.invoiceNumber}?`)) return;
-
-    try {
-      setActionInProgress(true);
-      await invoicesService.delete(invoice.id);
-
-      toast({
-        title: 'Success',
-        description: 'Invoice deleted successfully',
-      });
-
-      router.push('/invoices');
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: getApiErrorMessage(error),
-        variant: 'destructive',
-      });
-    } finally {
-      setActionInProgress(false);
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case 'draft':
-        return <Badge variant="secondary">Draft</Badge>;
+      case 'paid':
+        return 'bg-green-500';
       case 'sent':
-        return <Badge variant="default">Sent</Badge>;
-      case 'paid':
-        return <Badge variant="success">Paid</Badge>;
-      case 'overdue':
-        return <Badge variant="destructive">Overdue</Badge>;
-      case 'cancelled':
-        return <Badge variant="secondary">Cancelled</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return <CheckCircle2 className="h-5 w-5 text-green-600" />;
-      case 'overdue':
-        return <AlertCircle className="h-5 w-5 text-red-600" />;
+        return 'bg-blue-500';
       case 'draft':
-        return <Clock className="h-5 w-5 text-gray-600" />;
+        return 'bg-gray-500';
+      case 'overdue':
+        return 'bg-red-500';
+      case 'cancelled':
+        return 'bg-yellow-500';
       default:
-        return <FileText className="h-5 w-5 text-blue-600" />;
+        return 'bg-gray-500';
     }
   };
-
-  const remainingAmount = invoice ? invoice.totalAmount - invoice.paidAmount : 0;
 
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-10 w-32" />
-          <Skeleton className="h-10 w-48" />
-        </div>
-        <Skeleton className="h-96" />
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-64 w-full" />
       </div>
     );
   }
 
   if (!invoice) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Invoice not found</h3>
-          <p className="text-sm text-muted-foreground mb-6">
-            The invoice you're looking for doesn't exist or has been deleted
-          </p>
-          <Button onClick={() => router.push('/invoices')}>Back to Invoices</Button>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <p className="text-muted-foreground">Invoice not found</p>
+        <Button onClick={() => router.push('/invoices')}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Invoices
+        </Button>
+      </div>
     );
   }
+
+  const totalAmount = invoice.totalAmount || 0;
+  const paidAmount = invoice.paidAmount || 0;
+  const outstandingAmount = totalAmount - paidAmount;
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push('/invoices')}
-            disabled={actionInProgress}
-          >
-            <ArrowLeft className="h-4 w-4" />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <Button variant="ghost" size="icon" onClick={() => router.push('/invoices')} className="shrink-0">
+            <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-3xl font-bold tracking-tight">Invoice #{invoice.invoiceNumber}</h1>
-              {getStatusBadge(invoice.status)}
-            </div>
-            <p className="text-muted-foreground">
-              {invoice.status === 'draft'
-                ? 'Draft Invoice'
-                : `Created on ${formatDate(invoice.createdAt)}`}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight truncate">Invoice {invoice.invoiceNumber || 'N/A'}</h1>
+            <p className="text-sm sm:text-base text-muted-foreground truncate">
+              {invoice.occupancy?.tenant?.firstName} {invoice.occupancy?.tenant?.lastName}
             </p>
           </div>
         </div>
+        <div className="flex gap-2 shrink-0 flex-wrap">
+          <span
+            className={`px-3 py-1 rounded-full text-white text-xs sm:text-sm font-medium ${getStatusColor(invoice.status)}`}
+          >
+            {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
+          </span>
+          <Button variant="outline" onClick={handleDownloadPdf} className="hidden sm:flex">
+            <Download className="mr-2 h-4 w-4" />
+            Download PDF
+          </Button>
+          <Button variant="outline" size="icon" onClick={handleDownloadPdf} className="sm:hidden">
+            <Download className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex gap-2 flex-wrap">
-        {invoice.status === 'draft' && (
-          <Button
-            onClick={handleSendInvoice}
-            disabled={actionInProgress}
-            className="gap-2"
-          >
-            <Send className="h-4 w-4" />
-            Send Invoice
-          </Button>
-        )}
-        <Button
-          variant="outline"
-          onClick={handleDownloadPDF}
-          disabled={actionInProgress}
-          className="gap-2"
-        >
-          <Download className="h-4 w-4" />
-          Download PDF
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => window.print()}
-          disabled={actionInProgress}
-          className="gap-2"
-        >
-          <Printer className="h-4 w-4" />
-          Print
-        </Button>
-        {invoice.status !== 'cancelled' && invoice.status !== 'paid' && (
-          <Button
-            variant="destructive"
-            onClick={handleCancelInvoice}
-            disabled={actionInProgress}
-            className="gap-2 ml-auto"
-          >
-            <Trash2 className="h-4 w-4" />
-            Cancel
-          </Button>
-        )}
-        {invoice.status === 'draft' && (
-          <Button
-            variant="destructive"
-            onClick={handleDeleteInvoice}
-            disabled={actionInProgress}
-            className="gap-2"
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete
-          </Button>
-        )}
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Tenant Information */}
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Tenant Information</CardTitle>
+      {/* Stats Grid */}
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Amount</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="space-y-4">
-            {invoice.occupancy?.tenant ? (
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm text-muted-foreground">Tenant Name</p>
-                  <p className="font-medium">
-                    {invoice.occupancy.tenant.firstName} {invoice.occupancy.tenant.lastName}
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      <Mail className="h-3.5 w-3.5" />
-                      Email
-                    </p>
-                    <p className="font-medium text-sm">{invoice.occupancy.tenant.email}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      <Phone className="h-3.5 w-3.5" />
-                      Phone
-                    </p>
-                    <p className="font-medium text-sm">{invoice.occupancy.tenant.phone}</p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No tenant information available</p>
-            )}
-
-            {/* Property Information */}
-            <Separator />
-            {invoice.occupancy?.apartment ? (
-              <div className="space-y-3">
-                <p className="font-semibold">Property Details</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Unit</p>
-                    <p className="font-medium">{invoice.occupancy.apartment.unitNumber}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Monthly Rent</p>
-                    <p className="font-medium">
-                      {formatCurrency(invoice.occupancy.apartment.monthlyRent, currency)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No property information available</p>
-            )}
+          <CardContent>
+            <div className="text-2xl font-bold">${totalAmount.toLocaleString()}</div>
           </CardContent>
         </Card>
 
-        {/* Summary Card */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Paid Amount</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">${paidAmount.toLocaleString()}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Outstanding</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${outstandingAmount > 0 ? 'text-red-500' : 'text-green-500'}`}>
+              ${outstandingAmount.toLocaleString()}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Due Date</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-lg font-bold">
+              {invoice.dueDate ? format(new Date(invoice.dueDate), 'MMM dd, yyyy') : 'N/A'}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Invoice Details */}
+      <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {getStatusIcon(invoice.status)}
-              Summary
-            </CardTitle>
+            <CardTitle>Invoice Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <p className="text-sm text-muted-foreground">Status</p>
-              <p className="font-medium">{invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}</p>
+              <p className="text-sm font-medium text-muted-foreground">Invoice Number</p>
+              <p className="text-base font-mono">{invoice.invoiceNumber}</p>
             </div>
 
-            <Separator />
-
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Issue Date:</span>
-                <span className="text-sm font-medium">{formatDate(invoice.issueDate)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Due Date:</span>
-                <span className="text-sm font-medium">{formatDate(invoice.dueDate)}</span>
-              </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Invoice Date</p>
+              <p className="text-base">{format(new Date(invoice.invoiceDate), 'PPP')}</p>
             </div>
 
-            <Separator />
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Due Date</p>
+              <p className="text-base">{format(new Date(invoice.dueDate), 'PPP')}</p>
+            </div>
 
-            <div className="space-y-3 bg-muted p-3 rounded-lg">
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Total Amount:</span>
-                <span className="font-medium">{formatCurrency(invoice.totalAmount, currency)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Paid Amount:</span>
-                <span className="font-medium text-green-600">
-                  {formatCurrency(invoice.paidAmount, currency)}
-                </span>
-              </div>
-              {remainingAmount > 0 && (
-                <div className="border-t border-muted pt-2 flex justify-between">
-                  <span className="text-sm font-semibold">Outstanding:</span>
-                  <span className="font-semibold text-orange-600">
-                    {formatCurrency(remainingAmount, currency)}
-                  </span>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Status</p>
+              <p className="text-base capitalize">{invoice.status}</p>
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Created</p>
+              <p className="text-base">{format(new Date(invoice.createdAt), 'PPP')}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Tenant & Property</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {invoice.occupancy?.tenant && (
+              <>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Tenant Name</p>
+                  <p className="text-base">
+                    {invoice.occupancy.tenant.firstName} {invoice.occupancy.tenant.lastName}
+                  </p>
                 </div>
-              )}
-            </div>
 
-            {remainingAmount > 0 && invoice.status !== 'cancelled' && (
-              <Button
-                className="w-full gap-2"
-                onClick={() => setPaymentDialogOpen(true)}
-                disabled={actionInProgress}
-              >
-                <Plus className="h-4 w-4" />
-                Record Payment
-              </Button>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Tenant Email</p>
+                  <p className="text-base">{invoice.occupancy.tenant.email}</p>
+                </div>
+              </>
+            )}
+
+            {invoice.occupancy?.apartment && (
+              <>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Unit Number</p>
+                  <p className="text-base">{invoice.occupancy.apartment.unitNumber}</p>
+                </div>
+
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Property</p>
+                  <p className="text-base">{invoice.occupancy.apartment.compound?.name || 'N/A'}</p>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Invoice Items */}
-      {invoice.items && invoice.items.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Invoice Items</CardTitle>
-            <CardDescription>{invoice.items.length} item(s)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Description</TableHead>
-                    <TableHead className="text-right">Quantity</TableHead>
-                    <TableHead className="text-right">Unit Price</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {invoice.items.map((item, index) => (
-                    <TableRow key={item.id || index}>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{item.description}</p>
-                          <p className="text-xs text-muted-foreground capitalize">{item.itemType}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">{item.quantity}</TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(item.unitPrice, currency)}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(item.amount, currency)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Payment History */}
+      {/* Line Items */}
       <Card>
         <CardHeader>
-          <CardTitle>Payment History</CardTitle>
-          <CardDescription>
-            {payments.length} payment(s) recorded
-            {loadingPayments && ' (loading...)'}
-          </CardDescription>
+          <CardTitle>Line Items</CardTitle>
         </CardHeader>
         <CardContent>
-          {loadingPayments ? (
-            <div className="space-y-3">
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-            </div>
-          ) : payments.length > 0 ? (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Date</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Method</TableHead>
-                    <TableHead>Reference</TableHead>
-                    <TableHead>Notes</TableHead>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Description</TableHead>
+                <TableHead className="text-right">Quantity</TableHead>
+                <TableHead className="text-right">Unit Price</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {invoice.items?.map((item, index) => {
+                const itemQuantity = item.quantity || 0;
+                const itemPrice = item.unitPrice || 0;
+                const itemTotal = itemQuantity * itemPrice;
+
+                return (
+                  <TableRow key={index}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{item.description || 'N/A'}</p>
+                        <p className="text-sm text-muted-foreground capitalize">{item.itemType || 'N/A'}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">{itemQuantity}</TableCell>
+                    <TableCell className="text-right">${itemPrice.toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-medium">
+                      ${itemTotal.toLocaleString()}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {payments.map((payment) => (
-                    <TableRow key={payment.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5 text-sm">
-                          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                          {formatDate(payment.paidAt)}
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {formatCurrency(payment.amount, currency)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{payment.method}</Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {payment.reference || '-'}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
-                        {payment.notes || '-'}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-8">
-              <DollarSign className="h-10 w-10 text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">No payments recorded yet</p>
-            </div>
-          )}
+                );
+              })}
+              <TableRow className="border-t-2">
+                <TableCell colSpan={3} className="text-right font-bold">
+                  Total
+                </TableCell>
+                <TableCell className="text-right font-bold text-lg">
+                  ${totalAmount.toLocaleString()}
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 
@@ -595,41 +336,9 @@ export default function InvoiceDetailPage() {
             <CardTitle>Notes</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm whitespace-pre-wrap">{invoice.notes}</p>
+            <p className="text-muted-foreground whitespace-pre-wrap">{invoice.notes}</p>
           </CardContent>
         </Card>
-      )}
-
-      {/* Payment Form Dialog */}
-      <PaymentFormDialog
-        open={paymentDialogOpen}
-        onOpenChange={setPaymentDialogOpen}
-        onSuccess={() => {
-          fetchInvoiceDetails();
-        }}
-      />
-
-      {/* Send Invoice Dialog */}
-      {invoice && (
-        <SendInvoiceDialog
-          open={sendDialogOpen}
-          onOpenChange={setSendDialogOpen}
-          invoice={{
-            id: invoice.id,
-            invoiceNumber: invoice.invoiceNumber,
-            tenant: invoice.occupancy?.tenant
-              ? {
-                  firstName: invoice.occupancy.tenant.firstName,
-                  lastName: invoice.occupancy.tenant.lastName,
-                  email: invoice.occupancy.tenant.email,
-                }
-              : undefined,
-            totalAmount: invoice.totalAmount,
-          }}
-          onSuccess={() => {
-            fetchInvoiceDetails();
-          }}
-        />
       )}
     </div>
   );

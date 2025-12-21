@@ -126,15 +126,15 @@ export class CompoundsController {
     }
 
     /**
-     * Get compound by ID
+     * Get compound by ID with stats
      */
     @Get(':id')
     @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.WORKER)
-    @ApiOperation({ summary: 'Get compound by ID' })
-    @ApiResponse({ status: 200, description: 'Returns compound details' })
+    @ApiOperation({ summary: 'Get compound by ID with statistics' })
+    @ApiResponse({ status: 200, description: 'Returns compound details with unit statistics' })
     @ApiResponse({ status: 404, description: 'Compound not found' })
     async findOne(@Param('id') id: string, @TenantId() companyId: string) {
-        return this.compoundsService.findOne(id, companyId);
+        return this.compoundsService.findOneWithStats(id, companyId);
     }
 
     /**

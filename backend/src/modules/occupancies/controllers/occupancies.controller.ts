@@ -148,10 +148,28 @@ export class OccupanciesController {
     @ApiResponse({ status: 404, description: 'Occupancy not found' })
     endOccupancy(
         @Param('id') id: string,
-        @Body('moveOutDate') moveOutDate: string,
+        @Body() body: { moveOutDate: string; notes?: string },
         @CurrentUser() user: any
     ) {
-        return this.occupanciesService.endOccupancy(id, user.companyId, moveOutDate);
+        return this.occupanciesService.endOccupancy(
+            id,
+            user.companyId,
+            body.moveOutDate,
+            body.notes
+        );
+    }
+
+    @Post(':id/cancel')
+    @ApiOperation({ summary: 'Cancel an occupancy (lease cancelled)' })
+    @ApiResponse({ status: 200, description: 'Occupancy cancelled successfully' })
+    @ApiResponse({ status: 400, description: 'Occupancy already cancelled or ended' })
+    @ApiResponse({ status: 404, description: 'Occupancy not found' })
+    cancelOccupancy(
+        @Param('id') id: string,
+        @Body('reason') reason: string,
+        @CurrentUser() user: any
+    ) {
+        return this.occupanciesService.cancelOccupancy(id, user.companyId, reason);
     }
 
     @Post(':id/deposit-payment')

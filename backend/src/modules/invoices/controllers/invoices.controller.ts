@@ -107,7 +107,8 @@ export class InvoicesController {
             pageLimit,
             {
                 status: query.status,
-                includeInactive: query.includeInactive || false
+                includeInactive: query.includeInactive || false,
+                compoundId: query.compoundId
             }
         );
 

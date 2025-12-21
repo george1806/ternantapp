@@ -2,25 +2,34 @@ import {
     Injectable,
     NotFoundException,
     ConflictException,
-    BadRequestException
+    BadRequestException,
+    Inject,
+    forwardRef
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindOptionsWhere, LessThan, Between, In } from 'typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { Invoice } from '../entities/invoice.entity';
 import { CreateInvoiceDto } from '../dto/create-invoice.dto';
 import { UpdateInvoiceDto } from '../dto/update-invoice.dto';
 import { Occupancy } from '../../occupancies/entities/occupancy.entity';
 import { Tenant } from '../../tenants/entities/tenant.entity';
 import { Payment } from '../../payments/entities/payment.entity';
+import { DashboardService } from '../../dashboard/dashboard.service';
 
 /**
  * Invoices Service
  * Business logic for invoice management
+ * Includes dashboard cache invalidation and recent invoices caching
  *
  * Author: george1806
  */
 @Injectable()
 export class InvoicesService {
+    // Cache TTL for recent invoices: 5 minutes (300000ms)
+    private readonly RECENT_CACHE_TTL = 300000;
+
     constructor(
         @InjectRepository(Invoice)
         private invoicesRepository: Repository<Invoice>,
@@ -29,11 +38,16 @@ export class InvoicesService {
         @InjectRepository(Tenant)
         private tenantsRepository: Repository<Tenant>,
         @InjectRepository(Payment)
-        private paymentsRepository: Repository<Payment>
+        private paymentsRepository: Repository<Payment>,
+        @Inject(forwardRef(() => DashboardService))
+        private dashboardService: DashboardService,
+        @Inject(CACHE_MANAGER)
+        private cacheManager: Cache
     ) {}
 
     /**
      * Create a new invoice
+     * Invalidates dashboard cache after successful creation
      */
     async create(createDto: CreateInvoiceDto, companyId: string): Promise<Invoice> {
         // Check for duplicate invoice number
@@ -47,9 +61,10 @@ export class InvoicesService {
             );
         }
 
-        // Verify occupancy exists
+        // Verify occupancy exists and get compound info
         const occupancy = await this.occupanciesRepository.findOne({
-            where: { id: createDto.occupancyId, companyId, isActive: true }
+            where: { id: createDto.occupancyId, companyId, isActive: true },
+            relations: ['apartment']
         });
         if (!occupancy) {
             throw new NotFoundException('Occupancy not found');
@@ -75,7 +90,34 @@ export class InvoicesService {
             companyId
         });
 
-        return this.invoicesRepository.save(invoice);
+        const savedInvoice = await this.invoicesRepository.save(invoice);
+
+        // Invalidate caches after successful creation
+        const compoundId = occupancy.apartment?.compoundId;
+        await Promise.all([
+            this.dashboardService.invalidateCache(companyId, compoundId, true),
+            this.invalidateRecentInvoicesCache(companyId, compoundId)
+        ]);
+
+        return savedInvoice;
+    }
+
+    /**
+     * Invalidate recent invoices cache
+     * @private
+     */
+    private async invalidateRecentInvoicesCache(companyId: string, compoundId?: string): Promise<void> {
+        const keysToDelete: string[] = [];
+
+        // Invalidate company-level recent invoices
+        keysToDelete.push(`dashboard:recent:invoices:${companyId}`);
+
+        // Invalidate compound-specific recent invoices if provided
+        if (compoundId) {
+            keysToDelete.push(`dashboard:recent:invoices:${companyId}:${compoundId}`);
+        }
+
+        await Promise.all(keysToDelete.map(key => this.cacheManager.del(key)));
     }
 
     /**
@@ -156,7 +198,7 @@ export class InvoicesService {
         companyId: string,
         page: number = 1,
         limit: number = 10,
-        filters?: { status?: string; includeInactive?: boolean }
+        filters?: { status?: string; includeInactive?: boolean; compoundId?: string }
     ): Promise<{ data: Invoice[]; total: number }> {
         const skip = (page - 1) * limit;
 
@@ -172,6 +214,13 @@ export class InvoicesService {
 
         if (filters?.status) {
             query.andWhere('invoice.status = :status', { status: filters.status });
+        }
+
+        // Filter by compound/property if provided
+        if (filters?.compoundId) {
+            query
+                .innerJoin('occupancy.apartment', 'apartment')
+                .andWhere('apartment.compoundId = :compoundId', { compoundId: filters.compoundId });
         }
 
         query.orderBy('invoice.invoiceDate', 'DESC');
@@ -321,6 +370,7 @@ export class InvoicesService {
 
     /**
      * Update an invoice
+     * Invalidates dashboard cache after successful update
      */
     async update(
         id: string,
@@ -351,11 +401,21 @@ export class InvoicesService {
         }
 
         Object.assign(invoice, updateDto);
-        return this.invoicesRepository.save(invoice);
+        const savedInvoice = await this.invoicesRepository.save(invoice);
+
+        // Invalidate caches after successful update
+        const compoundId = invoice.occupancy?.apartment?.compoundId;
+        await Promise.all([
+            this.dashboardService.invalidateCache(companyId, compoundId, true),
+            this.invalidateRecentInvoicesCache(companyId, compoundId)
+        ]);
+
+        return savedInvoice;
     }
 
     /**
      * Update invoice status
+     * Invalidates dashboard and recent invoices cache after successful status update
      */
     async updateStatus(
         id: string,
@@ -389,7 +449,16 @@ export class InvoicesService {
         }
 
         invoice.status = status;
-        return this.invoicesRepository.save(invoice);
+        const savedInvoice = await this.invoicesRepository.save(invoice);
+
+        // Invalidate caches after successful status update
+        const compoundId = invoice.occupancy?.apartment?.compoundId;
+        await Promise.all([
+            this.dashboardService.invalidateCache(companyId, compoundId, true),
+            this.invalidateRecentInvoicesCache(companyId, compoundId)
+        ]);
+
+        return savedInvoice;
     }
 
     /**
@@ -443,6 +512,7 @@ export class InvoicesService {
 
     /**
      * Soft delete (deactivate) an invoice
+     * Invalidates dashboard cache after successful deletion
      */
     async remove(id: string, companyId: string): Promise<void> {
         const invoice = await this.findOne(id, companyId);
@@ -460,6 +530,13 @@ export class InvoicesService {
 
         invoice.isActive = false;
         await this.invoicesRepository.save(invoice);
+
+        // Invalidate caches after successful deletion
+        const compoundId = invoice.occupancy?.apartment?.compoundId;
+        await Promise.all([
+            this.dashboardService.invalidateCache(companyId, compoundId, true),
+            this.invalidateRecentInvoicesCache(companyId, compoundId)
+        ]);
     }
 
     /**

@@ -48,28 +48,61 @@ export class TenantsService {
     }
 
     /**
-     * Find all tenants for a company
-     * Supports filtering by status
+     * Find all tenants for a company with pagination
+     * Supports filtering by status and search
      */
     async findAll(
         companyId: string,
-        status?: string,
-        includeInactive = false
-    ): Promise<Tenant[]> {
-        const where: FindOptionsWhere<Tenant> = { companyId };
+        page: number = 1,
+        limit: number = 10,
+        filters?: {
+            status?: string;
+            search?: string;
+            sortBy?: string;
+            sortOrder?: 'ASC' | 'DESC';
+        }
+    ): Promise<{ data: Tenant[]; total: number }> {
+        const skip = (page - 1) * limit;
 
-        if (!includeInactive) {
-            where.isActive = true;
+        const query = this.tenantsRepository
+            .createQueryBuilder('tenant')
+            .where('tenant.companyId = :companyId', { companyId })
+            .andWhere('tenant.isActive = :isActive', { isActive: true });
+
+        if (filters?.status) {
+            query.andWhere('tenant.status = :status', { status: filters.status });
         }
 
-        if (status) {
-            where.status = status as any;
+        if (filters?.search) {
+            query.andWhere(
+                '(tenant.firstName LIKE :search OR tenant.lastName LIKE :search OR tenant.email LIKE :search OR tenant.phone LIKE :search)',
+                { search: `%${filters.search}%` }
+            );
         }
 
-        return this.tenantsRepository.find({
-            where,
-            order: { lastName: 'ASC', firstName: 'ASC' }
-        });
+        // Dynamic sorting
+        const sortBy = filters?.sortBy || 'createdAt';
+        const sortOrder = filters?.sortOrder || 'DESC';
+
+        // Map frontend field names to database column names
+        const sortFieldMap: Record<string, string> = {
+            createdAt: 'tenant.createdAt',
+            updatedAt: 'tenant.updatedAt',
+            firstName: 'tenant.firstName',
+            lastName: 'tenant.lastName',
+            email: 'tenant.email',
+            status: 'tenant.status'
+        };
+
+        const sortField = sortFieldMap[sortBy] || 'tenant.createdAt';
+        query.orderBy(sortField, sortOrder);
+
+        const [data, total] = await query
+            .skip(skip)
+            .take(limit)
+            .getManyAndCount();
+
+        return { data, total };
     }
 
     /**

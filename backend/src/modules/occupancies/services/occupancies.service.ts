@@ -2,7 +2,9 @@ import {
     Injectable,
     NotFoundException,
     ConflictException,
-    BadRequestException
+    BadRequestException,
+    Inject,
+    forwardRef
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindOptionsWhere, LessThanOrEqual, MoreThanOrEqual, DataSource } from 'typeorm';
@@ -12,10 +14,12 @@ import { UpdateOccupancyDto } from '../dto/update-occupancy.dto';
 import { Tenant } from '../../tenants/entities/tenant.entity';
 import { Apartment } from '../../apartments/entities/apartment.entity';
 import { Invoice } from '../../invoices/entities/invoice.entity';
+import { DashboardService } from '../../dashboard/dashboard.service';
 
 /**
  * Occupancies Service
  * Business logic for occupancy/lease management
+ * Includes dashboard cache invalidation for data consistency
  *
  * Author: george1806
  */
@@ -30,7 +34,9 @@ export class OccupanciesService {
         private apartmentsRepository: Repository<Apartment>,
         @InjectRepository(Invoice)
         private invoicesRepository: Repository<Invoice>,
-        private dataSource: DataSource
+        private dataSource: DataSource,
+        @Inject(forwardRef(() => DashboardService))
+        private dashboardService: DashboardService
     ) {}
 
     /**
@@ -90,7 +96,13 @@ export class OccupanciesService {
             companyId
         });
 
-        return this.occupanciesRepository.save(occupancy);
+        const savedOccupancy = await this.occupanciesRepository.save(occupancy);
+
+        // Invalidate dashboard cache after successful creation
+        const compoundId = apartment.compoundId;
+        await this.dashboardService.invalidateCache(companyId, compoundId, true);
+
+        return savedOccupancy;
     }
 
     /**
@@ -220,12 +232,16 @@ export class OccupanciesService {
         active: number;
         pending: number;
         ended: number;
+        cancelled: number;
         expiringThisMonth: number;
+        expiringNextMonth: number;
+        averageLeaseDuration: number;
     }> {
         const now = new Date();
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        const endOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0);
 
-        const [total, active, pending, ended, expiringThisMonth] = await Promise.all([
+        const [total, active, pending, ended, cancelled, expiringThisMonth, expiringNextMonth] = await Promise.all([
             this.occupanciesRepository.count({
                 where: { companyId, isActive: true }
             }),
@@ -238,6 +254,9 @@ export class OccupanciesService {
             this.occupanciesRepository.count({
                 where: { companyId, status: 'ended', isActive: true }
             }),
+            this.occupanciesRepository.count({
+                where: { companyId, status: 'cancelled', isActive: true }
+            }),
             this.occupanciesRepository
                 .createQueryBuilder('occupancy')
                 .where('occupancy.companyId = :companyId', { companyId })
@@ -245,10 +264,48 @@ export class OccupanciesService {
                 .andWhere('occupancy.isActive = :isActive', { isActive: true })
                 .andWhere('occupancy.leaseEndDate >= :now', { now })
                 .andWhere('occupancy.leaseEndDate <= :endOfMonth', { endOfMonth })
+                .getCount(),
+            this.occupanciesRepository
+                .createQueryBuilder('occupancy')
+                .where('occupancy.companyId = :companyId', { companyId })
+                .andWhere('occupancy.status = :status', { status: 'active' })
+                .andWhere('occupancy.isActive = :isActive', { isActive: true })
+                .andWhere('occupancy.leaseEndDate > :endOfMonth', { endOfMonth })
+                .andWhere('occupancy.leaseEndDate <= :endOfNextMonth', { endOfNextMonth })
                 .getCount()
         ]);
 
-        return { total, active, pending, ended, expiringThisMonth };
+        // Calculate average lease duration in days
+        const occupanciesWithDates = await this.occupanciesRepository
+            .createQueryBuilder('occupancy')
+            .select('occupancy.leaseStartDate', 'startDate')
+            .addSelect('occupancy.leaseEndDate', 'endDate')
+            .where('occupancy.companyId = :companyId', { companyId })
+            .andWhere('occupancy.isActive = :isActive', { isActive: true })
+            .andWhere('occupancy.status IN (:...statuses)', { statuses: ['active', 'ended'] })
+            .getRawMany();
+
+        let averageLeaseDuration = 0;
+        if (occupanciesWithDates.length > 0) {
+            const totalDays = occupanciesWithDates.reduce((sum, occ) => {
+                const start = new Date(occ.startDate);
+                const end = new Date(occ.endDate);
+                const days = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                return sum + days;
+            }, 0);
+            averageLeaseDuration = Math.round(totalDays / occupanciesWithDates.length);
+        }
+
+        return {
+            total,
+            active,
+            pending,
+            ended,
+            cancelled,
+            expiringThisMonth,
+            expiringNextMonth,
+            averageLeaseDuration
+        };
     }
 
     /**
@@ -307,11 +364,18 @@ export class OccupanciesService {
         }
 
         Object.assign(occupancy, updateDto);
-        return this.occupanciesRepository.save(occupancy);
+        const savedOccupancy = await this.occupanciesRepository.save(occupancy);
+
+        // Invalidate dashboard cache after successful update
+        const compoundId = occupancy.apartment?.compoundId;
+        await this.dashboardService.invalidateCache(companyId, compoundId, true);
+
+        return savedOccupancy;
     }
 
     /**
      * Update occupancy status
+     * Invalidates dashboard cache after successful status update
      */
     async updateStatus(
         id: string,
@@ -335,16 +399,24 @@ export class OccupanciesService {
         }
 
         occupancy.status = status;
-        return this.occupanciesRepository.save(occupancy);
+        const savedOccupancy = await this.occupanciesRepository.save(occupancy);
+
+        // Invalidate dashboard cache after successful status update
+        const compoundId = occupancy.apartment?.compoundId;
+        await this.dashboardService.invalidateCache(companyId, compoundId, true);
+
+        return savedOccupancy;
     }
 
     /**
      * Mark occupancy as ended (lease completed)
+     * Updates apartment status to available and invalidates cache
      */
     async endOccupancy(
         id: string,
         companyId: string,
-        moveOutDate?: string
+        moveOutDate: string,
+        notes?: string
     ): Promise<Occupancy> {
         const occupancy = await this.findOne(id, companyId);
 
@@ -352,12 +424,74 @@ export class OccupanciesService {
             throw new BadRequestException('Occupancy is already ended');
         }
 
-        occupancy.status = 'ended';
-        if (moveOutDate) {
-            occupancy.moveOutDate = new Date(moveOutDate);
+        if (occupancy.status === 'cancelled') {
+            throw new BadRequestException('Cannot end a cancelled occupancy');
         }
 
-        return this.occupanciesRepository.save(occupancy);
+        // Update occupancy
+        occupancy.status = 'ended';
+        occupancy.moveOutDate = new Date(moveOutDate);
+        if (notes) {
+            occupancy.notes = occupancy.notes ? `${occupancy.notes}\n\n[End of Lease Notes]\n${notes}` : notes;
+        }
+
+        const savedOccupancy = await this.occupanciesRepository.save(occupancy);
+
+        // Update apartment status to available
+        if (occupancy.apartment) {
+            await this.apartmentsRepository.update(
+                { id: occupancy.apartmentId, companyId },
+                { status: 'available' }
+            );
+        }
+
+        // Invalidate dashboard cache
+        const compoundId = occupancy.apartment?.compoundId;
+        await this.dashboardService.invalidateCache(companyId, compoundId, true);
+
+        return savedOccupancy;
+    }
+
+    /**
+     * Cancel an occupancy (marks as cancelled)
+     * Updates apartment status to available and invalidates cache
+     */
+    async cancelOccupancy(
+        id: string,
+        companyId: string,
+        reason: string
+    ): Promise<Occupancy> {
+        const occupancy = await this.findOne(id, companyId);
+
+        if (occupancy.status === 'ended') {
+            throw new BadRequestException('Cannot cancel an already ended occupancy');
+        }
+
+        if (occupancy.status === 'cancelled') {
+            throw new BadRequestException('Occupancy is already cancelled');
+        }
+
+        // Update occupancy
+        occupancy.status = 'cancelled';
+        occupancy.notes = occupancy.notes
+            ? `${occupancy.notes}\n\n[Cancellation Reason]\n${reason}`
+            : `[Cancellation Reason]\n${reason}`;
+
+        const savedOccupancy = await this.occupanciesRepository.save(occupancy);
+
+        // Update apartment status to available
+        if (occupancy.apartment) {
+            await this.apartmentsRepository.update(
+                { id: occupancy.apartmentId, companyId },
+                { status: 'available' }
+            );
+        }
+
+        // Invalidate dashboard cache
+        const compoundId = occupancy.apartment?.compoundId;
+        await this.dashboardService.invalidateCache(companyId, compoundId, true);
+
+        return savedOccupancy;
     }
 
     /**
@@ -406,6 +540,7 @@ export class OccupanciesService {
 
     /**
      * Soft delete (deactivate) an occupancy and cascade delete its invoices
+     * Invalidates dashboard cache after successful deletion
      */
     async remove(id: string, companyId: string): Promise<void> {
         const occupancy = await this.findOne(id, companyId);
@@ -425,6 +560,10 @@ export class OccupanciesService {
 
         occupancy.isActive = false;
         await this.occupanciesRepository.save(occupancy);
+
+        // Invalidate dashboard cache after successful deletion
+        const compoundId = occupancy.apartment?.compoundId;
+        await this.dashboardService.invalidateCache(companyId, compoundId, true);
     }
 
     /**

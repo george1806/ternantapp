@@ -47,7 +47,7 @@ export class TenantsController {
     }
 
     @Get()
-    @ApiOperation({ summary: 'Get all tenants' })
+    @ApiOperation({ summary: 'Get all tenants with pagination' })
     @ApiQuery({
         name: 'status',
         required: false,
@@ -55,18 +55,72 @@ export class TenantsController {
         description: 'Filter by status'
     })
     @ApiQuery({
-        name: 'includeInactive',
+        name: 'search',
         required: false,
-        type: Boolean,
-        description: 'Include inactive tenants'
+        type: String,
+        description: 'Search by name, email, or phone'
     })
-    @ApiResponse({ status: 200, description: 'List of tenants' })
+    @ApiQuery({
+        name: 'page',
+        required: false,
+        type: Number,
+        description: 'Page number'
+    })
+    @ApiQuery({
+        name: 'limit',
+        required: false,
+        type: Number,
+        description: 'Items per page'
+    })
+    @ApiQuery({
+        name: 'sortBy',
+        required: false,
+        type: String,
+        description: 'Sort field'
+    })
+    @ApiQuery({
+        name: 'sortOrder',
+        required: false,
+        enum: ['ASC', 'DESC'],
+        description: 'Sort order'
+    })
+    @ApiResponse({ status: 200, description: 'Returns tenants with pagination' })
     async findAll(
         @CurrentUser() user: any,
         @Query('status') status?: string,
-        @Query('includeInactive') includeInactive?: boolean
+        @Query('search') search?: string,
+        @Query('page') page?: number,
+        @Query('limit') limit?: number,
+        @Query('sortBy') sortBy?: string,
+        @Query('sortOrder') sortOrder?: 'ASC' | 'DESC'
     ) {
-        return this.tenantsService.findAll(user.companyId, status, includeInactive);
+        const currentPage = Number(page) || 1;
+        const pageLimit = Number(limit) || 10;
+
+        const result = await this.tenantsService.findAll(
+            user.companyId,
+            currentPage,
+            pageLimit,
+            {
+                status,
+                search,
+                sortBy,
+                sortOrder
+            }
+        );
+
+        const totalPages = Math.ceil(result.total / pageLimit);
+
+        // Return paginated response format expected by frontend
+        return {
+            data: result.data,
+            meta: {
+                total: result.total,
+                page: currentPage,
+                limit: pageLimit,
+                totalPages
+            }
+        };
     }
 
     @Get('search')

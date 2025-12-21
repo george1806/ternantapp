@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Bell, LogOut, User, Settings, Monitor } from 'lucide-react';
+import { Bell, LogOut, User, Settings, Monitor, Menu } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { SessionsDialog } from '@/components/auth/sessions-dialog';
 
@@ -28,7 +28,11 @@ import { SessionsDialog } from '@/components/auth/sessions-dialog';
  * - Accessible menu items
  */
 
-export function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void;
+}
+
+export function Header({ onMenuClick }: HeaderProps) {
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const [isSessionsDialogOpen, setIsSessionsDialogOpen] = useState(false);
@@ -50,20 +54,32 @@ export function Header() {
   };
 
   return (
-    <header className="fixed top-0 right-0 z-20 h-16 w-[calc(100%-16rem)] border-b bg-background px-6">
+    <header className="fixed top-0 right-0 z-20 h-16 w-full lg:w-[calc(100%-16rem)] border-b bg-background px-4 sm:px-6">
       <div className="flex h-full items-center justify-between">
-        {/* Page Title / Breadcrumb - Can be enhanced later */}
-        <div className="flex items-center space-x-4">
-          <h1 className="text-xl font-semibold">
-            {user?.company?.name || 'Property Management'}
-          </h1>
-          <Badge variant="secondary">{user?.role ? formatRole(user.role) : 'User'}</Badge>
+        {/* Mobile Menu Button + Title */}
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
+            onClick={onMenuClick}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+          <div className="flex items-center gap-2 sm:gap-4">
+            <h1 className="text-base sm:text-xl font-semibold truncate max-w-[150px] sm:max-w-none">
+              {user?.company?.name || 'Property Management'}
+            </h1>
+            <Badge variant="secondary" className="hidden sm:inline-flex">
+              {user?.role ? formatRole(user.role) : 'User'}
+            </Badge>
+          </div>
         </div>
 
         {/* Right Section - Notifications & User Menu */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
+          <Button variant="ghost" size="icon" className="relative hidden sm:flex">
             <Bell className="h-5 w-5" />
             {/* Notification badge - can be made dynamic */}
             <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />

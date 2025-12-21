@@ -5,7 +5,7 @@ import {
     IsDateString,
     IsNumber,
     IsArray,
-    IsEnum,
+    IsIn,
     MaxLength,
     Min,
     ValidateNested
@@ -212,6 +212,6 @@ export class CreateTenantDto {
         default: 'active'
     })
     @IsOptional()
-    @IsEnum(['active', 'inactive', 'blacklisted'])
+    @IsIn(['active', 'inactive', 'blacklisted'])
     status?: 'active' | 'inactive' | 'blacklisted';
 }
