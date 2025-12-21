@@ -1,5 +1,5 @@
 import { api } from '@/lib/api';
-import type { Apartment, PaginatedResponse, PaginationParams } from '@/types';
+import type { Apartment, Occupancy, PaginatedResponse, PaginationParams } from '@/types';
 
 /**
  * Apartments Service
@@ -72,7 +72,9 @@ export const apartmentsService = {
    * Get apartments by compound
    */
   getByCompound: (compoundId: string, params?: PaginationParams) => {
-    return api.get<PaginatedResponse<Apartment>>(`/compounds/${compoundId}/apartments`, { params });
+    return api.get<PaginatedResponse<Apartment>>('/apartments', {
+      params: { ...params, compoundId }
+    });
   },
 
   /**
@@ -103,5 +105,34 @@ export const apartmentsService = {
    */
   getCount: (params?: ApartmentFilters) => {
     return api.get<{ count: number }>('/apartments/count', { params });
+  },
+
+  /**
+   * Get current active occupancy for an apartment
+   */
+  getCurrentOccupancy: (id: string) => {
+    return api.get<{ data: Occupancy | null }>(`/apartments/${id}/current-occupancy`);
+  },
+
+  /**
+   * Get occupancy history for an apartment
+   */
+  getOccupancyHistory: (id: string) => {
+    return api.get<{ data: Occupancy[] }>(`/apartments/${id}/occupancy-history`);
+  },
+
+  /**
+   * Get financial summary for an apartment
+   */
+  getFinancialSummary: (id: string) => {
+    return api.get<{
+      data: {
+        totalRevenue: number;
+        currentMonthlyRevenue: number;
+        totalDaysRented: number;
+        totalDaysVacant: number;
+        occupancyRate: number;
+      };
+    }>(`/apartments/${id}/financial-summary`);
   },
 };

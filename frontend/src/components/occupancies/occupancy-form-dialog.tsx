@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { occupanciesService, type CreateOccupancyDto } from '@/services/occupancies.service';
@@ -140,12 +141,16 @@ export function OccupancyFormDialog({
   }, [open, occupancy, preselectedApartmentId, preselectedTenantId, setValue, reset]);
 
   useEffect(() => {
-    if (selectedCompoundId) {
+    // Clear apartment selection when compound changes
+    setValue('apartmentId', '');
+
+    // Only fetch apartments by compound if a valid compound ID is selected (not empty, not 'all')
+    if (selectedCompoundId && selectedCompoundId !== 'all') {
       fetchApartmentsByCompound(selectedCompoundId);
     } else {
       fetchAllApartments();
     }
-     
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCompoundId]);
 
   // Auto-fill monthly rent when apartment is selected
@@ -156,7 +161,7 @@ export function OccupancyFormDialog({
         setValue('monthlyRent', apartment.monthlyRent);
       }
     }
-     
+
   }, [selectedApartmentId, apartments, isEditing, setValue]);
 
   const fetchCompounds = async () => {
@@ -183,7 +188,14 @@ export function OccupancyFormDialog({
       setLoadingApartments(true);
       const response = await apartmentsService.getAll({ limit: 100, status: 'available' });
       if (response.data?.data) {
-        setApartments(response.data.data);
+        const newApartments = response.data.data;
+        setApartments(newApartments);
+
+        // Clear apartment selection if currently selected apartment is not in the new list
+        const currentApartmentId = watch('apartmentId');
+        if (currentApartmentId && !newApartments.find(apt => apt.id === currentApartmentId)) {
+          setValue('apartmentId', '');
+        }
       }
     } catch (error) {
       console.error('Failed to fetch apartments:', error);
@@ -195,9 +207,16 @@ export function OccupancyFormDialog({
   const fetchApartmentsByCompound = async (compoundId: string) => {
     try {
       setLoadingApartments(true);
-      const response = await apartmentsService.getByCompound(compoundId, { limit: 100 });
+      const response = await apartmentsService.getByCompound(compoundId, { limit: 100, status: 'available' });
       if (response.data?.data) {
-        setApartments(response.data.data);
+        const newApartments = response.data.data;
+        setApartments(newApartments);
+
+        // Clear apartment selection if currently selected apartment is not in the new list
+        const currentApartmentId = watch('apartmentId');
+        if (currentApartmentId && !newApartments.find(apt => apt.id === currentApartmentId)) {
+          setValue('apartmentId', '');
+        }
       }
     } catch (error) {
       console.error('Failed to fetch apartments:', error);
@@ -294,14 +313,20 @@ export function OccupancyFormDialog({
                 </div>
               ) : (
                 <Select
-                  value={selectedCompoundId}
-                  onValueChange={(value) => setValue('compoundId', value)}
+                  value={selectedCompoundId || undefined}
+                  onValueChange={(value) => {
+                    if (value === 'all') {
+                      setValue('compoundId', '');
+                    } else {
+                      setValue('compoundId', value);
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="All properties" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Properties</SelectItem>
+                    <SelectItem value="all">All Properties</SelectItem>
                     {compounds.map((compound) => (
                       <SelectItem key={compound.id} value={compound.id}>
                         {compound.name}
@@ -324,23 +349,19 @@ export function OccupancyFormDialog({
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <Select
+                <Combobox
+                  options={apartments.map((apartment): ComboboxOption => ({
+                    value: apartment.id,
+                    label: `Unit ${apartment.unitNumber}`,
+                    sublabel: apartment.compound ? apartment.compound.name : undefined,
+                  }))}
                   value={selectedApartmentId}
                   onValueChange={(value) => setValue('apartmentId', value)}
+                  placeholder="Select apartment..."
+                  searchPlaceholder="Search by unit number or property..."
+                  emptyText="No apartments found."
                   disabled={isEditing}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select apartment" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {apartments.map((apartment) => (
-                      <SelectItem key={apartment.id} value={apartment.id}>
-                        Unit {apartment.unitNumber}
-                        {apartment.compound && ` - ${apartment.compound.name}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               )}
               {errors.apartmentId && (
                 <p className="text-sm text-destructive">{errors.apartmentId.message}</p>
@@ -356,22 +377,19 @@ export function OccupancyFormDialog({
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <Select
+                <Combobox
+                  options={tenants.map((tenant): ComboboxOption => ({
+                    value: tenant.id,
+                    label: `${tenant.firstName} ${tenant.lastName}`,
+                    sublabel: tenant.email,
+                  }))}
                   value={selectedTenantId}
                   onValueChange={(value) => setValue('tenantId', value)}
+                  placeholder="Select tenant..."
+                  searchPlaceholder="Search by name or email..."
+                  emptyText="No tenants found."
                   disabled={isEditing}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select tenant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tenants.map((tenant) => (
-                      <SelectItem key={tenant.id} value={tenant.id}>
-                        {tenant.firstName} {tenant.lastName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               )}
               {errors.tenantId && (
                 <p className="text-sm text-destructive">{errors.tenantId.message}</p>
