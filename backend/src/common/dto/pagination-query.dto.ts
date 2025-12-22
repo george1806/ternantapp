@@ -82,20 +82,44 @@ export class PaginationQueryDto {
 export class InvoiceQueryDto extends PaginationQueryDto {
     @ApiPropertyOptional({
         description: 'Sort field',
-        enum: ['invoiceNumber', 'amount', 'dueDate', 'status', 'createdAt', 'updatedAt']
+        enum: ['invoiceNumber', 'invoiceDate', 'amount', 'dueDate', 'status', 'createdAt', 'updatedAt']
     })
     @IsOptional()
     @IsString()
-    @IsIn(['invoiceNumber', 'amount', 'dueDate', 'status', 'createdAt', 'updatedAt'])
+    @IsIn(['invoiceNumber', 'invoiceDate', 'amount', 'dueDate', 'status', 'createdAt', 'updatedAt'])
     sortBy?: string;
 
     @ApiPropertyOptional({
         description: 'Filter by status',
-        enum: ['PENDING', 'PARTIAL', 'PAID', 'OVERDUE', 'CANCELLED']
+        enum: ['draft', 'sent', 'paid', 'overdue', 'cancelled']
     })
     @IsOptional()
     @IsString()
     status?: string;
+
+    @ApiPropertyOptional({
+        description: 'Search by invoice number or tenant name',
+        type: String
+    })
+    @IsOptional()
+    @IsString()
+    search?: string;
+
+    @ApiPropertyOptional({
+        description: 'Filter by date from (YYYY-MM-DD)',
+        type: String
+    })
+    @IsOptional()
+    @IsString()
+    dateFrom?: string;
+
+    @ApiPropertyOptional({
+        description: 'Filter by date to (YYYY-MM-DD)',
+        type: String
+    })
+    @IsOptional()
+    @IsString()
+    dateTo?: string;
 
     @ApiPropertyOptional({
         description: 'Include inactive records',
@@ -113,7 +137,7 @@ export class InvoiceQueryDto extends PaginationQueryDto {
     compoundId?: string;
 
     protected getAllowedSortFields(): string[] {
-        return ['invoiceNumber', 'amount', 'dueDate', 'status', 'createdAt', 'updatedAt'];
+        return ['invoiceNumber', 'invoiceDate', 'amount', 'dueDate', 'status', 'createdAt', 'updatedAt'];
     }
 }
 

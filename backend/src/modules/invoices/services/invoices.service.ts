@@ -198,7 +198,16 @@ export class InvoicesService {
         companyId: string,
         page: number = 1,
         limit: number = 10,
-        filters?: { status?: string; includeInactive?: boolean; compoundId?: string }
+        filters?: {
+            status?: string;
+            search?: string;
+            dateFrom?: string;
+            dateTo?: string;
+            includeInactive?: boolean;
+            compoundId?: string;
+            sortBy?: string;
+            sortOrder?: 'ASC' | 'DESC';
+        }
     ): Promise<{ data: Invoice[]; total: number }> {
         const skip = (page - 1) * limit;
 
@@ -206,7 +215,8 @@ export class InvoicesService {
             .createQueryBuilder('invoice')
             .where('invoice.companyId = :companyId', { companyId })
             .leftJoinAndSelect('invoice.tenant', 'tenant')
-            .leftJoinAndSelect('invoice.occupancy', 'occupancy');
+            .leftJoinAndSelect('invoice.occupancy', 'occupancy')
+            .leftJoinAndSelect('occupancy.apartment', 'apartment');
 
         if (!filters?.includeInactive) {
             query.andWhere('invoice.isActive = :isActive', { isActive: true });
@@ -216,14 +226,32 @@ export class InvoicesService {
             query.andWhere('invoice.status = :status', { status: filters.status });
         }
 
-        // Filter by compound/property if provided
-        if (filters?.compoundId) {
-            query
-                .innerJoin('occupancy.apartment', 'apartment')
-                .andWhere('apartment.compoundId = :compoundId', { compoundId: filters.compoundId });
+        // Search by invoice number or tenant name
+        if (filters?.search) {
+            query.andWhere(
+                '(invoice.invoiceNumber LIKE :search OR tenant.firstName LIKE :search OR tenant.lastName LIKE :search)',
+                { search: `%${filters.search}%` }
+            );
         }
 
-        query.orderBy('invoice.invoiceDate', 'DESC');
+        // Filter by date range
+        if (filters?.dateFrom) {
+            query.andWhere('invoice.dueDate >= :dateFrom', { dateFrom: filters.dateFrom });
+        }
+
+        if (filters?.dateTo) {
+            query.andWhere('invoice.dueDate <= :dateTo', { dateTo: filters.dateTo });
+        }
+
+        // Filter by compound/property if provided
+        if (filters?.compoundId) {
+            query.andWhere('apartment.compoundId = :compoundId', { compoundId: filters.compoundId });
+        }
+
+        // Apply sorting
+        const sortBy = filters?.sortBy || 'dueDate';
+        const sortOrder = filters?.sortOrder || 'DESC';
+        query.orderBy(`invoice.${sortBy}`, sortOrder);
 
         const [data, total] = await query
             .skip(skip)

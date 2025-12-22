@@ -1,6 +1,6 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+import { Repository, Between, LessThanOrEqual, MoreThanOrEqual, In } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { ConfigService } from '@nestjs/config';
@@ -146,6 +146,54 @@ export class ReportsService {
         const totalPaid = allInvoices.reduce((sum, inv) => sum + inv.amountPaid, 0);
         const collectionRate = totalRevenue > 0 ? (totalPaid / totalRevenue) * 100 : 0;
 
+        // NEW: Calculate missing KPI fields
+        // Total properties/compounds
+        const totalProperties = await this.compoundRepository.count({
+            where: { companyId, isActive: true }
+        });
+
+        // Maintenance units
+        const maintenanceUnits = await this.apartmentRepository.count({
+            where: { companyId, status: 'maintenance' }
+        });
+
+        // Monthly revenue (same as MRR)
+        const monthlyRevenue = monthlyRecurringRevenue;
+
+        // Active leases (same as active occupancies)
+        const activeLeases = activeTenants;
+
+        // Pending invoices (draft or sent status)
+        const pendingInvoices = await this.invoiceRepository.count({
+            where: {
+                companyId,
+                status: In(['draft', 'sent'])
+            }
+        });
+
+        // Leases expiring within 30 days
+        const thirtyDaysFromNow = new Date();
+        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
+        const expiringLeases = await this.occupancyRepository.count({
+            where: {
+                companyId,
+                status: 'active',
+                leaseEndDate: Between(new Date(), thirtyDaysFromNow)
+            }
+        });
+
+        // Calculate growth metrics (compare with previous period)
+        const previousPeriodData = await this.getPreviousPeriodKPIs(companyId, dateRange);
+        const revenueGrowth = this.calculateGrowthPercentage(
+            totalRevenue,
+            previousPeriodData.totalRevenue
+        );
+        const occupancyTrend = this.calculateGrowthPercentage(
+            occupancyRate,
+            previousPeriodData.occupancyRate
+        );
+
         const kpis: KpiResponseDto = {
             totalUnits,
             occupiedUnits,
@@ -158,7 +206,15 @@ export class ReportsService {
             overdueAmount: Math.round(overdueAmount * 100) / 100,
             totalRevenue: Math.round(totalRevenue * 100) / 100,
             activeTenants,
-            averageRent: Math.round(averageRent * 100) / 100
+            averageRent: Math.round(averageRent * 100) / 100,
+            totalProperties,
+            maintenanceUnits,
+            monthlyRevenue: Math.round(monthlyRevenue * 100) / 100,
+            activeLeases,
+            pendingInvoices,
+            expiringLeases,
+            revenueGrowth: Math.round(revenueGrowth * 100) / 100,
+            occupancyTrend: Math.round(occupancyTrend * 100) / 100
         };
 
         // Cache results
@@ -466,6 +522,207 @@ export class ReportsService {
         }
 
         return filter;
+    }
+
+    /**
+     * Get lease expiration report
+     * Shows leases expiring within specified number of days
+     */
+    async getLeaseExpirationReport(
+        companyId: string,
+        daysAhead: number = 90
+    ): Promise<import('../dto').LeaseExpirationReportDto[]> {
+        this.logger.log(`Calculating lease expiration report for company ${companyId}`);
+
+        const today = new Date();
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + daysAhead);
+
+        const expiringOccupancies = await this.occupancyRepository
+            .createQueryBuilder('occ')
+            .leftJoinAndSelect('occ.tenant', 'tenant')
+            .leftJoinAndSelect('occ.apartment', 'apartment')
+            .leftJoinAndSelect('apartment.compound', 'compound')
+            .where('occ.companyId = :companyId', { companyId })
+            .andWhere('occ.status = :status', { status: 'active' })
+            .andWhere('occ.leaseEndDate BETWEEN :today AND :endDate', {
+                today,
+                endDate
+            })
+            .orderBy('occ.leaseEndDate', 'ASC')
+            .getMany();
+
+        return expiringOccupancies.map((occ) => {
+            const daysUntilExpiration = Math.ceil(
+                (new Date(occ.leaseEndDate).getTime() - today.getTime()) /
+                (1000 * 60 * 60 * 24)
+            );
+
+            let urgency: 'critical' | 'warning' | 'normal';
+            if (daysUntilExpiration <= 30) {
+                urgency = 'critical';
+            } else if (daysUntilExpiration <= 60) {
+                urgency = 'warning';
+            } else {
+                urgency = 'normal';
+            }
+
+            return {
+                occupancyId: occ.id,
+                tenantName: `${occ.tenant.firstName} ${occ.tenant.lastName}`,
+                apartmentUnit: occ.apartment.unitNumber,
+                propertyName: occ.apartment.compound.name,
+                leaseEndDate: occ.leaseEndDate,
+                daysUntilExpiration,
+                monthlyRent: occ.monthlyRent,
+                tenantPhone: occ.tenant.phone,
+                tenantEmail: occ.tenant.email,
+                urgency
+            };
+        });
+    }
+
+    /**
+     * Get aging analysis report
+     * Shows overdue invoices grouped by aging buckets
+     */
+    async getAgingAnalysisReport(
+        companyId: string
+    ): Promise<import('../dto').AgingAnalysisReportDto> {
+        this.logger.log(`Calculating aging analysis report for company ${companyId}`);
+
+        const overdueInvoices = await this.invoiceRepository
+            .createQueryBuilder('invoice')
+            .leftJoinAndSelect('invoice.tenant', 'tenant')
+            .where('invoice.companyId = :companyId', { companyId })
+            .andWhere('invoice.status IN (:...statuses)', {
+                statuses: ['sent', 'overdue']
+            })
+            .andWhere('invoice.totalAmount - invoice.amountPaid > 0')
+            .orderBy('invoice.dueDate', 'ASC')
+            .getMany();
+
+        const summary = {
+            total: 0,
+            current: 0,
+            days30: 0,
+            days60: 0,
+            days90: 0,
+            days90Plus: 0
+        };
+
+        const today = new Date();
+        const details = overdueInvoices.map((invoice) => {
+            const amountDue = invoice.totalAmount - invoice.amountPaid;
+            const daysOverdue = Math.max(
+                0,
+                Math.floor(
+                    (today.getTime() - new Date(invoice.dueDate).getTime()) /
+                    (1000 * 60 * 60 * 24)
+                )
+            );
+
+            let agingBucket: 'current' | '1-30' | '31-60' | '61-90' | '90+';
+            if (daysOverdue <= 0) {
+                agingBucket = 'current';
+                summary.current += amountDue;
+            } else if (daysOverdue <= 30) {
+                agingBucket = '1-30';
+                summary.days30 += amountDue;
+            } else if (daysOverdue <= 60) {
+                agingBucket = '31-60';
+                summary.days60 += amountDue;
+            } else if (daysOverdue <= 90) {
+                agingBucket = '61-90';
+                summary.days90 += amountDue;
+            } else {
+                agingBucket = '90+';
+                summary.days90Plus += amountDue;
+            }
+
+            summary.total += amountDue;
+
+            return {
+                tenantId: invoice.tenantId,
+                tenantName: `${invoice.tenant.firstName} ${invoice.tenant.lastName}`,
+                invoiceNumber: invoice.invoiceNumber,
+                invoiceDate: invoice.invoiceDate,
+                dueDate: invoice.dueDate,
+                amountDue: Math.round(amountDue * 100) / 100,
+                daysOverdue,
+                agingBucket
+            };
+        });
+
+        // Round summary amounts
+        (Object.keys(summary) as Array<keyof typeof summary>).forEach((key) => {
+            summary[key] = Math.round(summary[key] * 100) / 100;
+        });
+
+        return { summary, details };
+    }
+
+    /**
+     * Get previous period KPIs for growth calculation
+     */
+    private async getPreviousPeriodKPIs(
+        companyId: string,
+        dateRange?: DateRangeDto
+    ): Promise<{ totalRevenue: number; occupancyRate: number }> {
+        try {
+            // Calculate previous period date range
+            let previousStartDate: Date;
+            let previousEndDate: Date;
+
+            if (dateRange?.startDate && dateRange?.endDate) {
+                const start = new Date(dateRange.startDate);
+                const end = new Date(dateRange.endDate);
+                const periodLength = end.getTime() - start.getTime();
+
+                previousEndDate = new Date(start.getTime() - 1);
+                previousStartDate = new Date(previousEndDate.getTime() - periodLength);
+            } else {
+                // Default to comparing with last 30 days
+                previousEndDate = new Date();
+                previousEndDate.setDate(previousEndDate.getDate() - 30);
+                previousStartDate = new Date(previousEndDate);
+                previousStartDate.setDate(previousStartDate.getDate() - 30);
+            }
+
+            // Get previous period invoices for revenue
+            const previousInvoices = await this.invoiceRepository.find({
+                where: {
+                    companyId,
+                    invoiceDate: Between(previousStartDate, previousEndDate)
+                }
+            });
+
+            const previousRevenue = previousInvoices.reduce(
+                (sum, inv) => sum + inv.totalAmount,
+                0
+            );
+
+            // For occupancy rate, we can't easily get historical data without snapshots
+            // so we return 0 to indicate no change (this will be improved with snapshots)
+            return {
+                totalRevenue: previousRevenue,
+                occupancyRate: 0
+            };
+        } catch (error) {
+            this.logger.warn('Failed to calculate previous period KPIs:', error);
+            return { totalRevenue: 0, occupancyRate: 0 };
+        }
+    }
+
+    /**
+     * Calculate growth percentage between current and previous values
+     */
+    private calculateGrowthPercentage(current: number, previous: number): number {
+        if (previous === 0) {
+            return current > 0 ? 100 : 0;
+        }
+
+        return ((current - previous) / previous) * 100;
     }
 
     /**

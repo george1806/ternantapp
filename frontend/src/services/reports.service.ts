@@ -60,6 +60,104 @@ export interface RevenueReport {
 }
 
 /**
+ * Lease Expiration Report Data
+ */
+export interface LeaseExpirationReport {
+  occupancyId: string;
+  tenantName: string;
+  apartmentUnit: string;
+  propertyName: string;
+  leaseEndDate: string;
+  daysUntilExpiration: number;
+  monthlyRent: number;
+  tenantPhone: string;
+  tenantEmail: string;
+  urgency: 'critical' | 'warning' | 'normal';
+}
+
+/**
+ * Aging Analysis Detail
+ */
+export interface AgingAnalysisDetail {
+  tenantId: string;
+  tenantName: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate: string;
+  amountDue: number;
+  daysOverdue: number;
+  agingBucket: 'current' | '1-30' | '31-60' | '61-90' | '90+';
+}
+
+/**
+ * Aging Analysis Summary
+ */
+export interface AgingAnalysisSummary {
+  total: number;
+  current: number;
+  days30: number;
+  days60: number;
+  days90: number;
+  days90Plus: number;
+}
+
+/**
+ * Aging Analysis Report Data
+ */
+export interface AgingAnalysisReport {
+  summary: AgingAnalysisSummary;
+  details: AgingAnalysisDetail[];
+}
+
+/**
+ * Revenue Analytics Data
+ */
+export interface RevenueAnalytics {
+  totalRevenue: number;
+  totalPaid: number;
+  totalOutstanding: number;
+  collectionRate: number;
+  monthlyTrend: Array<{
+    month: string;
+    revenue: number;
+    collected: number;
+    outstanding: number;
+  }>;
+  byPaymentMethod: Array<{
+    method: string;
+    amount: number;
+    percentage: number;
+  }>;
+  averageMonthlyRevenue: number;
+}
+
+/**
+ * Occupancy Analytics Data
+ */
+export interface OccupancyAnalytics {
+  currentOccupancyRate: number;
+  totalUnits: number;
+  occupiedUnits: number;
+  vacantUnits: number;
+  averageLeaseDuration: number;
+  averageDaysToFill: number;
+  monthlyTrend: Array<{
+    month: string;
+    occupancyRate: number;
+    occupied: number;
+    vacant: number;
+  }>;
+  byCompound: Array<{
+    compoundId: string;
+    compoundName: string;
+    totalUnits: number;
+    occupied: number;
+    occupancyRate: number;
+  }>;
+  turnoverRate: number;
+}
+
+/**
  * Report Filters
  */
 export interface ReportFilters {
@@ -118,6 +216,61 @@ class ReportsService {
   }
 
   /**
+   * Get revenue analytics
+   */
+  async getRevenueAnalytics(
+    filters?: ReportFilters
+  ): Promise<ApiResponse<RevenueAnalytics>> {
+    const params = new URLSearchParams();
+    if (filters?.startDate) params.append('startDate', filters.startDate);
+    if (filters?.endDate) params.append('endDate', filters.endDate);
+
+    const queryString = params.toString();
+    const url = queryString
+      ? `${this.baseUrl}/revenue?${queryString}`
+      : `${this.baseUrl}/revenue`;
+
+    return api.get<{ data: RevenueAnalytics }>(url);
+  }
+
+  /**
+   * Get occupancy analytics
+   */
+  async getOccupancyAnalytics(
+    filters?: ReportFilters
+  ): Promise<ApiResponse<OccupancyAnalytics>> {
+    const params = new URLSearchParams();
+    if (filters?.startDate) params.append('startDate', filters.startDate);
+    if (filters?.endDate) params.append('endDate', filters.endDate);
+
+    const queryString = params.toString();
+    const url = queryString
+      ? `${this.baseUrl}/occupancy?${queryString}`
+      : `${this.baseUrl}/occupancy`;
+
+    return api.get<{ data: OccupancyAnalytics }>(url);
+  }
+
+  /**
+   * Get lease expiration report
+   */
+  async getLeaseExpirationReport(
+    daysAhead: number = 90
+  ): Promise<ApiResponse<LeaseExpirationReport[]>> {
+    const url = `${this.baseUrl}/lease-expiration?daysAhead=${daysAhead}`;
+    return api.get<{ data: LeaseExpirationReport[] }>(url);
+  }
+
+  /**
+   * Get aging analysis report
+   */
+  async getAgingAnalysisReport(): Promise<ApiResponse<AgingAnalysisReport>> {
+    return api.get<{ data: AgingAnalysisReport }>(
+      `${this.baseUrl}/aging-analysis`
+    );
+  }
+
+  /**
    * Clear reports cache
    */
   async clearCache(): Promise<ApiResponse<{ message: string }>> {
@@ -126,18 +279,24 @@ class ReportsService {
 
   /**
    * Export report to CSV
-   * @param reportType - Type of report (occupancy, revenue, kpis)
+   * @param reportType - Type of report
    * @param filters - Report filters
    */
   async exportToCSV(
-    reportType: 'occupancy' | 'revenue' | 'kpis',
-    filters?: ReportFilters
+    reportType:
+      | 'occupancy'
+      | 'revenue'
+      | 'kpis'
+      | 'lease-expiration'
+      | 'aging-analysis',
+    filters?: ReportFilters & { daysAhead?: number }
   ): Promise<Blob> {
     const params = new URLSearchParams();
     if (filters?.startDate) params.append('startDate', filters.startDate);
     if (filters?.endDate) params.append('endDate', filters.endDate);
     if (filters?.propertyId) params.append('propertyId', filters.propertyId);
     if (filters?.period) params.append('period', filters.period);
+    if (filters?.daysAhead) params.append('daysAhead', filters.daysAhead.toString());
 
     const queryString = params.toString();
     const url = queryString

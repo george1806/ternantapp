@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Building2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { api, getApiErrorMessage, setJustLoggedIn } from '@/lib/api';
+import { api, getApiErrorMessage, setJustLoggedIn, STORAGE_KEYS } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,9 +65,18 @@ export default function LoginPage() {
       } else {
         // Mobile/API client - tokens in response body
         const accessToken = responseData.access_token || responseData.tokens?.accessToken;
+        const refreshToken = responseData.refresh_token || responseData.tokens?.refreshToken;
+
         if (!accessToken) {
           throw new Error('No access token received from server');
         }
+
+        // Store both access and refresh tokens
+        if (refreshToken) {
+          localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
+          console.log('Refresh token stored');
+        }
+
         setAuth(user, accessToken);
       }
 

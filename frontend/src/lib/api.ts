@@ -39,6 +39,27 @@ export const setJustLoggedIn = (value: boolean) => {
 };
 
 /**
+ * Track if a token refresh is in progress to prevent multiple refresh attempts
+ */
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value?: unknown) => void;
+  reject: (reason?: unknown) => void;
+}> = [];
+
+const processQueue = (error: Error | null, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+
+  failedQueue = [];
+};
+
+/**
  * Axios instance with security-focused configuration
  * - CSRF protection ready
  * - XSS prevention through Content-Type headers
@@ -124,29 +145,109 @@ api.interceptors.response.use(
 
       switch (status) {
         case 401:
-          // Unauthorized - Clear auth and redirect to login
-          // BUT: Don't auto-logout if this is the login endpoint itself OR if we just logged in
+          // Unauthorized - Try to refresh token before logging out
           const isLoginEndpoint = originalRequest.url?.includes('/auth/login');
+          const isRefreshEndpoint = originalRequest.url?.includes('/auth/refresh');
 
-          if (!isLoginEndpoint && !justLoggedIn && typeof window !== 'undefined') {
-            console.warn('[API 401]: Unauthorized, clearing auth state', {
-              url: originalRequest.url,
-              justLoggedIn
-            });
-            localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-            localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
-            localStorage.removeItem(STORAGE_KEYS.USER_DATA);
-            localStorage.removeItem('auth-storage'); // Clear Zustand persisted state
-
-            // Prevent redirect loop on login page
-            if (!window.location.pathname.includes('/auth/login')) {
-              window.location.href = '/auth/login';
-            }
-          } else {
-            console.log('[API 401]: Skipping auto-logout', {
+          // Don't attempt refresh for login/refresh endpoints or if we just logged in
+          if (isLoginEndpoint || isRefreshEndpoint || justLoggedIn) {
+            console.log('[API 401]: Skipping token refresh', {
               isLoginEndpoint,
+              isRefreshEndpoint,
               justLoggedIn,
               url: originalRequest.url
+            });
+            break;
+          }
+
+          // Attempt token refresh
+          if (typeof window !== 'undefined' && !originalRequest._retry) {
+            const refreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+
+            if (!refreshToken) {
+              // No refresh token, logout
+              console.warn('[API 401]: No refresh token, logging out');
+              localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+              localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+              localStorage.removeItem(STORAGE_KEYS.USER_DATA);
+              localStorage.removeItem('auth-storage');
+
+              if (!window.location.pathname.includes('/auth/login')) {
+                window.location.href = '/auth/login';
+              }
+              break;
+            }
+
+            if (isRefreshing) {
+              // Another request is already refreshing, queue this request
+              return new Promise((resolve, reject) => {
+                failedQueue.push({ resolve, reject });
+              })
+                .then(() => {
+                  originalRequest._retry = true;
+                  const newToken = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+                  if (newToken) {
+                    originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                  }
+                  return api(originalRequest);
+                })
+                .catch((err) => {
+                  return Promise.reject(err);
+                });
+            }
+
+            originalRequest._retry = true;
+            isRefreshing = true;
+
+            // Attempt token refresh
+            return new Promise((resolve, reject) => {
+              axios
+                .post(
+                  `${API_CONFIG.BASE_URL}/auth/refresh`,
+                  { refresh_token: refreshToken },
+                  { headers: { 'Content-Type': 'application/json' } }
+                )
+                .then((response) => {
+                  const newAccessToken = response.data.data?.access_token || response.data.access_token;
+                  const newRefreshToken = response.data.data?.refresh_token || response.data.refresh_token;
+
+                  if (!newAccessToken) {
+                    throw new Error('No access token in refresh response');
+                  }
+
+                  // Update tokens in storage
+                  localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, newAccessToken);
+                  if (newRefreshToken) {
+                    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, newRefreshToken);
+                  }
+
+                  // Update authorization header
+                  originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+
+                  console.log('[API 401]: Token refreshed successfully');
+                  processQueue(null, newAccessToken);
+
+                  resolve(api(originalRequest));
+                })
+                .catch((err) => {
+                  // Refresh failed, logout
+                  console.warn('[API 401]: Token refresh failed, logging out', err);
+                  processQueue(err, null);
+
+                  localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+                  localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+                  localStorage.removeItem(STORAGE_KEYS.USER_DATA);
+                  localStorage.removeItem('auth-storage');
+
+                  if (!window.location.pathname.includes('/auth/login')) {
+                    window.location.href = '/auth/login';
+                  }
+
+                  reject(err);
+                })
+                .finally(() => {
+                  isRefreshing = false;
+                });
             });
           }
           break;

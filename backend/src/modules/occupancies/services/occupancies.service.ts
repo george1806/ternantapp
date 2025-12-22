@@ -138,7 +138,7 @@ export class OccupanciesService {
     }
 
     /**
-     * Find all occupancies for a company
+     * Find all occupancies for a company (legacy method for backward compatibility)
      */
     async findAll(
         companyId: string,
@@ -157,9 +157,75 @@ export class OccupanciesService {
 
         return this.occupanciesRepository.find({
             where,
-            relations: ['tenant', 'apartment'],
+            relations: ['tenant', 'apartment', 'apartment.compound'],
             order: { leaseStartDate: 'DESC' }
         });
+    }
+
+    /**
+     * Find all occupancies with pagination and advanced filtering
+     */
+    async findAllPaginated(
+        companyId: string,
+        page: number,
+        limit: number,
+        filters?: {
+            status?: string;
+            search?: string;
+            compoundId?: string;
+            apartmentId?: string;
+            tenantId?: string;
+            sortBy?: string;
+            sortOrder?: 'ASC' | 'DESC';
+        }
+    ): Promise<{ data: Occupancy[]; total: number }> {
+        const query = this.occupanciesRepository
+            .createQueryBuilder('occupancy')
+            .leftJoinAndSelect('occupancy.tenant', 'tenant')
+            .leftJoinAndSelect('occupancy.apartment', 'apartment')
+            .leftJoinAndSelect('apartment.compound', 'compound')
+            .where('occupancy.companyId = :companyId', { companyId })
+            .andWhere('occupancy.isActive = :isActive', { isActive: true });
+
+        // Apply filters
+        if (filters?.status) {
+            query.andWhere('occupancy.status = :status', { status: filters.status });
+        }
+
+        if (filters?.compoundId) {
+            query.andWhere('apartment.compoundId = :compoundId', { compoundId: filters.compoundId });
+        }
+
+        if (filters?.apartmentId) {
+            query.andWhere('occupancy.apartmentId = :apartmentId', { apartmentId: filters.apartmentId });
+        }
+
+        if (filters?.tenantId) {
+            query.andWhere('occupancy.tenantId = :tenantId', { tenantId: filters.tenantId });
+        }
+
+        if (filters?.search) {
+            query.andWhere(
+                '(tenant.firstName LIKE :search OR tenant.lastName LIKE :search OR apartment.unitNumber LIKE :search)',
+                { search: `%${filters.search}%` }
+            );
+        }
+
+        // Get total count before pagination
+        const total = await query.getCount();
+
+        // Apply sorting
+        const sortBy = filters?.sortBy || 'leaseStartDate';
+        const sortOrder = filters?.sortOrder || 'DESC';
+        query.orderBy(`occupancy.${sortBy}`, sortOrder);
+
+        // Apply pagination
+        const skip = (page - 1) * limit;
+        query.skip(skip).take(limit);
+
+        const data = await query.getMany();
+
+        return { data, total };
     }
 
     /**

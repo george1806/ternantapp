@@ -107,8 +107,13 @@ export class InvoicesController {
             pageLimit,
             {
                 status: query.status,
+                search: query.search,
+                dateFrom: query.dateFrom,
+                dateTo: query.dateTo,
                 includeInactive: query.includeInactive || false,
-                compoundId: query.compoundId
+                compoundId: query.compoundId,
+                sortBy: validatedSortBy,
+                sortOrder: query.sortOrder || 'DESC'
             }
         );
 

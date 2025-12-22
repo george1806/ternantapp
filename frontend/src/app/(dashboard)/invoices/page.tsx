@@ -75,7 +75,7 @@ export default function InvoicesPage() {
         limit,
         search: searchQuery || undefined,
         status: statusFilter === 'all' ? undefined : statusFilter,
-        sortBy: 'issueDate',
+        sortBy: 'invoiceDate',
         sortOrder: 'DESC',
       };
 

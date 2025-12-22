@@ -47,24 +47,62 @@ export class OccupanciesController {
     }
 
     @Get()
-    @ApiOperation({ summary: 'Get all occupancies' })
+    @ApiOperation({ summary: 'Get all occupancies with pagination' })
     @ApiQuery({
         name: 'status',
         required: false,
         enum: ['pending', 'active', 'ended', 'cancelled']
     })
-    @ApiQuery({ name: 'includeInactive', required: false, type: Boolean })
-    @ApiResponse({ status: 200, description: 'List of occupancies' })
-    findAll(
-        @Query('status') status: string,
-        @Query('includeInactive') includeInactive: string,
-        @CurrentUser() user: any
+    @ApiQuery({ name: 'page', required: false, type: Number })
+    @ApiQuery({ name: 'limit', required: false, type: Number })
+    @ApiQuery({ name: 'search', required: false, type: String })
+    @ApiQuery({ name: 'compoundId', required: false, type: String })
+    @ApiQuery({ name: 'apartmentId', required: false, type: String })
+    @ApiQuery({ name: 'tenantId', required: false, type: String })
+    @ApiQuery({ name: 'sortBy', required: false, type: String })
+    @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })
+    @ApiResponse({ status: 200, description: 'Paginated list of occupancies' })
+    async findAll(
+        @Query('status') status?: string,
+        @Query('page') page?: number,
+        @Query('limit') limit?: number,
+        @Query('search') search?: string,
+        @Query('compoundId') compoundId?: string,
+        @Query('apartmentId') apartmentId?: string,
+        @Query('tenantId') tenantId?: string,
+        @Query('sortBy') sortBy?: string,
+        @Query('sortOrder') sortOrder?: 'ASC' | 'DESC',
+        @CurrentUser() user?: any
     ) {
-        return this.occupanciesService.findAll(
+        const currentPage = Number(page) || 1;
+        const pageLimit = Number(limit) || 10;
+
+        const result = await this.occupanciesService.findAllPaginated(
             user.companyId,
-            status,
-            includeInactive === 'true'
+            currentPage,
+            pageLimit,
+            {
+                status,
+                search,
+                compoundId,
+                apartmentId,
+                tenantId,
+                sortBy: sortBy || 'leaseStartDate',
+                sortOrder: sortOrder || 'DESC'
+            }
         );
+
+        const totalPages = Math.ceil(result.total / pageLimit);
+
+        return {
+            data: result.data,
+            meta: {
+                total: result.total,
+                page: currentPage,
+                limit: pageLimit,
+                totalPages
+            }
+        };
     }
 
     @Get('active')

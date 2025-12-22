@@ -42,4 +42,28 @@ export class KpiResponseDto {
 
     @ApiProperty({ description: 'Average rent per unit', example: 925.5 })
     averageRent: number;
+
+    @ApiProperty({ description: 'Total number of properties/compounds', example: 5 })
+    totalProperties: number;
+
+    @ApiProperty({ description: 'Number of units under maintenance', example: 3 })
+    maintenanceUnits: number;
+
+    @ApiProperty({ description: 'Monthly revenue (same as MRR)', example: 125000.5 })
+    monthlyRevenue: number;
+
+    @ApiProperty({ description: 'Number of active leases', example: 135 })
+    activeLeases: number;
+
+    @ApiProperty({ description: 'Number of pending invoices (draft/sent)', example: 12 })
+    pendingInvoices: number;
+
+    @ApiProperty({ description: 'Number of leases expiring within 30 days', example: 8 })
+    expiringLeases: number;
+
+    @ApiProperty({ description: 'Revenue growth percentage vs previous period', example: 5.2 })
+    revenueGrowth: number;
+
+    @ApiProperty({ description: 'Occupancy trend percentage vs previous period', example: 2.1 })
+    occupancyTrend: number;
 }
