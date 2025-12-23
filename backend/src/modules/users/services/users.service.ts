@@ -513,6 +513,83 @@ export class UsersService {
     }
 
     /**
+     * Change password with current password verification
+     */
+    async changePassword(
+        userId: string,
+        changePasswordDto: { currentPassword: string; newPassword: string }
+    ): Promise<{ message: string }> {
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: ['id', 'passwordHash', 'companyId']
+        });
+
+        if (!user) {
+            throw new NotFoundException(MESSAGES.USER.NOT_FOUND);
+        }
+
+        // Verify current password
+        const isPasswordValid = await this.verifyPassword(
+            changePasswordDto.currentPassword,
+            user.passwordHash
+        );
+
+        if (!isPasswordValid) {
+            throw new BadRequestException('Current password is incorrect');
+        }
+
+        // Update to new password
+        await this.updatePassword(userId, user.companyId || '', changePasswordDto.newPassword);
+
+        return { message: 'Password changed successfully' };
+    }
+
+    /**
+     * Get notification settings for user
+     */
+    async getNotificationSettings(userId: string): Promise<any> {
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: ['id', 'notificationSettings']
+        });
+
+        if (!user) {
+            throw new NotFoundException(MESSAGES.USER.NOT_FOUND);
+        }
+
+        return user.notificationSettings || {
+            emailNotifications: true,
+            invoiceReminders: true,
+            paymentConfirmations: true,
+            leaseExpiry: true,
+            maintenanceAlerts: true
+        };
+    }
+
+    /**
+     * Update notification settings for user
+     */
+    async updateNotificationSettings(userId: string, settings: any): Promise<any> {
+        const user = await this.userRepository.findOne({
+            where: { id: userId }
+        });
+
+        if (!user) {
+            throw new NotFoundException(MESSAGES.USER.NOT_FOUND);
+        }
+
+        user.notificationSettings = {
+            ...user.notificationSettings,
+            ...settings
+        };
+
+        await this.userRepository.save(user);
+        await this.invalidateCache(userId);
+
+        return user.notificationSettings;
+    }
+
+    /**
      * Count users by company
      */
     async countByCompany(companyId: string): Promise<number> {

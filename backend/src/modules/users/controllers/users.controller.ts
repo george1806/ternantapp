@@ -42,6 +42,41 @@ export class UsersController {
         return this.usersService.getProfile(currentUser);
     }
 
+    @Patch('profile')
+    @ApiOperation({ summary: 'Update current user profile' })
+    @ApiResponse({ status: 200, description: 'Profile updated successfully' })
+    updateProfile(@CurrentUser() currentUser: User, @Body() updateUserDto: UpdateUserDto) {
+        return this.usersService.update(currentUser.id, currentUser.companyId || '', updateUserDto, currentUser);
+    }
+
+    @Post('change-password')
+    @ApiOperation({ summary: 'Change current user password' })
+    @ApiResponse({ status: 200, description: 'Password changed successfully' })
+    @ApiResponse({ status: 401, description: 'Current password is incorrect' })
+    changePassword(
+        @CurrentUser() currentUser: User,
+        @Body() changePasswordDto: { currentPassword: string; newPassword: string }
+    ) {
+        return this.usersService.changePassword(currentUser.id, changePasswordDto);
+    }
+
+    @Get('notification-settings')
+    @ApiOperation({ summary: 'Get current user notification settings' })
+    @ApiResponse({ status: 200, description: 'Notification settings retrieved successfully' })
+    getNotificationSettings(@CurrentUser() currentUser: User) {
+        return this.usersService.getNotificationSettings(currentUser.id);
+    }
+
+    @Patch('notification-settings')
+    @ApiOperation({ summary: 'Update current user notification settings' })
+    @ApiResponse({ status: 200, description: 'Notification settings updated successfully' })
+    updateNotificationSettings(
+        @CurrentUser() currentUser: User,
+        @Body() notificationSettings: any
+    ) {
+        return this.usersService.updateNotificationSettings(currentUser.id, notificationSettings);
+    }
+
     @Post()
     @Roles(UserRole.OWNER, UserRole.ADMIN)
     @ApiOperation({ summary: 'Create a new user (Owner/Admin only)' })

@@ -78,6 +78,21 @@ export class CompaniesController {
         return this.companiesService.create(createCompanyDto);
     }
 
+    @Get('profile')
+    @ApiOperation({ summary: 'Get current user company profile' })
+    @ApiResponse({ status: 200, description: 'Company profile retrieved successfully' })
+    getProfile(@CurrentUser() currentUser: any) {
+        return this.companiesService.findOne(currentUser.companyId);
+    }
+
+    @Patch('profile')
+    @Roles(UserRole.OWNER, UserRole.ADMIN)
+    @ApiOperation({ summary: 'Update current user company profile' })
+    @ApiResponse({ status: 200, description: 'Company profile updated successfully' })
+    updateProfile(@CurrentUser() currentUser: any, @Body() updateCompanyDto: UpdateCompanyDto) {
+        return this.companiesService.update(currentUser.companyId, updateCompanyDto);
+    }
+
     @Get(':id')
     @ApiOperation({ summary: 'Get company by ID' })
     @ApiResponse({ status: 200, description: 'Company found' })

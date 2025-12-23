@@ -60,6 +60,15 @@ export class User {
         preferences?: Record<string, any>;
     };
 
+    @Column({ type: 'json', nullable: true, name: 'notification_settings' })
+    notificationSettings: {
+        emailNotifications?: boolean;
+        invoiceReminders?: boolean;
+        paymentConfirmations?: boolean;
+        leaseExpiry?: boolean;
+        maintenanceAlerts?: boolean;
+    };
+
     @Column({ type: 'timestamp', nullable: true, name: 'last_login_at' })
     lastLoginAt: Date;
 
