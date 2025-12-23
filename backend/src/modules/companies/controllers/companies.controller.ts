@@ -15,7 +15,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagg
 import { Request } from 'express';
 import { CompaniesService } from '../services/companies.service';
 import { CreateCompanyDto } from '../dto/create-company.dto';
-import { UpdateCompanyDto } from '../dto/update-company.dto';
+import { UpdateCompanyDto, UpdateCompanyProfileDto } from '../dto/update-company.dto';
 import { CompanySettingsDto, UpdateCompanySettingsDto } from '../dto/company-settings.dto';
 import { RegisterCompanyDto } from '../../auth/dto/register-company.dto';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
@@ -89,7 +89,7 @@ export class CompaniesController {
     @Roles(UserRole.OWNER, UserRole.ADMIN)
     @ApiOperation({ summary: 'Update current user company profile' })
     @ApiResponse({ status: 200, description: 'Company profile updated successfully' })
-    updateProfile(@CurrentUser() currentUser: any, @Body() updateCompanyDto: UpdateCompanyDto) {
+    updateProfile(@CurrentUser() currentUser: any, @Body() updateCompanyDto: UpdateCompanyProfileDto) {
         return this.companiesService.update(currentUser.companyId, updateCompanyDto);
     }
 

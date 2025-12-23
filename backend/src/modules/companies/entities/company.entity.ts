@@ -27,6 +27,24 @@ export class Company extends BaseEntity {
     @Column({ length: 50, default: 'UTC' })
     timezone: string;
 
+    @Column({ type: 'text', nullable: true })
+    address: string;
+
+    @Column({ length: 100, nullable: true })
+    city: string;
+
+    @Column({ length: 100, nullable: true })
+    region: string;
+
+    @Column({ length: 100, nullable: true })
+    country: string;
+
+    @Column({ name: 'postal_code', length: 20, nullable: true })
+    postalCode: string;
+
+    @Column({ length: 255, nullable: true })
+    website: string;
+
     @Column({ type: 'json', nullable: true, name: 'email_settings' })
     emailSettings: {
         smtpHost?: string;
