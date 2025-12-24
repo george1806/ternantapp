@@ -22,6 +22,7 @@ import { UpdateOccupancyDto } from '../dto/update-occupancy.dto';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { CurrentUser } from '../../../common/decorators/tenant.decorator';
+import { OccupancyStatusUpdateTask } from '../tasks/occupancy-status-update.task';
 
 /**
  * Occupancies Controller
@@ -34,7 +35,10 @@ import { CurrentUser } from '../../../common/decorators/tenant.decorator';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class OccupanciesController {
-    constructor(private readonly occupanciesService: OccupanciesService) {}
+    constructor(
+        private readonly occupanciesService: OccupanciesService,
+        private readonly statusUpdateTask: OccupancyStatusUpdateTask
+    ) {}
 
     @Post()
     @ApiOperation({ summary: 'Create a new occupancy (lease)' })
@@ -238,5 +242,32 @@ export class OccupanciesController {
     @ApiResponse({ status: 404, description: 'Occupancy not found' })
     activate(@Param('id') id: string, @CurrentUser() user: any) {
         return this.occupanciesService.activate(id, user.companyId);
+    }
+
+    @Post('trigger-status-update')
+    @ApiOperation({
+        summary: 'Manually trigger occupancy status update (Testing/Admin)',
+        description: 'Triggers the automatic status update task immediately. Updates all pending occupancies where lease start date has arrived.'
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Status update completed',
+        schema: {
+            type: 'object',
+            properties: {
+                message: { type: 'string' },
+                success: { type: 'number' },
+                failed: { type: 'number' }
+            }
+        }
+    })
+    @ApiResponse({ status: 403, description: 'Auto-update is disabled' })
+    async triggerStatusUpdate() {
+        const result = await this.statusUpdateTask.triggerManualUpdate();
+        return {
+            message: 'Status update completed',
+            success: result.success,
+            failed: result.failed
+        };
     }
 }
