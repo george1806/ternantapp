@@ -15,6 +15,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { compoundsService } from '@/services/compounds.service';
 import { getApiErrorMessage } from '@/lib/api';
@@ -40,7 +42,10 @@ const propertyFormSchema = z.object({
   city: z.string().min(2, 'City is required'),
   region: z.string().optional(),
   country: z.string().min(2, 'Country is required'),
+  geoLat: z.string().optional(),
+  geoLng: z.string().optional(),
   notes: z.string().optional(),
+  isActive: z.boolean(),
 });
 
 type PropertyFormData = z.infer<typeof propertyFormSchema>;
@@ -59,6 +64,7 @@ export function PropertyFormDialog({
   compound,
 }: PropertyFormDialogProps) {
   const [submitting, setSubmitting] = useState(false);
+  const [isActive, setIsActive] = useState(compound?.isActive ?? true);
   const { toast } = useToast();
   const isEditing = !!compound;
 
@@ -67,6 +73,7 @@ export function PropertyFormDialog({
     handleSubmit,
     formState: { errors },
     reset,
+    setValue,
   } = useForm<PropertyFormData>({
     resolver: zodResolver(propertyFormSchema) as any,
     defaultValues: compound
@@ -76,7 +83,10 @@ export function PropertyFormDialog({
           city: compound.city,
           region: compound.region || '',
           country: compound.country,
+          geoLat: compound.geoLat?.toString() || '',
+          geoLng: compound.geoLng?.toString() || '',
           notes: compound.notes || compound.description || '',
+          isActive: compound.isActive ?? true,
         }
       : {
           name: '',
@@ -84,7 +94,10 @@ export function PropertyFormDialog({
           city: '',
           region: '',
           country: 'Kenya',
+          geoLat: '',
+          geoLng: '',
           notes: '',
+          isActive: true,
         },
   });
 
@@ -92,14 +105,35 @@ export function PropertyFormDialog({
     try {
       setSubmitting(true);
 
+      // Build payload - only include fields with values (not empty strings)
+      const payload: any = {};
+
+      if (data.name && data.name.trim()) payload.name = data.name.trim();
+      if (data.addressLine && data.addressLine.trim()) payload.addressLine = data.addressLine.trim();
+      if (data.city && data.city.trim()) payload.city = data.city.trim();
+      if (data.region && data.region.trim()) payload.region = data.region.trim();
+      if (data.country && data.country.trim()) payload.country = data.country.trim();
+      if (data.notes && data.notes.trim()) payload.notes = data.notes.trim();
+
+      // Always include isActive
+      payload.isActive = isActive;
+
+      // Handle coordinates - only include if valid numbers
+      if (data.geoLat && data.geoLat.trim() && !isNaN(parseFloat(data.geoLat))) {
+        payload.geoLat = parseFloat(data.geoLat);
+      }
+      if (data.geoLng && data.geoLng.trim() && !isNaN(parseFloat(data.geoLng))) {
+        payload.geoLng = parseFloat(data.geoLng);
+      }
+
       if (isEditing && compound) {
-        await compoundsService.update(compound.id, data);
+        await compoundsService.update(compound.id, payload);
         toast({
           title: 'Success',
           description: 'Property updated successfully',
         });
       } else {
-        await compoundsService.create(data);
+        await compoundsService.create(payload);
         toast({
           title: 'Success',
           description: 'Property created successfully',
@@ -214,18 +248,73 @@ export function PropertyFormDialog({
             )}
           </div>
 
+          {/* Coordinates */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="geoLat" className="text-sm font-medium">
+                Latitude
+              </Label>
+              <Input
+                id="geoLat"
+                type="number"
+                step="any"
+                placeholder="e.g., -1.286389"
+                {...register('geoLat')}
+              />
+              <p className="text-xs text-muted-foreground">Range: -90 to 90</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="geoLng" className="text-sm font-medium">
+                Longitude
+              </Label>
+              <Input
+                id="geoLng"
+                type="number"
+                step="any"
+                placeholder="e.g., 36.817223"
+                {...register('geoLng')}
+              />
+              <p className="text-xs text-muted-foreground">Range: -180 to 180</p>
+            </div>
+          </div>
+
           {/* Notes */}
           <div className="space-y-2">
             <Label htmlFor="notes" className="text-sm font-medium">
               Notes
             </Label>
-            <textarea
+            <Textarea
               id="notes"
               rows={3}
               placeholder="Optional property notes..."
               {...register('notes')}
-              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
+          </div>
+
+          {/* Active Status */}
+          <div className="space-y-2">
+            <Label htmlFor="isActive" className="text-sm font-medium">
+              Active Status
+            </Label>
+            <Select
+              value={isActive ? 'active' : 'inactive'}
+              onValueChange={(value) => {
+                setIsActive(value === 'active');
+                setValue('isActive', value === 'active');
+              }}
+            >
+              <SelectTrigger id="isActive">
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Inactive properties are hidden from listings
+            </p>
           </div>
 
           <DialogFooter className="gap-2 pt-4">
