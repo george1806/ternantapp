@@ -171,10 +171,12 @@ export function ApartmentFormDialog({
       // Build payload - only include fields with values (not empty strings)
       const payload: any = {};
 
-      // Required fields
-      if (data.compoundId && data.compoundId.trim()) {
+      // CompoundId - only include when creating (cannot be changed when editing)
+      if (!isEditing && data.compoundId && data.compoundId.trim()) {
         payload.compoundId = data.compoundId.trim();
       }
+
+      // Unit number
       if (data.unitNumber && data.unitNumber.trim()) {
         payload.unitNumber = data.unitNumber.trim();
       }
