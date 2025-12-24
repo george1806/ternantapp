@@ -7,10 +7,12 @@ import { Tenant } from '../tenants/entities/tenant.entity';
 import { Apartment } from '../apartments/entities/apartment.entity';
 import { Invoice } from '../invoices/entities/invoice.entity';
 import { DashboardModule } from '../dashboard/dashboard.module';
+import { OccupancyStatusUpdateTask } from './tasks/occupancy-status-update.task';
 
 /**
  * Occupancies Module
  * Manages tenant-apartment relationships (leases) with dashboard cache invalidation
+ * Includes automated status update task (configurable)
  *
  * Author: george1806
  */
@@ -20,7 +22,7 @@ import { DashboardModule } from '../dashboard/dashboard.module';
         forwardRef(() => DashboardModule)
     ],
     controllers: [OccupanciesController],
-    providers: [OccupanciesService],
+    providers: [OccupanciesService, OccupancyStatusUpdateTask],
     exports: [OccupanciesService]
 })
 export class OccupanciesModule {}
