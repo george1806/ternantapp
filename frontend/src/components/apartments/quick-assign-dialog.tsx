@@ -32,7 +32,21 @@ const assignSchema = z.object({
   depositPaid: z.string().optional(),
   moveInDate: z.string().optional(),
   notes: z.string().optional(),
-});
+}).refine(
+  (data) => {
+    // Validate that depositPaid does not exceed securityDeposit
+    if (data.depositPaid && data.securityDeposit) {
+      const depositPaid = parseFloat(data.depositPaid);
+      const securityDeposit = parseFloat(data.securityDeposit);
+      return depositPaid <= securityDeposit;
+    }
+    return true;
+  },
+  {
+    message: 'Deposit paid cannot exceed security deposit',
+    path: ['depositPaid'],
+  }
+);
 
 type AssignFormData = z.infer<typeof assignSchema>;
 
@@ -219,7 +233,11 @@ export function QuickAssignDialog({
                 type="number"
                 step="0.01"
                 {...register('depositPaid')}
+                className={errors.depositPaid ? 'border-red-500' : ''}
               />
+              {errors.depositPaid && (
+                <p className="text-sm text-red-500">{errors.depositPaid.message}</p>
+              )}
             </div>
 
             <div className="space-y-2">
