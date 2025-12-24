@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -100,6 +100,38 @@ export function PropertyFormDialog({
           isActive: true,
         },
   });
+
+  // Reset form with compound values when dialog opens or compound changes
+  useEffect(() => {
+    if (open && compound) {
+      reset({
+        name: compound.name,
+        addressLine: compound.address || compound.addressLine || '',
+        city: compound.city,
+        region: compound.region || '',
+        country: compound.country,
+        geoLat: compound.geoLat?.toString() || '',
+        geoLng: compound.geoLng?.toString() || '',
+        notes: compound.notes || compound.description || '',
+        isActive: compound.isActive ?? true,
+      });
+      setIsActive(compound.isActive ?? true);
+    } else if (open && !compound) {
+      // Reset to empty form for creating new property
+      reset({
+        name: '',
+        addressLine: '',
+        city: '',
+        region: '',
+        country: 'Kenya',
+        geoLat: '',
+        geoLng: '',
+        notes: '',
+        isActive: true,
+      });
+      setIsActive(true);
+    }
+  }, [open, compound, reset]);
 
   const onSubmit = async (data: PropertyFormData) => {
     try {
