@@ -22,6 +22,7 @@ import { UpdateOccupancyDto } from '../dto/update-occupancy.dto';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { CurrentUser } from '../../../common/decorators/tenant.decorator';
+import { Public } from '../../../common/decorators/public.decorator';
 import { OccupancyStatusUpdateTask } from '../tasks/occupancy-status-update.task';
 
 /**
@@ -244,6 +245,7 @@ export class OccupanciesController {
         return this.occupanciesService.activate(id, user.companyId);
     }
 
+    @Public()
     @Post('trigger-status-update')
     @ApiOperation({
         summary: 'Manually trigger occupancy status update (Testing/Admin)',
