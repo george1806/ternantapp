@@ -108,24 +108,40 @@ export default function PropertyDetailPage() {
     try {
       setSaving(true);
 
-      // Build update DTO - only include fields that have values
-      const updateDto: UpdateCompoundDto = {
-        name: editForm.name || undefined,
-        addressLine: editForm.addressLine || undefined,
-        city: editForm.city || undefined,
-        region: editForm.region || undefined,
-        country: editForm.country || undefined,
-        notes: editForm.notes || undefined,
-        isActive: editForm.isActive,
-      };
+      // Build update DTO - only include fields that have values (not empty strings)
+      const updateDto: UpdateCompoundDto = {};
+
+      if (editForm.name && editForm.name.trim()) {
+        updateDto.name = editForm.name.trim();
+      }
+      if (editForm.addressLine && editForm.addressLine.trim()) {
+        updateDto.addressLine = editForm.addressLine.trim();
+      }
+      if (editForm.city && editForm.city.trim()) {
+        updateDto.city = editForm.city.trim();
+      }
+      if (editForm.region && editForm.region.trim()) {
+        updateDto.region = editForm.region.trim();
+      }
+      if (editForm.country && editForm.country.trim()) {
+        updateDto.country = editForm.country.trim();
+      }
+      if (editForm.notes && editForm.notes.trim()) {
+        updateDto.notes = editForm.notes.trim();
+      }
+
+      // Always include isActive
+      updateDto.isActive = editForm.isActive;
 
       // Handle coordinates - only include if valid numbers
-      if (editForm.geoLat && !isNaN(parseFloat(editForm.geoLat))) {
+      if (editForm.geoLat && editForm.geoLat.trim() && !isNaN(parseFloat(editForm.geoLat))) {
         updateDto.geoLat = parseFloat(editForm.geoLat);
       }
-      if (editForm.geoLng && !isNaN(parseFloat(editForm.geoLng))) {
+      if (editForm.geoLng && editForm.geoLng.trim() && !isNaN(parseFloat(editForm.geoLng))) {
         updateDto.geoLng = parseFloat(editForm.geoLng);
       }
+
+      console.log('Sending update DTO:', updateDto);
 
       await compoundsService.update(compound.id, updateDto);
 
