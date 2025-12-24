@@ -34,16 +34,14 @@ export default function PlatformUsersPage() {
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
   const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState<UserRole | ''>('');
+  const [statusFilter, setStatusFilter] = useState<UserStatus | ''>('');
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeUsers: 0,
     suspendedUsers: 0,
     usersByRole: { owners: 0, admins: 0, staff: 0 },
   });
-
-  useEffect(() => {
-    loadUsers();
-    loadStats();
 
   const loadUsers = async () => {
     try {
@@ -113,6 +111,12 @@ export default function PlatformUsersPage() {
       alert('Failed to delete user');
     }
   };
+
+  useEffect(() => {
+    loadUsers();
+    loadStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, searchQuery, roleFilter, statusFilter]);
 
   return (
     <div className="space-y-6">

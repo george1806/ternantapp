@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { format } from 'date-fns';
@@ -462,18 +462,23 @@ export default function PropertyDetailPage() {
             </div>
 
             {/* Active Status */}
-            <div className="flex items-center justify-between space-x-2">
-              <div className="space-y-0.5">
-                <Label htmlFor="edit-active">Active Status</Label>
-                <p className="text-sm text-muted-foreground">
-                  Inactive properties are hidden from listings
-                </p>
-              </div>
-              <Switch
-                id="edit-active"
-                checked={editForm.isActive}
-                onCheckedChange={(checked) => setEditForm({ ...editForm, isActive: checked })}
-              />
+            <div className="grid gap-2">
+              <Label htmlFor="edit-active">Active Status</Label>
+              <Select
+                value={editForm.isActive ? 'active' : 'inactive'}
+                onValueChange={(value) => setEditForm({ ...editForm, isActive: value === 'active' })}
+              >
+                <SelectTrigger id="edit-active">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Inactive properties are hidden from listings
+              </p>
             </div>
           </div>
 
