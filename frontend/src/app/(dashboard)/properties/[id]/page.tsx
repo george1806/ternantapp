@@ -3,11 +3,16 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, MapPin, DollarSign, Users, Calendar, Edit, Building2 } from 'lucide-react';
-import { compoundsService } from '@/services/compounds.service';
+import { compoundsService, type UpdateCompoundDto } from '@/services/compounds.service';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { format } from 'date-fns';
@@ -25,6 +30,21 @@ export default function PropertyDetailPage() {
   const { toast } = useToast();
   const [compound, setCompound] = useState<Compound | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Edit form state
+  const [editForm, setEditForm] = useState({
+    name: '',
+    addressLine: '',
+    city: '',
+    region: '',
+    country: '',
+    geoLat: '',
+    geoLng: '',
+    notes: '',
+    isActive: true,
+  });
 
   useEffect(() => {
     if (params.id) {
@@ -37,7 +57,21 @@ export default function PropertyDetailPage() {
       setLoading(true);
       const response = await compoundsService.getById(id);
       // Backend returns compound directly, not wrapped in { data: compound }
-      setCompound(response.data as any);
+      const compoundData = response.data as any;
+      setCompound(compoundData);
+
+      // Pre-populate edit form with current values
+      setEditForm({
+        name: compoundData.name || '',
+        addressLine: compoundData.addressLine || compoundData.address || '',
+        city: compoundData.city || '',
+        region: compoundData.region || '',
+        country: compoundData.country || '',
+        geoLat: compoundData.geoLat?.toString() || '',
+        geoLng: compoundData.geoLng?.toString() || '',
+        notes: compoundData.notes || compoundData.description || '',
+        isActive: compoundData.isActive !== undefined ? compoundData.isActive : true,
+      });
     } catch (error) {
       console.error('Failed to load compound:', error);
       toast({
@@ -47,6 +81,71 @@ export default function PropertyDetailPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOpenEditDialog = () => {
+    if (compound) {
+      // Refresh form with latest compound data
+      setEditForm({
+        name: compound.name || '',
+        addressLine: compound.addressLine || compound.address || '',
+        city: compound.city || '',
+        region: compound.region || '',
+        country: compound.country || '',
+        geoLat: compound.geoLat?.toString() || '',
+        geoLng: compound.geoLng?.toString() || '',
+        notes: compound.notes || compound.description || '',
+        isActive: compound.isActive !== undefined ? compound.isActive : true,
+      });
+      setEditDialogOpen(true);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!compound) return;
+
+    try {
+      setSaving(true);
+
+      // Build update DTO - only include fields that have values
+      const updateDto: UpdateCompoundDto = {
+        name: editForm.name || undefined,
+        addressLine: editForm.addressLine || undefined,
+        city: editForm.city || undefined,
+        region: editForm.region || undefined,
+        country: editForm.country || undefined,
+        notes: editForm.notes || undefined,
+        isActive: editForm.isActive,
+      };
+
+      // Handle coordinates - only include if valid numbers
+      if (editForm.geoLat && !isNaN(parseFloat(editForm.geoLat))) {
+        updateDto.geoLat = parseFloat(editForm.geoLat);
+      }
+      if (editForm.geoLng && !isNaN(parseFloat(editForm.geoLng))) {
+        updateDto.geoLng = parseFloat(editForm.geoLng);
+      }
+
+      await compoundsService.update(compound.id, updateDto);
+
+      toast({
+        title: 'Success',
+        description: 'Property updated successfully',
+      });
+
+      // Reload property data
+      await loadProperty(compound.id);
+      setEditDialogOpen(false);
+    } catch (error) {
+      console.error('Failed to update compound:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: getApiErrorMessage(error),
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -99,11 +198,11 @@ export default function PropertyDetailPage() {
           <Badge variant={compound.isActive ? 'default' : 'secondary'}>
             {compound.isActive ? 'Active' : 'Inactive'}
           </Badge>
-          <Button className="hidden sm:flex">
+          <Button className="hidden sm:flex" onClick={handleOpenEditDialog}>
             <Edit className="mr-2 h-4 w-4" />
             Edit Property
           </Button>
-          <Button size="icon" className="sm:hidden">
+          <Button size="icon" className="sm:hidden" onClick={handleOpenEditDialog}>
             <Edit className="h-4 w-4" />
           </Button>
         </div>
@@ -242,6 +341,161 @@ export default function PropertyDetailPage() {
           </Card>
         )}
       </div>
+
+      {/* Edit Property Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Property</DialogTitle>
+            <DialogDescription>
+              Update property information. All fields show current values.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            {/* Property Name */}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-name">
+                Property Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="edit-name"
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                placeholder="e.g., Sunset Gardens"
+                required
+              />
+            </div>
+
+            {/* Address Line */}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-address">
+                Street Address <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="edit-address"
+                value={editForm.addressLine}
+                onChange={(e) => setEditForm({ ...editForm, addressLine: e.target.value })}
+                placeholder="e.g., 123 Main Street"
+                required
+              />
+            </div>
+
+            {/* City, Region, Country */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-city">
+                  City <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="edit-city"
+                  value={editForm.city}
+                  onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                  placeholder="e.g., Nairobi"
+                  required
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="edit-region">Region</Label>
+                <Input
+                  id="edit-region"
+                  value={editForm.region}
+                  onChange={(e) => setEditForm({ ...editForm, region: e.target.value })}
+                  placeholder="e.g., Nairobi County"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="edit-country">
+                  Country <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="edit-country"
+                  value={editForm.country}
+                  onChange={(e) => setEditForm({ ...editForm, country: e.target.value })}
+                  placeholder="e.g., Kenya"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Coordinates */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-lat">Latitude</Label>
+                <Input
+                  id="edit-lat"
+                  type="number"
+                  step="any"
+                  value={editForm.geoLat}
+                  onChange={(e) => setEditForm({ ...editForm, geoLat: e.target.value })}
+                  placeholder="e.g., -1.286389"
+                />
+                <p className="text-xs text-muted-foreground">Range: -90 to 90</p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="edit-lng">Longitude</Label>
+                <Input
+                  id="edit-lng"
+                  type="number"
+                  step="any"
+                  value={editForm.geoLng}
+                  onChange={(e) => setEditForm({ ...editForm, geoLng: e.target.value })}
+                  placeholder="e.g., 36.817223"
+                />
+                <p className="text-xs text-muted-foreground">Range: -180 to 180</p>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-notes">Notes</Label>
+              <Textarea
+                id="edit-notes"
+                value={editForm.notes}
+                onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                placeholder="Additional information about the property..."
+                rows={4}
+              />
+            </div>
+
+            {/* Active Status */}
+            <div className="flex items-center justify-between space-x-2">
+              <div className="space-y-0.5">
+                <Label htmlFor="edit-active">Active Status</Label>
+                <p className="text-sm text-muted-foreground">
+                  Inactive properties are hidden from listings
+                </p>
+              </div>
+              <Switch
+                id="edit-active"
+                checked={editForm.isActive}
+                onCheckedChange={(checked) => setEditForm({ ...editForm, isActive: checked })}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditDialogOpen(false)}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              onClick={handleSaveEdit}
+              disabled={saving || !editForm.name || !editForm.addressLine || !editForm.city || !editForm.country}
+            >
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
