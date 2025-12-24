@@ -141,8 +141,6 @@ export default function PropertyDetailPage() {
         updateDto.geoLng = parseFloat(editForm.geoLng);
       }
 
-      console.log('Sending update DTO:', updateDto);
-
       await compoundsService.update(compound.id, updateDto);
 
       toast({
