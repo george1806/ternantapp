@@ -15,6 +15,7 @@ import { formatCurrency } from '@/lib/currency';
 import { ApartmentOccupancyCard } from '@/components/apartments/apartment-occupancy-card';
 import { ApartmentHistoryTimeline } from '@/components/apartments/apartment-history-timeline';
 import { QuickAssignDialog } from '@/components/apartments/quick-assign-dialog';
+import { ApartmentFormDialog } from '@/components/apartments/apartment-form-dialog';
 import { EndLeaseDialog } from '@/components/occupancies/end-lease-dialog';
 import { CancelLeaseDialog } from '@/components/occupancies/cancel-lease-dialog';
 
@@ -33,6 +34,7 @@ export default function ApartmentDetailPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [showEndLeaseDialog, setShowEndLeaseDialog] = useState(false);
   const [showCancelLeaseDialog, setShowCancelLeaseDialog] = useState(false);
 
@@ -113,6 +115,11 @@ export default function ApartmentDetailPage() {
     queryClient.invalidateQueries({ queryKey: ['apartments', apartmentId] });
   };
 
+  const handleEditSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['apartments', apartmentId] });
+    queryClient.invalidateQueries({ queryKey: ['apartment-financial', apartmentId] });
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -139,7 +146,7 @@ export default function ApartmentDetailPage() {
               Assign Tenant
             </Button>
           )}
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => setShowEditDialog(true)}>
             <Edit className="mr-2 h-4 w-4" />
             Edit
           </Button>
@@ -403,6 +410,14 @@ export default function ApartmentDetailPage() {
           }}
         />
       )}
+
+      {/* Edit Apartment Dialog */}
+      <ApartmentFormDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        apartment={apartment}
+        onSuccess={handleEditSuccess}
+      />
     </div>
   );
 }
