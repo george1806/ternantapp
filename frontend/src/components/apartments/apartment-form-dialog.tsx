@@ -108,28 +108,42 @@ export function ApartmentFormDialog({
   const selectedCompoundId = watch('compoundId');
   const selectedStatus = watch('status');
 
+  // Reset form with apartment values when dialog opens or apartment changes
   useEffect(() => {
     if (open) {
       fetchCompounds();
       if (apartment) {
-        setValue('compoundId', apartment.compoundId);
-        setValue('unitNumber', apartment.unitNumber);
-        setValue('floor', apartment.floor || null);
-        setValue('bedrooms', apartment.bedrooms);
-        setValue('bathrooms', apartment.bathrooms);
-        setValue('areaSqm', apartment.areaSqm || null);
-        setValue('monthlyRent', apartment.monthlyRent);
-        setValue('status', apartment.status);
-        setValue('amenities', apartment.amenities?.join(', ') || '');
-        setValue('notes', apartment.notes || '');
-      } else if (preselectedCompoundId) {
-        setValue('compoundId', preselectedCompoundId);
+        // Pre-fill form with current apartment values
+        reset({
+          compoundId: apartment.compoundId,
+          unitNumber: apartment.unitNumber,
+          floor: apartment.floor || null,
+          bedrooms: apartment.bedrooms,
+          bathrooms: apartment.bathrooms,
+          areaSqm: apartment.areaSqm || null,
+          monthlyRent: apartment.monthlyRent,
+          status: apartment.status,
+          amenities: apartment.amenities?.join(', ') || '',
+          notes: apartment.notes || '',
+        });
+      } else {
+        // Reset to empty form for creating new apartment
+        reset({
+          compoundId: preselectedCompoundId || '',
+          unitNumber: '',
+          floor: null,
+          bedrooms: 1,
+          bathrooms: 1,
+          areaSqm: null,
+          monthlyRent: 0,
+          status: 'available',
+          amenities: '',
+          notes: '',
+        });
       }
-    } else {
-      reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, apartment, preselectedCompoundId, setValue, reset]);
+  }, [open, apartment, preselectedCompoundId, reset]);
 
   const fetchCompounds = async () => {
     try {
@@ -154,23 +168,50 @@ export function ApartmentFormDialog({
     try {
       setSubmitting(true);
 
-      // Parse amenities from comma-separated string
-      const amenitiesArray = data.amenities
-        ? data.amenities.split(',').map((a) => a.trim()).filter(Boolean)
-        : [];
+      // Build payload - only include fields with values (not empty strings)
+      const payload: any = {};
 
-      const payload: CreateApartmentDto = {
-        compoundId: data.compoundId,
-        unitNumber: data.unitNumber,
-        floor: data.floor || undefined,
-        bedrooms: data.bedrooms,
-        bathrooms: data.bathrooms,
-        areaSqm: data.areaSqm || undefined,
-        monthlyRent: data.monthlyRent,
-        status: data.status,
-        amenities: amenitiesArray.length > 0 ? amenitiesArray : undefined,
-        notes: data.notes || undefined,
-      };
+      // Required fields
+      if (data.compoundId && data.compoundId.trim()) {
+        payload.compoundId = data.compoundId.trim();
+      }
+      if (data.unitNumber && data.unitNumber.trim()) {
+        payload.unitNumber = data.unitNumber.trim();
+      }
+
+      // Always include bedrooms, bathrooms, monthlyRent (required numbers)
+      payload.bedrooms = data.bedrooms;
+      payload.bathrooms = data.bathrooms;
+      payload.monthlyRent = data.monthlyRent;
+
+      // Optional numeric fields - only include if valid
+      if (data.floor !== null && data.floor !== undefined) {
+        payload.floor = data.floor;
+      }
+      if (data.areaSqm !== null && data.areaSqm !== undefined) {
+        payload.areaSqm = data.areaSqm;
+      }
+
+      // Status
+      if (data.status) {
+        payload.status = data.status;
+      }
+
+      // Parse amenities from comma-separated string
+      if (data.amenities && data.amenities.trim()) {
+        const amenitiesArray = data.amenities
+          .split(',')
+          .map((a) => a.trim())
+          .filter(Boolean);
+        if (amenitiesArray.length > 0) {
+          payload.amenities = amenitiesArray;
+        }
+      }
+
+      // Notes
+      if (data.notes && data.notes.trim()) {
+        payload.notes = data.notes.trim();
+      }
 
       if (isEditing && apartment) {
         await apartmentsService.update(apartment.id, payload);
