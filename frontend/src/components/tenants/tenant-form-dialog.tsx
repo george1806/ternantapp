@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -124,24 +124,84 @@ export function TenantFormDialog({
 
   const statusValue = watch('status');
 
+  // Reset form with tenant values when dialog opens or tenant changes
+  useEffect(() => {
+    if (open && tenant) {
+      // Pre-fill form with current tenant values
+      reset({
+        firstName: tenant.firstName,
+        lastName: tenant.lastName,
+        email: tenant.email,
+        phone: tenant.phone || '',
+        idNumber: tenant.idNumber || '',
+        dateOfBirth: tenant.dateOfBirth || '',
+        employerName: tenant.employerName || '',
+        emergencyContactName: tenant.emergencyContactName || '',
+        emergencyContactPhone: tenant.emergencyContactPhone || '',
+        emergencyContactRelationship: tenant.emergencyContactRelationship || '',
+        status: tenant.status,
+      });
+    } else if (open && !tenant) {
+      // Reset to empty form for creating new tenant
+      reset({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        idNumber: '',
+        dateOfBirth: '',
+        employerName: '',
+        emergencyContactName: '',
+        emergencyContactPhone: '',
+        emergencyContactRelationship: '',
+        status: 'active',
+      });
+    }
+  }, [open, tenant, reset]);
+
   const onSubmit = async (data: TenantFormData) => {
     try {
       setSubmitting(true);
 
-      // Transform empty strings to undefined for optional fields
-      const cleanedData = {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        phone: data.phone || undefined,
-        idNumber: data.idNumber || undefined,
-        dateOfBirth: data.dateOfBirth || undefined,
-        employerName: data.employerName || undefined,
-        emergencyContactName: data.emergencyContactName || undefined,
-        emergencyContactPhone: data.emergencyContactPhone || undefined,
-        emergencyContactRelationship: data.emergencyContactRelationship || undefined,
-        status: data.status,
-      };
+      // Build payload - only include fields with values (not empty strings)
+      const cleanedData: any = {};
+
+      // Required fields
+      if (data.firstName && data.firstName.trim()) {
+        cleanedData.firstName = data.firstName.trim();
+      }
+      if (data.lastName && data.lastName.trim()) {
+        cleanedData.lastName = data.lastName.trim();
+      }
+      if (data.email && data.email.trim()) {
+        cleanedData.email = data.email.trim();
+      }
+
+      // Optional fields - only include if not empty
+      if (data.phone && data.phone.trim()) {
+        cleanedData.phone = data.phone.trim();
+      }
+      if (data.idNumber && data.idNumber.trim()) {
+        cleanedData.idNumber = data.idNumber.trim();
+      }
+      if (data.dateOfBirth && data.dateOfBirth.trim()) {
+        cleanedData.dateOfBirth = data.dateOfBirth.trim();
+      }
+      if (data.employerName && data.employerName.trim()) {
+        cleanedData.employerName = data.employerName.trim();
+      }
+      if (data.emergencyContactName && data.emergencyContactName.trim()) {
+        cleanedData.emergencyContactName = data.emergencyContactName.trim();
+      }
+      if (data.emergencyContactPhone && data.emergencyContactPhone.trim()) {
+        cleanedData.emergencyContactPhone = data.emergencyContactPhone.trim();
+      }
+      if (data.emergencyContactRelationship && data.emergencyContactRelationship.trim()) {
+        cleanedData.emergencyContactRelationship = data.emergencyContactRelationship.trim();
+      }
+
+      // Status
+      cleanedData.status = data.status;
 
       if (isEditing && tenant) {
         await tenantsService.update(tenant.id, cleanedData);
