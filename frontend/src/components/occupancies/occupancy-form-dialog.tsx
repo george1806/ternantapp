@@ -141,8 +141,10 @@ export function OccupancyFormDialog({
   }, [open, occupancy, preselectedApartmentId, preselectedTenantId, setValue, reset]);
 
   useEffect(() => {
-    // Clear apartment selection when compound changes
-    setValue('apartmentId', '');
+    // Only clear apartment selection when compound changes if not in editing mode
+    if (!isEditing) {
+      setValue('apartmentId', '');
+    }
 
     // Only fetch apartments by compound if a valid compound ID is selected (not empty, not 'all')
     if (selectedCompoundId && selectedCompoundId !== 'all') {
@@ -186,15 +188,21 @@ export function OccupancyFormDialog({
   const fetchAllApartments = async () => {
     try {
       setLoadingApartments(true);
-      const response = await apartmentsService.getAll({ limit: 100, status: 'available' });
+      // When editing, fetch all apartments; when creating, only fetch available ones
+      const response = await apartmentsService.getAll({
+        limit: 100,
+        ...(isEditing ? {} : { status: 'available' })
+      });
       if (response.data?.data) {
         const newApartments = response.data.data;
         setApartments(newApartments);
 
-        // Clear apartment selection if currently selected apartment is not in the new list
-        const currentApartmentId = watch('apartmentId');
-        if (currentApartmentId && !newApartments.find(apt => apt.id === currentApartmentId)) {
-          setValue('apartmentId', '');
+        // Only clear apartment selection if not in editing mode
+        if (!isEditing) {
+          const currentApartmentId = watch('apartmentId');
+          if (currentApartmentId && !newApartments.find(apt => apt.id === currentApartmentId)) {
+            setValue('apartmentId', '');
+          }
         }
       }
     } catch (error) {
@@ -207,15 +215,21 @@ export function OccupancyFormDialog({
   const fetchApartmentsByCompound = async (compoundId: string) => {
     try {
       setLoadingApartments(true);
-      const response = await apartmentsService.getByCompound(compoundId, { limit: 100, status: 'available' });
+      // When editing, fetch all apartments; when creating, only fetch available ones
+      const response = await apartmentsService.getByCompound(compoundId, {
+        limit: 100,
+        ...(isEditing ? {} : { status: 'available' })
+      });
       if (response.data?.data) {
         const newApartments = response.data.data;
         setApartments(newApartments);
 
-        // Clear apartment selection if currently selected apartment is not in the new list
-        const currentApartmentId = watch('apartmentId');
-        if (currentApartmentId && !newApartments.find(apt => apt.id === currentApartmentId)) {
-          setValue('apartmentId', '');
+        // Only clear apartment selection if not in editing mode
+        if (!isEditing) {
+          const currentApartmentId = watch('apartmentId');
+          if (currentApartmentId && !newApartments.find(apt => apt.id === currentApartmentId)) {
+            setValue('apartmentId', '');
+          }
         }
       }
     } catch (error) {
@@ -360,7 +374,6 @@ export function OccupancyFormDialog({
                   placeholder="Select apartment..."
                   searchPlaceholder="Search by unit number or property..."
                   emptyText="No apartments found."
-                  disabled={isEditing}
                 />
               )}
               {errors.apartmentId && (
@@ -388,7 +401,6 @@ export function OccupancyFormDialog({
                   placeholder="Select tenant..."
                   searchPlaceholder="Search by name or email..."
                   emptyText="No tenants found."
-                  disabled={isEditing}
                 />
               )}
               {errors.tenantId && (

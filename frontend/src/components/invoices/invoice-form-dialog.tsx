@@ -181,19 +181,46 @@ export function InvoiceFormDialog({
     try {
       setSubmitting(true);
 
+      if (!selectedOccupancy) {
+        toast({
+          title: 'Error',
+          description: 'Please select an occupancy',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       // Transform line items to match backend format
-      const transformedItems = data.items.map((item) => ({
+      const lineItems = data.items.map((item) => ({
         description: item.description,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-        itemType: item.itemType as 'rent' | 'utility' | 'maintenance' | 'other',
+        amount: item.amount,
+        type: item.itemType as 'rent' | 'utility' | 'maintenance' | 'other',
       }));
 
+      // Calculate totals
+      const subtotal = lineItems.reduce((sum, item) => sum + item.amount, 0);
+      const taxAmount = 0; // TODO: Add tax support if needed
+      const totalAmount = subtotal + taxAmount;
+
+      // Generate invoice number (simple format: INV-YYYY-MM-XXXXX)
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const random = String(Math.floor(Math.random() * 100000)).padStart(5, '0');
+      const invoiceNumber = `INV-${year}-${month}-${random}`;
+
       await invoicesService.create({
+        invoiceNumber,
         occupancyId: data.occupancyId,
+        tenantId: selectedOccupancy.tenantId,
         invoiceDate: new Date(data.invoiceDate).toISOString().split('T')[0],
         dueDate: new Date(data.dueDate).toISOString().split('T')[0],
-        items: transformedItems,
+        lineItems,
+        subtotal,
+        taxAmount,
+        totalAmount,
         notes: data.notes,
       });
 

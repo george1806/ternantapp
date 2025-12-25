@@ -7,8 +7,12 @@ import {
     Param,
     Delete,
     Query,
-    UseGuards
+    UseGuards,
+    Res,
+    StreamableFile,
+    Header
 } from '@nestjs/common';
+import { Response } from 'express';
 import {
     ApiTags,
     ApiOperation,
@@ -244,8 +248,20 @@ export class InvoicesController {
     @ApiOperation({ summary: 'Download invoice as PDF' })
     @ApiResponse({ status: 200, description: 'PDF file' })
     @ApiResponse({ status: 404, description: 'Invoice not found' })
-    downloadPdf(@Param('id') id: string, @CurrentUser() user: any) {
-        return this.invoicesService.downloadPdf(id, user.companyId);
+    async downloadPdf(
+        @Param('id') id: string,
+        @CurrentUser() user: any,
+        @Res() res: Response
+    ) {
+        const pdfBuffer = await this.invoicesService.downloadPdf(id, user.companyId);
+
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename="invoice-${id}.pdf"`,
+            'Content-Length': pdfBuffer.length.toString(),
+        });
+
+        res.send(pdfBuffer);
     }
 
     @Get(':id/payments')

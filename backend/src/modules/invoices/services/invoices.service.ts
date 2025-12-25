@@ -16,6 +16,7 @@ import { UpdateInvoiceDto } from '../dto/update-invoice.dto';
 import { Occupancy } from '../../occupancies/entities/occupancy.entity';
 import { Tenant } from '../../tenants/entities/tenant.entity';
 import { Payment } from '../../payments/entities/payment.entity';
+import { Company } from '../../companies/entities/company.entity';
 import { DashboardService } from '../../dashboard/dashboard.service';
 
 /**
@@ -39,6 +40,8 @@ export class InvoicesService {
         private tenantsRepository: Repository<Tenant>,
         @InjectRepository(Payment)
         private paymentsRepository: Repository<Payment>,
+        @InjectRepository(Company)
+        private companiesRepository: Repository<Company>,
         @Inject(forwardRef(() => DashboardService))
         private dashboardService: DashboardService,
         @Inject(CACHE_MANAGER)
@@ -688,41 +691,147 @@ export class InvoicesService {
             throw new NotFoundException('Invoice not found');
         }
 
-        // Simple text-based PDF generation (can be enhanced with a proper PDF library)
-        // For now, return a basic PDF-like response
+        // Simple text-based PDF generation
         const PDFDocument = require('pdfkit');
         const doc = new PDFDocument();
         const buffers: Buffer[] = [];
 
-        doc.on('data', (chunk: Buffer) => buffers.push(chunk));
-
-        doc.fontSize(20).text(`Invoice #${invoice.invoiceNumber}`, { align: 'center' });
-        doc.moveDown();
-        doc.fontSize(12).text(`Status: ${invoice.status.toUpperCase()}`);
-        doc.text(`Issue Date: ${new Date(invoice.invoiceDate).toLocaleDateString()}`);
-        doc.text(`Due Date: ${new Date(invoice.dueDate).toLocaleDateString()}`);
-        doc.moveDown();
-
-        doc.fontSize(14).text('Invoice Details', { underline: true });
-        doc.fontSize(12);
-        doc.text(`Total Amount: ${invoice.totalAmount}`);
-        doc.text(`Paid Amount: ${invoice.amountPaid}`);
-        doc.text(`Outstanding: ${invoice.totalAmount - invoice.amountPaid}`);
-
-        if (invoice.notes) {
-            doc.moveDown();
-            doc.text('Notes:', { underline: true });
-            doc.text(invoice.notes);
-        }
-
-        doc.end();
-
-        return new Promise((resolve, reject) => {
-            doc.on('finish', () => {
+        // Set up Promise and event listeners BEFORE writing to the document
+        const pdfPromise = new Promise<Buffer>((resolve, reject) => {
+            doc.on('data', (chunk: Buffer) => buffers.push(chunk));
+            doc.on('end', () => {
                 resolve(Buffer.concat(buffers));
             });
             doc.on('error', reject);
         });
+
+        // Now write content to the PDF
+        const company = await this.companiesRepository.findOne({
+            where: { id: companyId }
+        });
+
+        // Header - Company Info (From)
+        doc.fontSize(22).fillColor('#2563eb').text('INVOICE', { align: 'center' });
+        doc.fontSize(10).fillColor('#6b7280').text(`#${invoice.invoiceNumber}`, { align: 'center' });
+        doc.moveDown(2);
+
+        // Company Details
+        doc.fontSize(12).fillColor('#000000').text('FROM:', { underline: true });
+        doc.fontSize(11).fillColor('#374151').text(company?.name || 'Company Name');
+        if (company?.email) doc.fontSize(9).fillColor('#6b7280').text(`Email: ${company.email}`);
+        if (company?.phone) doc.text(`Phone: ${company.phone}`);
+        doc.moveDown(1.5);
+
+        // Customer/Tenant Details (To)
+        doc.fontSize(12).fillColor('#000000').text('BILL TO:', { underline: true });
+        if (invoice.tenant) {
+            doc.fontSize(11).fillColor('#374151').text(`${invoice.tenant.firstName} ${invoice.tenant.lastName}`);
+            if (invoice.tenant.email) doc.fontSize(9).fillColor('#6b7280').text(`Email: ${invoice.tenant.email}`);
+            if (invoice.tenant.phone) doc.text(`Phone: ${invoice.tenant.phone}`);
+        }
+        if (invoice.occupancy?.apartment) {
+            doc.text(`Property: Unit ${invoice.occupancy.apartment.unitNumber}`);
+            if (invoice.occupancy.apartment.compound) {
+                doc.text(`Location: ${invoice.occupancy.apartment.compound.name}`);
+            }
+        }
+        doc.moveDown(1.5);
+
+        // Invoice Details
+        const xPos = 50;
+        const yPos = doc.y;
+        doc.fontSize(10).fillColor('#6b7280')
+            .text(`Issue Date: ${new Date(invoice.invoiceDate).toLocaleDateString()}`, xPos, yPos)
+            .text(`Due Date: ${new Date(invoice.dueDate).toLocaleDateString()}`, 320, yPos)
+            .text(`Status: ${invoice.status.toUpperCase()}`, 320, yPos + 15);
+        doc.moveDown(2);
+
+        // Line Items Table
+        doc.fontSize(12).fillColor('#000000').text('INVOICE FOR:', { underline: true });
+        doc.moveDown(0.5);
+
+        // Table Header
+        const tableTop = doc.y;
+        doc.fontSize(10).fillColor('#ffffff');
+        doc.rect(xPos, tableTop, 495, 20).fill('#2563eb');
+        doc.text('Description', xPos + 5, tableTop + 5, { width: 250 });
+        doc.text('Qty', xPos + 260, tableTop + 5, { width: 40, align: 'right' });
+        doc.text('Price', xPos + 310, tableTop + 5, { width: 80, align: 'right' });
+        doc.text('Amount', xPos + 400, tableTop + 5, { width: 90, align: 'right' });
+
+        // Table Rows
+        let currentY = tableTop + 25;
+        doc.fillColor('#374151');
+        const lineItems = invoice.lineItems || [];
+
+        lineItems.forEach((item: any, index: number) => {
+            const bgColor = index % 2 === 0 ? '#f9fafb' : '#ffffff';
+            doc.rect(xPos, currentY, 495, 20).fill(bgColor);
+
+            // Convert numeric values to numbers
+            const quantity = Number(item.quantity) || 0;
+            const unitPrice = Number(item.unitPrice) || 0;
+            const amount = Number(item.amount) || 0;
+
+            doc.fillColor('#374151').fontSize(9);
+            doc.text(item.description, xPos + 5, currentY + 5, { width: 245 });
+            doc.text(quantity.toString(), xPos + 260, currentY + 5, { width: 40, align: 'right' });
+            doc.text(unitPrice.toFixed(2), xPos + 310, currentY + 5, { width: 80, align: 'right' });
+            doc.text(amount.toFixed(2), xPos + 400, currentY + 5, { width: 90, align: 'right' });
+
+            currentY += 20;
+        });
+
+        // Convert numeric values to numbers (they come as strings from DB)
+        const subtotal = Number(invoice.subtotal) || 0;
+        const taxAmount = Number(invoice.taxAmount) || 0;
+        const totalAmount = Number(invoice.totalAmount) || 0;
+        const amountPaid = Number(invoice.amountPaid) || 0;
+
+        // Totals Section
+        currentY += 10;
+        doc.fontSize(10).fillColor('#374151');
+        doc.text('Subtotal:', xPos + 350, currentY, { width: 90, align: 'left' });
+        doc.text(subtotal.toFixed(2), xPos + 400, currentY, { width: 90, align: 'right' });
+
+        if (taxAmount > 0) {
+            currentY += 20;
+            doc.text('Tax:', xPos + 350, currentY, { width: 90, align: 'left' });
+            doc.text(taxAmount.toFixed(2), xPos + 400, currentY, { width: 90, align: 'right' });
+        }
+
+        currentY += 20;
+        doc.fontSize(12).fillColor('#000000');
+        doc.rect(xPos + 350, currentY - 5, 195, 25).fill('#f3f4f6');
+        doc.text('TOTAL:', xPos + 355, currentY, { width: 90, align: 'left' });
+        doc.text(totalAmount.toFixed(2), xPos + 400, currentY, { width: 90, align: 'right' });
+
+        currentY += 30;
+        doc.fontSize(10).fillColor('#374151');
+        doc.text('Amount Paid:', xPos + 350, currentY, { width: 90, align: 'left' });
+        doc.text(amountPaid.toFixed(2), xPos + 400, currentY, { width: 90, align: 'right' });
+
+        currentY += 20;
+        doc.fontSize(11).fillColor('#dc2626');
+        doc.text('Balance Due:', xPos + 350, currentY, { width: 90, align: 'left' });
+        doc.text((totalAmount - amountPaid).toFixed(2), xPos + 400, currentY, { width: 90, align: 'right' });
+
+        // Notes
+        if (invoice.notes) {
+            doc.moveDown(2);
+            doc.fontSize(10).fillColor('#000000').text('Notes:');
+            doc.fontSize(9).fillColor('#6b7280').text(invoice.notes);
+        }
+
+        // Footer
+        doc.moveDown(3);
+        doc.fontSize(8).fillColor('#9ca3af').text('Thank you for your business!', { align: 'center' });
+
+        // Signal that we're done writing
+        doc.end();
+
+        // Wait for the PDF to be fully generated
+        return pdfPromise;
     }
 
     /**

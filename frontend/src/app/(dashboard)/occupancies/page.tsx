@@ -34,6 +34,7 @@ import Link from 'next/link';
 import { OccupancyFormDialog } from '@/components/occupancies/occupancy-form-dialog';
 import { OccupancyStats } from '@/components/occupancies/occupancy-stats';
 import { DepositPaymentDialog } from '@/components/occupancies/deposit-payment-dialog';
+import { EndLeaseDialog } from '@/components/occupancies/end-lease-dialog';
 
 /**
  * Occupancies Management Page
@@ -64,6 +65,8 @@ export default function OccupanciesPage() {
   const [selectedOccupancy, setSelectedOccupancy] = useState<Occupancy | null>(null);
   const [depositDialogOpen, setDepositDialogOpen] = useState(false);
   const [depositOccupancy, setDepositOccupancy] = useState<Occupancy | null>(null);
+  const [endLeaseDialogOpen, setEndLeaseDialogOpen] = useState(false);
+  const [endLeaseOccupancy, setEndLeaseOccupancy] = useState<Occupancy | null>(null);
   const { toast } = useToast();
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -183,21 +186,9 @@ export default function OccupanciesPage() {
     return null;
   };
 
-  const handleEndOccupancy = async (occupancy: Occupancy) => {
-    const moveOutDate = prompt('Enter move-out date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
-    if (!moveOutDate) return;
-
-    try {
-      await occupanciesService.end(occupancy.id, moveOutDate);
-      toast({ title: 'Success', description: 'Occupancy ended successfully' });
-      fetchOccupancies();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: getApiErrorMessage(error),
-        variant: 'destructive',
-      });
-    }
+  const handleEndOccupancy = (occupancy: Occupancy) => {
+    setEndLeaseOccupancy(occupancy);
+    setEndLeaseDialogOpen(true);
   };
 
   const handleDeleteOccupancy = async (occupancy: Occupancy) => {
@@ -236,6 +227,10 @@ export default function OccupanciesPage() {
   };
 
   const handleDepositSuccess = () => {
+    fetchOccupancies();
+  };
+
+  const handleEndLeaseSuccess = () => {
     fetchOccupancies();
   };
 
@@ -549,6 +544,16 @@ export default function OccupanciesPage() {
           onOpenChange={setDepositDialogOpen}
           occupancy={depositOccupancy}
           onSuccess={handleDepositSuccess}
+        />
+      )}
+
+      {/* End Lease Dialog */}
+      {endLeaseOccupancy && (
+        <EndLeaseDialog
+          open={endLeaseDialogOpen}
+          onOpenChange={setEndLeaseDialogOpen}
+          occupancy={endLeaseOccupancy}
+          onSuccess={handleEndLeaseSuccess}
         />
       )}
     </div>
