@@ -28,7 +28,7 @@ import { paymentsService } from '@/services/payments.service';
 import { invoicesService } from '@/services/invoices.service';
 import { getApiErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
-import type { Invoice } from '@/types';
+import type { Invoice, Payment } from '@/types';
 import { Loader2 } from 'lucide-react';
 
 /**
@@ -36,6 +36,7 @@ import { Loader2 } from 'lucide-react';
  *
  * Features:
  * - Record new payment against an invoice
+ * - Edit existing payment details
  * - Select payment method (CASH, BANK, MOBILE, CARD, OTHER)
  * - Add reference number and notes
  * - Comprehensive form validation with Zod
@@ -59,13 +60,16 @@ interface PaymentFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  payment?: Payment | null;
 }
 
 export function PaymentFormDialog({
   open,
   onOpenChange,
   onSuccess,
+  payment,
 }: PaymentFormDialogProps) {
+  const isEditing = !!payment;
   const [submitting, setSubmitting] = useState(false);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -95,12 +99,24 @@ export function PaymentFormDialog({
   const invoiceId = watch('invoiceId');
   const amount = watch('amount');
 
-  // Load unpaid invoices when dialog opens
+  // Pre-populate form when editing
   useEffect(() => {
-    if (open) {
+    if (payment && open) {
+      setValue('invoiceId', payment.invoiceId);
+      setValue('amount', payment.amount);
+      setValue('paidAt', new Date(payment.paidAt).toISOString().split('T')[0]);
+      setValue('method', payment.method);
+      setValue('reference', payment.reference || '');
+      setValue('notes', payment.notes || '');
+    }
+  }, [payment, open, setValue]);
+
+  // Load unpaid invoices when dialog opens (only in create mode)
+  useEffect(() => {
+    if (open && !isEditing) {
       loadUnpaidInvoices();
     }
-  }, [open]);
+  }, [open, isEditing]);
 
   // Update selected invoice when invoiceId changes
   useEffect(() => {
@@ -154,26 +170,43 @@ export function PaymentFormDialog({
     try {
       setSubmitting(true);
 
-      await paymentsService.create({
-        invoiceId: data.invoiceId,
-        amount: data.amount,
-        paidAt: new Date(data.paidAt).toISOString(),
-        method: data.method,
-        reference: data.reference,
-        notes: data.notes,
-      });
+      if (isEditing && payment) {
+        // Update existing payment
+        await paymentsService.update(payment.id, {
+          amount: data.amount,
+          paidAt: new Date(data.paidAt).toISOString(),
+          method: data.method,
+          reference: data.reference,
+          notes: data.notes,
+        });
 
-      toast({
-        title: 'Success',
-        description: 'Payment recorded successfully!',
-      });
+        toast({
+          title: 'Success',
+          description: 'Payment updated successfully!',
+        });
+      } else {
+        // Create new payment
+        await paymentsService.create({
+          invoiceId: data.invoiceId,
+          amount: data.amount,
+          paidAt: new Date(data.paidAt).toISOString(),
+          method: data.method,
+          reference: data.reference,
+          notes: data.notes,
+        });
+
+        toast({
+          title: 'Success',
+          description: 'Payment recorded successfully!',
+        });
+      }
 
       reset();
       setSelectedInvoice(null);
       onOpenChange(false);
       onSuccess();
     } catch (error) {
-      console.error('Failed to record payment:', error);
+      console.error(`Failed to ${isEditing ? 'update' : 'record'} payment:`, error);
       toast({
         title: 'Error',
         description: getApiErrorMessage(error),
@@ -201,9 +234,11 @@ export function PaymentFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Record Payment</DialogTitle>
+          <DialogTitle>{isEditing ? 'Edit Payment' : 'Record Payment'}</DialogTitle>
           <DialogDescription>
-            Record a payment against an unpaid invoice
+            {isEditing
+              ? 'Update payment details and information'
+              : 'Record a payment against an unpaid invoice'}
           </DialogDescription>
         </DialogHeader>
 
@@ -211,24 +246,33 @@ export function PaymentFormDialog({
           {/* Invoice Selection */}
           <div className="space-y-2">
             <Label htmlFor="invoiceId">Invoice *</Label>
-            <select
-              {...register('invoiceId')}
-              id="invoiceId"
-              disabled={loadingInvoices || submitting}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <option value="">
-                {loadingInvoices ? 'Loading invoices...' : 'Select an invoice'}
-              </option>
-              {invoices.map((invoice) => {
-                const remaining = invoice.totalAmount - invoice.amountPaid;
-                return (
-                  <option key={invoice.id} value={invoice.id}>
-                    {invoice.invoiceNumber} - {remaining.toFixed(2)} {currency} due
-                  </option>
-                );
-              })}
-            </select>
+            {isEditing && payment ? (
+              <div className="flex h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm items-center">
+                {payment.invoice?.invoiceNumber || 'N/A'}
+                <span className="ml-2 text-xs text-muted-foreground">
+                  (Cannot change invoice when editing)
+                </span>
+              </div>
+            ) : (
+              <select
+                {...register('invoiceId')}
+                id="invoiceId"
+                disabled={loadingInvoices || submitting}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="">
+                  {loadingInvoices ? 'Loading invoices...' : 'Select an invoice'}
+                </option>
+                {invoices.map((invoice) => {
+                  const remaining = invoice.totalAmount - invoice.amountPaid;
+                  return (
+                    <option key={invoice.id} value={invoice.id}>
+                      {invoice.invoiceNumber} - {remaining.toFixed(2)} {currency} due
+                    </option>
+                  );
+                })}
+              </select>
+            )}
             {errors.invoiceId && (
               <span className="text-sm text-destructive">{errors.invoiceId.message}</span>
             )}
@@ -362,7 +406,13 @@ export function PaymentFormDialog({
             </Button>
             <Button type="submit" disabled={submitting || loadingInvoices}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {submitting ? 'Recording...' : 'Record Payment'}
+              {submitting
+                ? isEditing
+                  ? 'Updating...'
+                  : 'Recording...'
+                : isEditing
+                ? 'Update Payment'
+                : 'Record Payment'}
             </Button>
           </DialogFooter>
         </form>

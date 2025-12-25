@@ -20,6 +20,15 @@ export interface CreatePaymentDto {
   metadata?: any;
 }
 
+export interface UpdatePaymentDto {
+  amount?: number;
+  paidAt?: string;
+  method?: 'CASH' | 'BANK' | 'MOBILE' | 'CARD' | 'OTHER';
+  reference?: string;
+  notes?: string;
+  metadata?: any;
+}
+
 export interface PaymentFilters extends PaginationParams {
   search?: string;
   method?: string; // Backend uses 'method' not 'paymentMethod'
@@ -75,5 +84,26 @@ export const paymentsService = {
    */
   getByDateRange: (params: { dateFrom: string; dateTo: string }) => {
     return api.get<{ data: Payment[] }>('/payments/date-range', { params });
+  },
+
+  /**
+   * Update payment
+   */
+  update: (id: string, data: UpdatePaymentDto) => {
+    return api.patch<{ data: Payment }>(`/payments/${id}`, data);
+  },
+
+  /**
+   * Delete (soft delete) payment
+   */
+  delete: (id: string) => {
+    return api.delete<{ data: Payment }>(`/payments/${id}`);
+  },
+
+  /**
+   * Reactivate deleted payment
+   */
+  activate: (id: string) => {
+    return api.post<{ data: Payment }>(`/payments/${id}/activate`);
   },
 };

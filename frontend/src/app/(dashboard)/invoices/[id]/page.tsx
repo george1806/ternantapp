@@ -246,19 +246,28 @@ export default function InvoiceDetailPage() {
             <CardTitle>Tenant & Property</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {invoice.occupancy?.tenant && (
+            {invoice.tenant && (
               <>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Tenant Name</p>
                   <p className="text-base">
-                    {invoice.occupancy.tenant.firstName} {invoice.occupancy.tenant.lastName}
+                    {invoice.tenant.firstName} {invoice.tenant.lastName}
                   </p>
                 </div>
 
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Tenant Email</p>
-                  <p className="text-base">{invoice.occupancy.tenant.email}</p>
-                </div>
+                {invoice.tenant.email && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Email</p>
+                    <p className="text-base break-all">{invoice.tenant.email}</p>
+                  </div>
+                )}
+
+                {invoice.tenant.phone && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Phone</p>
+                    <p className="text-base">{invoice.tenant.phone}</p>
+                  </div>
+                )}
               </>
             )}
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Search, DollarSign, Calendar, CreditCard, Eye } from 'lucide-react';
+import { Plus, Search, DollarSign, Calendar, CreditCard, Eye, Edit, Trash2, MoreVertical } from 'lucide-react';
 import { paymentsService, type PaymentFilters } from '@/services/payments.service';
 import type { Payment } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -22,8 +29,10 @@ import { getApiErrorMessage } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth';
 import { PaymentFormDialog } from '@/components/payments/payment-form-dialog';
+import { DeletePaymentDialog } from '@/components/payments/delete-payment-dialog';
 import { PaymentStatsCards } from '@/components/payments/payment-stats-cards';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 /**
  * Payments Page
@@ -39,6 +48,7 @@ import Link from 'next/link';
  */
 
 export default function PaymentsPage() {
+  const router = useRouter();
   const { user } = useAuthStore();
   const currency = user?.company?.currency || 'KES';
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -46,6 +56,9 @@ export default function PaymentsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [methodFilter, setMethodFilter] = useState<'CASH' | 'BANK' | 'MOBILE' | 'CARD' | 'OTHER' | 'all'>('all');
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deletingPayment, setDeletingPayment] = useState<Payment | null>(null);
   const { toast } = useToast();
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -94,18 +107,81 @@ export default function PaymentsPage() {
     }
   };
 
+  const handleEditPayment = (payment: Payment) => {
+    setSelectedPayment(payment);
+    setPaymentDialogOpen(true);
+  };
+
+  const handleDeleteClick = (payment: Payment) => {
+    setDeletingPayment(payment);
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingPayment) return;
+
+    try {
+      await paymentsService.delete(deletingPayment.id);
+      toast({
+        title: 'Success',
+        description: 'Payment deleted successfully',
+      });
+      fetchPayments();
+      setShowDeleteDialog(false);
+      setDeletingPayment(null);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: getApiErrorMessage(error),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleFormSuccess = () => {
+    fetchPayments();
+    setSelectedPayment(null);
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    if (!open) {
+      setSelectedPayment(null);
+    }
+    setPaymentDialogOpen(open);
+  };
+
   const getPaymentMethodBadge = (method: string) => {
     switch (method) {
       case 'CASH':
-        return <Badge variant="warning" className="gap-1"><DollarSign className="h-3 w-3" /> Cash</Badge>;
+        return (
+          <Badge variant="warning" className="gap-1 bg-gradient-to-r from-yellow-100 to-amber-100 text-amber-800 border-amber-300">
+            <DollarSign className="h-3 w-3" /> Cash
+          </Badge>
+        );
       case 'BANK':
-        return <Badge variant="default" className="gap-1"><CreditCard className="h-3 w-3" /> Bank Transfer</Badge>;
+        return (
+          <Badge variant="default" className="gap-1 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 border-blue-300">
+            <CreditCard className="h-3 w-3" /> Bank Transfer
+          </Badge>
+        );
       case 'MOBILE':
-        return <Badge variant="success" className="gap-1"><CreditCard className="h-3 w-3" /> Mobile Money</Badge>;
+        return (
+          <Badge variant="success" className="gap-1 bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border-green-300">
+            <CreditCard className="h-3 w-3" /> Mobile Money
+          </Badge>
+        );
       case 'CARD':
-        return <Badge variant="secondary" className="gap-1"><CreditCard className="h-3 w-3" /> Card</Badge>;
+        return (
+          <Badge variant="secondary" className="gap-1 bg-gradient-to-r from-purple-100 to-violet-100 text-purple-800 border-purple-300">
+            <CreditCard className="h-3 w-3" /> Card
+          </Badge>
+        );
       case 'OTHER':
-        return <Badge variant="outline" className="gap-1"><CreditCard className="h-3 w-3" /> Other</Badge>;
+        return (
+          <Badge variant="outline" className="gap-1">
+            <CreditCard className="h-3 w-3" /> Other
+          </Badge>
+        );
       default:
         return <Badge variant="outline">{method}</Badge>;
     }
@@ -235,8 +311,17 @@ export default function PaymentsPage() {
       {/* Payment Form Dialog */}
       <PaymentFormDialog
         open={paymentDialogOpen}
-        onOpenChange={setPaymentDialogOpen}
-        onSuccess={fetchPayments}
+        onOpenChange={handleDialogClose}
+        payment={selectedPayment}
+        onSuccess={handleFormSuccess}
+      />
+
+      {/* Delete Payment Dialog */}
+      <DeletePaymentDialog
+        payment={deletingPayment}
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        onConfirm={handleDeleteConfirm}
       />
 
       {/* No Search Results */}
@@ -284,11 +369,15 @@ export default function PaymentsPage() {
                 </TableHeader>
                 <TableBody>
                   {payments.map((payment) => (
-                    <TableRow key={payment.id} className="hover:bg-muted/30">
+                    <TableRow
+                      key={payment.id}
+                      className="hover:bg-muted/50 transition-colors duration-150 cursor-pointer"
+                      onClick={() => router.push(`/payments/${payment.id}`)}
+                    >
                       <TableCell>
                         <div className="font-medium text-sm">{payment.reference}</div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         {payment.invoice ? (
                           <Link
                             href={`/invoices/${payment.invoice.id}`}
@@ -315,12 +404,32 @@ export default function PaymentsPage() {
                           {payment.notes || '-'}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button variant="ghost" size="sm">
-                            <Eye className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => router.push(`/payments/${payment.id}`)}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEditPayment(payment)}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit Payment
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteClick(payment)}
+                              className="text-red-600 focus:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete Payment
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}

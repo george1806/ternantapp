@@ -257,7 +257,10 @@ api.interceptors.response.use(
           break;
 
         case 404:
-          console.error('[API Not Found]:', originalRequest.url);
+          // 404s are often expected (e.g., deleted resources) - log as debug instead of error
+          if (process.env.NODE_ENV === 'development') {
+            console.debug('[API Not Found]:', originalRequest.url);
+          }
           break;
 
         case 429:
