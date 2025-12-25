@@ -49,6 +49,7 @@ export class PaymentsController {
     @ApiOperation({ summary: 'Get all payments with pagination' })
     @ApiQuery({ name: 'invoiceId', required: false, description: 'Filter by invoice' })
     @ApiQuery({ name: 'includeInactive', required: false, type: Boolean })
+    @ApiQuery({ name: 'method', required: false, type: String, description: 'Filter by payment method (CASH, BANK, MOBILE, CARD, OTHER)' })
     @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
     @ApiQuery({
         name: 'limit',
@@ -68,6 +69,7 @@ export class PaymentsController {
     async findAll(
         @Query('invoiceId') invoiceId?: string,
         @Query('includeInactive') includeInactive?: string,
+        @Query('method') method?: string,
         @Query('compoundId') compoundId?: string,
         @Query('page') page?: number,
         @Query('limit') limit?: number,
@@ -85,6 +87,7 @@ export class PaymentsController {
             {
                 invoiceId,
                 includeInactive: includeInactive === 'true',
+                method,
                 compoundId
             }
         );

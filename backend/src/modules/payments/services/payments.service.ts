@@ -117,7 +117,7 @@ export class PaymentsService {
         companyId: string,
         page: number = 1,
         limit: number = 10,
-        filters?: { invoiceId?: string; includeInactive?: boolean; compoundId?: string }
+        filters?: { invoiceId?: string; includeInactive?: boolean; compoundId?: string; method?: string }
     ): Promise<{ data: Payment[]; total: number }> {
         const skip = (page - 1) * limit;
 
@@ -133,6 +133,11 @@ export class PaymentsService {
 
         if (filters?.invoiceId) {
             query.andWhere('payment.invoiceId = :invoiceId', { invoiceId: filters.invoiceId });
+        }
+
+        // Filter by payment method if provided
+        if (filters?.method) {
+            query.andWhere('payment.method = :method', { method: filters.method });
         }
 
         // Filter by compound/property if provided
