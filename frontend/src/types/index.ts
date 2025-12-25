@@ -164,15 +164,33 @@ export interface Invoice {
   id: string;
   companyId: string;
   occupancyId: string;
+  tenantId: string;
   invoiceNumber: string;
-  issueDate: string; // Backend uses issueDate
+  invoiceDate: string; // Backend uses invoiceDate (not issueDate)
   dueDate: string;
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  lineItems: {
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    amount: number;
+    type?: 'rent' | 'utility' | 'maintenance' | 'other';
+  }[];
+  subtotal: number;
+  taxAmount: number;
   totalAmount: number;
-  paidAmount: number;
+  amountPaid: number; // Backend uses amountPaid (not paidAmount)
+  paidDate?: string;
   notes?: string;
   isActive: boolean;
   occupancy?: Occupancy;
+  tenant?: Tenant;
+  payments?: Payment[];
+  // Virtual properties
+  amountDue?: number;
+  isOverdue?: boolean;
+  isPaid?: boolean;
+  daysOverdue?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -216,6 +234,10 @@ export interface LoginResponse {
     accessToken: string;
     refreshToken: string;
   };
+  tokenDelivery?: 'cookies' | 'body';
+  // Legacy snake_case token fields for backward compatibility
+  access_token?: string;
+  refresh_token?: string;
 }
 
 /**

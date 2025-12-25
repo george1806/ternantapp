@@ -20,7 +20,7 @@ export function LeaseExpirationSection() {
     setLoading(true);
     try {
       const response = await reportsService.getLeaseExpirationReport(daysAhead);
-      setExpiringLeases(response.data);
+      setExpiringLeases(response.data.data);
     } catch (error) {
       toast({
         title: 'Error',

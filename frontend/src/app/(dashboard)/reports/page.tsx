@@ -48,9 +48,9 @@ export default function ReportsPage() {
         reportsService.getRevenueAnalytics(),
         reportsService.getOccupancyAnalytics(),
       ]);
-      setKpis(kpiResponse.data);
-      setRevenueData(revenueResponse.data);
-      setOccupancyData(occupancyResponse.data);
+      setKpis(kpiResponse.data.data);
+      setRevenueData(revenueResponse.data.data);
+      setOccupancyData(occupancyResponse.data.data);
     } catch (error) {
       toast({
         title: 'Error',

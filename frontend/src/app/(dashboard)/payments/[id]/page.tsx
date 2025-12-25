@@ -125,7 +125,7 @@ ${invoice ? `
 INVOICE DETAILS
 ===============================
 Invoice #: ${invoice.invoiceNumber}
-Invoice Date: ${formatDate(invoice.issueDate)}
+Invoice Date: ${formatDate(invoice.invoiceDate)}
 Invoice Amount: ${formatCurrency(invoice.totalAmount, currency)}
 Status: ${invoice.status}
 ` : ''}
@@ -334,7 +334,7 @@ This is an automated receipt. Please keep for your records.
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Invoice Date</p>
-                    <p className="font-semibold mt-1">{formatDate(invoice.issueDate)}</p>
+                    <p className="font-semibold mt-1">{formatDate(invoice.invoiceDate)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Due Date</p>
@@ -354,13 +354,13 @@ This is an automated receipt. Please keep for your records.
                   <div>
                     <p className="text-sm text-muted-foreground">Total Paid</p>
                     <p className="font-semibold text-green-600 mt-1">
-                      {formatCurrency(invoice.paidAmount, currency)}
+                      {formatCurrency(invoice.amountPaid, currency)}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Outstanding</p>
-                    <p className={`font-semibold mt-1 ${invoice.totalAmount - invoice.paidAmount > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                      {formatCurrency(invoice.totalAmount - invoice.paidAmount, currency)}
+                    <p className={`font-semibold mt-1 ${invoice.totalAmount - invoice.amountPaid > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                      {formatCurrency(invoice.totalAmount - invoice.amountPaid, currency)}
                     </p>
                   </div>
                 </div>

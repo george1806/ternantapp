@@ -245,7 +245,7 @@ export default function PropertiesPage() {
             <p className="text-sm text-muted-foreground mb-4">
               No properties match your search &ldquo;{searchQuery}&rdquo;
             </p>
-            <Button variant="outline" onClick={() => setSearchQuery('')}>
+            <Button variant="outline" onClick={() => setSearchInput('')}>
               Clear Search
             </Button>
           </CardContent>

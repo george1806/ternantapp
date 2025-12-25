@@ -20,7 +20,7 @@ export function RevenueReportSection() {
     setLoading(true);
     try {
       const response = await reportsService.getRevenueAnalytics();
-      setRevenueData(response.data);
+      setRevenueData(response.data.data);
     } catch (error) {
       toast({
         title: 'Error',

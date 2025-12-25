@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { tenantsService } from '@/services/tenants.service';
 import { occupanciesService } from '@/services/occupancies.service';
+import { TenantFormDialog } from '@/components/tenants/tenant-form-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -42,6 +43,7 @@ export default function TenantDetailPage() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [showEditDialog, setShowEditDialog] = useState(false);
 
   const tenantId = params.id as string;
 
@@ -59,8 +61,8 @@ export default function TenantDetailPage() {
     enabled: !!tenantId,
   });
 
-  const tenant = tenantData?.data?.data;
-  const occupancies = occupanciesData?.data?.data || [];
+  const tenant = tenantData?.data;
+  const occupancies = occupanciesData?.data || [];
 
   // Calculate stats from occupancies
   const activeOccupancy = occupancies.find((occ) => occ.status === 'active');
@@ -125,6 +127,12 @@ export default function TenantDetailPage() {
     }
   };
 
+  const handleEditSuccess = () => {
+    // Invalidate queries to refresh tenant data
+    queryClient.invalidateQueries({ queryKey: ['tenants', tenantId] });
+    queryClient.invalidateQueries({ queryKey: ['tenants'] });
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -145,7 +153,7 @@ export default function TenantDetailPage() {
         </div>
         <div className="flex gap-2 shrink-0 flex-wrap">
           {getStatusBadge(tenant.status)}
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => setShowEditDialog(true)}>
             <Edit className="mr-2 h-4 w-4" />
             Edit
           </Button>
@@ -221,7 +229,7 @@ export default function TenantDetailPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="bg-white dark:bg-gray-900"
+                    className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
                     asChild
                   >
                     <Link href={`/occupancies/${activeOccupancy.id}`}>
@@ -232,7 +240,7 @@ export default function TenantDetailPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="bg-white dark:bg-gray-900"
+                      className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
                       asChild
                     >
                       <Link href={`/apartments/${activeOccupancy.apartmentId}`}>
@@ -515,6 +523,14 @@ export default function TenantDetailPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Edit Tenant Dialog */}
+      <TenantFormDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        onSuccess={handleEditSuccess}
+        tenant={tenant}
+      />
     </div>
   );
 }

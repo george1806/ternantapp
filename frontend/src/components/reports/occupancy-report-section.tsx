@@ -20,7 +20,7 @@ export function OccupancyReportSection() {
     setLoading(true);
     try {
       const response = await reportsService.getOccupancyAnalytics();
-      setOccupancyData(response.data);
+      setOccupancyData(response.data.data);
     } catch (error) {
       toast({
         title: 'Error',

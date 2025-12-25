@@ -91,7 +91,7 @@ export const occupanciesService = {
    * Get occupancies by apartment
    */
   getByApartment: (apartmentId: string, params?: PaginationParams) => {
-    return api.get<PaginatedResponse<Occupancy>>(`/apartments/${apartmentId}/occupancies`, {
+    return api.get<PaginatedResponse<Occupancy>>(`/occupancies/apartment/${apartmentId}`, {
       params,
     });
   },
@@ -100,7 +100,7 @@ export const occupanciesService = {
    * Get occupancies by tenant
    */
   getByTenant: (tenantId: string, params?: PaginationParams) => {
-    return api.get<PaginatedResponse<Occupancy>>(`/tenants/${tenantId}/occupancies`, { params });
+    return api.get<PaginatedResponse<Occupancy>>(`/occupancies/tenant/${tenantId}`, { params });
   },
 
   /**

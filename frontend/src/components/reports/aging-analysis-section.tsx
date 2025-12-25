@@ -37,7 +37,7 @@ export function AgingAnalysisSection() {
     setLoading(true);
     try {
       const response = await reportsService.getAgingAnalysisReport();
-      setAgingData(response.data);
+      setAgingData(response.data.data);
     } catch (error) {
       toast({
         title: 'Error',

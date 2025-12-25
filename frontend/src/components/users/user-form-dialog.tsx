@@ -123,8 +123,6 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
     },
   });
 
-  const form = isEditing ? updateForm : createForm;
-
   useEffect(() => {
     if (open && user) {
       updateForm.reset({
@@ -145,28 +143,42 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
     }
   }, [open, user, createForm, updateForm]);
 
-  const onSubmit = async (data: CreateUserFormData | UpdateUserFormData) => {
+  const onSubmitCreate = async (data: CreateUserFormData) => {
     try {
       setIsSubmitting(true);
+      await usersService.create(data);
+      toast({
+        title: 'Success',
+        description: 'User created successfully',
+      });
+      onOpenChange(false);
+      onSuccess?.();
+    } catch (error) {
+      console.error('Failed to create user:', error);
+      toast({
+        title: 'Error',
+        description: getApiErrorMessage(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-      if (isEditing && user) {
-        await usersService.update(user.id, data as UpdateUserFormData);
+  const onSubmitUpdate = async (data: UpdateUserFormData) => {
+    try {
+      setIsSubmitting(true);
+      if (user) {
+        await usersService.update(user.id, data);
         toast({
           title: 'Success',
           description: 'User updated successfully',
         });
-      } else {
-        await usersService.create(data as CreateUserFormData);
-        toast({
-          title: 'Success',
-          description: 'User created successfully',
-        });
+        onOpenChange(false);
+        onSuccess?.();
       }
-
-      onOpenChange(false);
-      onSuccess?.();
     } catch (error) {
-      console.error('Failed to save user:', error);
+      console.error('Failed to update user:', error);
       toast({
         title: 'Error',
         description: getApiErrorMessage(error),
@@ -189,39 +201,132 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
           </DialogDescription>
         </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+        {isEditing ? (
+          <Form {...updateForm}>
+            <form onSubmit={updateForm.handleSubmit(onSubmitUpdate)} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={updateForm.control}
+                  name="firstName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="John" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={updateForm.control}
+                  name="lastName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <FormField
-                control={form.control}
-                name="firstName"
+                control={updateForm.control}
+                name="role"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>First Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="John" {...field} />
-                    </FormControl>
+                    <FormLabel>Role</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a role" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {availableRoles.map((role) => (
+                          <SelectItem key={role.value} value={role.value}>
+                            {role.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {currentUser?.role === 'ADMIN'
+                        ? 'Admin: Platform admin | Owner: Company owner | Worker: Company employee'
+                        : 'Worker: Company employee with limited permissions'}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
               <FormField
-                control={form.control}
-                name="lastName"
+                control={updateForm.control}
+                name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Last Name</FormLabel>
+                    <FormLabel>Phone (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="Doe" {...field} />
+                      <Input placeholder="+1234567890" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
 
-            {!isEditing && (
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Update User
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        ) : (
+          <Form {...createForm}>
+            <form onSubmit={createForm.handleSubmit(onSubmitCreate)} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={createForm.control}
+                  name="firstName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="John" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={createForm.control}
+                  name="lastName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <FormField
                 control={createForm.control}
                 name="email"
@@ -238,9 +343,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
                   </FormItem>
                 )}
               />
-            )}
 
-            {!isEditing && (
               <FormField
                 control={createForm.control}
                 name="password"
@@ -257,68 +360,68 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
                   </FormItem>
                 )}
               />
-            )}
 
-            <FormField
-              control={form.control}
-              name="role"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Role</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+              <FormField
+                control={createForm.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Role</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a role" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {availableRoles.map((role) => (
+                          <SelectItem key={role.value} value={role.value}>
+                            {role.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {currentUser?.role === 'ADMIN'
+                        ? 'Admin: Platform admin | Owner: Company owner | Worker: Company employee'
+                        : 'Worker: Company employee with limited permissions'}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={createForm.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone (Optional)</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a role" />
-                      </SelectTrigger>
+                      <Input placeholder="+1234567890" {...field} />
                     </FormControl>
-                    <SelectContent>
-                      {availableRoles.map((role) => (
-                        <SelectItem key={role.value} value={role.value}>
-                          {role.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    {currentUser?.role === 'ADMIN'
-                      ? 'Admin: Platform admin | Owner: Company owner | Worker: Company employee'
-                      : 'Worker: Company employee with limited permissions'}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              control={form.control}
-              name="phone"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Phone (Optional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="+1234567890" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isEditing ? 'Update User' : 'Create User'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Create User
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        )}
       </DialogContent>
     </Dialog>
   );

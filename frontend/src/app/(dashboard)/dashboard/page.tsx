@@ -702,7 +702,7 @@ export default function DashboardPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{payment.reference || 'N/A'}</p>
                         <p className="text-xs text-muted-foreground">
-                          {payment.paymentDate ? formatDate(payment.paymentDate) : 'Unknown date'}
+                          {payment.paidAt ? formatDate(payment.paidAt) : 'Unknown date'}
                         </p>
                       </div>
                     </div>

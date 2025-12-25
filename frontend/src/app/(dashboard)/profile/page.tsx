@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { format } from 'date-fns';
+import type { User as UserType } from '@/types';
 
 /**
  * User Profile Page
@@ -18,28 +19,10 @@ import { format } from 'date-fns';
  * Displays user information, role, company details, and account statistics
  */
 
-interface UserProfileData {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string;
-  role: 'ADMIN' | 'OWNER' | 'WORKER';
-  companyId: string;
-  company?: {
-    id: string;
-    name: string;
-    email: string;
-    phone?: string;
-  };
-  createdAt: string;
-  updatedAt: string;
-}
-
 export default function ProfilePage() {
   const { user } = useAuthStore();
   const { toast } = useToast();
-  const [profile, setProfile] = useState<UserProfileData | null>(null);
+  const [profile, setProfile] = useState<UserType | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -59,7 +42,7 @@ export default function ProfilePage() {
       });
       // Use fallback data from auth store if API fails
       if (user) {
-        setProfile(user as UserProfileData);
+        setProfile(user);
       }
     } finally {
       setLoading(false);
@@ -181,12 +164,12 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {profile.phone && (
+            {profile.profile?.phone && (
               <div className="flex items-start gap-3">
                 <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">Phone Number</p>
-                  <p className="text-sm text-muted-foreground">{profile.phone}</p>
+                  <p className="text-sm text-muted-foreground">{profile.profile.phone}</p>
                 </div>
               </div>
             )}
@@ -270,7 +253,7 @@ export default function ProfilePage() {
               <div>
                 <p className="text-sm font-medium">Account Created</p>
                 <p className="text-sm text-muted-foreground">
-                  {format(new Date(profile.createdAt), 'PPP')}
+                  {profile.createdAt ? format(new Date(profile.createdAt), 'PPP') : 'N/A'}
                 </p>
               </div>
             </div>
@@ -280,7 +263,7 @@ export default function ProfilePage() {
               <div>
                 <p className="text-sm font-medium">Last Updated</p>
                 <p className="text-sm text-muted-foreground">
-                  {format(new Date(profile.updatedAt), 'PPP')}
+                  {profile.updatedAt ? format(new Date(profile.updatedAt), 'PPP') : 'N/A'}
                 </p>
               </div>
             </div>

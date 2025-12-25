@@ -20,7 +20,7 @@ import {
   Edit,
   Trash2,
   ArrowLeft,
-  User,
+  User as UserIcon,
   Clock,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -262,7 +262,7 @@ export default function CompanyUsersPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
-              <User className="h-8 w-8 text-purple-500" />
+              <UserIcon className="h-8 w-8 text-purple-500" />
               <div className="text-2xl font-bold">{users.length}</div>
             </div>
           </CardContent>
@@ -339,7 +339,7 @@ export default function CompanyUsersPage() {
         <CardContent>
           {filteredUsers.length === 0 ? (
             <div className="text-center py-12">
-              <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <UserIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
                 {searchQuery ? 'No users found' : 'No users yet'}
               </h3>
@@ -376,7 +376,7 @@ export default function CompanyUsersPage() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <div className="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center">
-                            <User className="h-4 w-4 text-purple-600" />
+                            <UserIcon className="h-4 w-4 text-purple-600" />
                           </div>
                           <div>
                             <div className="font-medium">

@@ -304,11 +304,6 @@ export default function TenantsPage() {
                           <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <span className="text-sm truncate">{tenant.phone}</span>
                         </div>
-                        {tenant.occupation && (
-                          <p className="text-sm text-muted-foreground">
-                            {tenant.occupation}
-                          </p>
-                        )}
                       </div>
 
                       {/* Actions */}

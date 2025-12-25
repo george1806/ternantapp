@@ -409,9 +409,9 @@ export default function InvoicesPage() {
                         <Badge variant="outline" className="font-normal">
                           <span className="font-semibold text-blue-600 dark:text-blue-500">{formatCurrency(invoice.totalAmount, currency)}</span>
                         </Badge>
-                        {invoice.paidAmount > 0 && invoice.paidAmount < invoice.totalAmount && (
+                        {invoice.amountPaid > 0 && invoice.amountPaid < invoice.totalAmount && (
                           <Badge variant="outline" className="font-normal">
-                            Paid: <span className="font-semibold text-emerald-600 dark:text-emerald-500">{formatCurrency(invoice.paidAmount, currency)}</span>
+                            Paid: <span className="font-semibold text-emerald-600 dark:text-emerald-500">{formatCurrency(invoice.amountPaid, currency)}</span>
                           </Badge>
                         )}
                       </div>

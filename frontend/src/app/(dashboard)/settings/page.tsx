@@ -127,7 +127,7 @@ export default function SettingsPage() {
           firstName: userRes.data.data.firstName || '',
           lastName: userRes.data.data.lastName || '',
           email: userRes.data.data.email || '',
-          phone: userRes.data.data.phone || '',
+          phone: userRes.data.data.profile?.phone || '',
         });
       }
 
@@ -138,12 +138,12 @@ export default function SettingsPage() {
           phone: companyRes.data.data.phone || '',
           currency: companyRes.data.data.currency || 'KES',
           timezone: companyRes.data.data.timezone || 'Africa/Nairobi',
-          address: companyRes.data.data.address || '',
-          city: companyRes.data.data.city || '',
-          region: companyRes.data.data.region || '',
-          country: companyRes.data.data.country || '',
-          postalCode: companyRes.data.data.postalCode || '',
-          website: companyRes.data.data.website || '',
+          address: '',
+          city: '',
+          region: '',
+          country: '',
+          postalCode: '',
+          website: '',
         });
       }
 

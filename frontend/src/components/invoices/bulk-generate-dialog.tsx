@@ -18,18 +18,7 @@ import { invoicesService } from '@/services/invoices.service';
 import { occupanciesService } from '@/services/occupancies.service';
 import { getApiErrorMessage } from '@/lib/api';
 import { format, addDays } from 'date-fns';
-
-interface Occupancy {
-  id: string;
-  tenant: {
-    firstName: string;
-    lastName: string;
-  };
-  apartment: {
-    unitNumber: string;
-  };
-  monthlyRent: number;
-}
+import type { Occupancy } from '@/types';
 
 interface BulkGenerateDialogProps {
   open: boolean;
@@ -302,10 +291,10 @@ export function BulkGenerateDialog({ open, onOpenChange, onSuccess }: BulkGenera
                       >
                         <div>
                           <div className="font-medium">
-                            {occupancy.tenant.firstName} {occupancy.tenant.lastName}
+                            {occupancy.tenant?.firstName} {occupancy.tenant?.lastName}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            Unit {occupancy.apartment.unitNumber}
+                            Unit {occupancy.apartment?.unitNumber}
                           </div>
                         </div>
                         <div className="font-semibold">

@@ -62,7 +62,7 @@ export function PaymentMethodsChart({ data, currency = 'USD' }: PaymentMethodsCh
               cx="50%"
               cy="50%"
               labelLine={false}
-              label={({ percentage }) => `${percentage.toFixed(0)}%`}
+              label={({ percent }) => percent ? `${(percent * 100).toFixed(0)}%` : ''}
               outerRadius={110}
               innerRadius={60}
               fill="#8884d8"

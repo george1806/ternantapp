@@ -46,7 +46,7 @@ export default function LoginPage() {
       // Handle hybrid authentication system:
       // - Web browsers: tokens in httpOnly cookies (response has no tokens)
       // - Mobile/API: tokens in response body
-      const responseData = response.data?.data || response.data;
+      const responseData = (response.data as { data?: LoginResponse })?.data || response.data;
       const user = responseData.user;
       const tokenDelivery = responseData.tokenDelivery;
 

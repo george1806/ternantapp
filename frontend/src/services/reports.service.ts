@@ -173,16 +173,14 @@ class ReportsService {
   /**
    * Get KPI dashboard data
    */
-  async getKPIs(): Promise<ApiResponse<KPIData>> {
+  async getKPIs() {
     return api.get<{ data: KPIData }>(`${this.baseUrl}/kpis`);
   }
 
   /**
    * Get occupancy report
    */
-  async getOccupancyReport(
-    filters?: ReportFilters
-  ): Promise<ApiResponse<OccupancyReport[]>> {
+  async getOccupancyReport(filters?: ReportFilters) {
     const params = new URLSearchParams();
     if (filters?.startDate) params.append('startDate', filters.startDate);
     if (filters?.endDate) params.append('endDate', filters.endDate);
@@ -199,9 +197,7 @@ class ReportsService {
   /**
    * Get revenue report
    */
-  async getRevenueReport(
-    filters?: ReportFilters
-  ): Promise<ApiResponse<RevenueReport[]>> {
+  async getRevenueReport(filters?: ReportFilters) {
     const params = new URLSearchParams();
     if (filters?.startDate) params.append('startDate', filters.startDate);
     if (filters?.endDate) params.append('endDate', filters.endDate);
@@ -218,9 +214,7 @@ class ReportsService {
   /**
    * Get revenue analytics
    */
-  async getRevenueAnalytics(
-    filters?: ReportFilters
-  ): Promise<ApiResponse<RevenueAnalytics>> {
+  async getRevenueAnalytics(filters?: ReportFilters) {
     const params = new URLSearchParams();
     if (filters?.startDate) params.append('startDate', filters.startDate);
     if (filters?.endDate) params.append('endDate', filters.endDate);
@@ -236,9 +230,7 @@ class ReportsService {
   /**
    * Get occupancy analytics
    */
-  async getOccupancyAnalytics(
-    filters?: ReportFilters
-  ): Promise<ApiResponse<OccupancyAnalytics>> {
+  async getOccupancyAnalytics(filters?: ReportFilters) {
     const params = new URLSearchParams();
     if (filters?.startDate) params.append('startDate', filters.startDate);
     if (filters?.endDate) params.append('endDate', filters.endDate);
@@ -254,9 +246,7 @@ class ReportsService {
   /**
    * Get lease expiration report
    */
-  async getLeaseExpirationReport(
-    daysAhead: number = 90
-  ): Promise<ApiResponse<LeaseExpirationReport[]>> {
+  async getLeaseExpirationReport(daysAhead: number = 90) {
     const url = `${this.baseUrl}/lease-expiration?daysAhead=${daysAhead}`;
     return api.get<{ data: LeaseExpirationReport[] }>(url);
   }
@@ -264,7 +254,7 @@ class ReportsService {
   /**
    * Get aging analysis report
    */
-  async getAgingAnalysisReport(): Promise<ApiResponse<AgingAnalysisReport>> {
+  async getAgingAnalysisReport() {
     return api.get<{ data: AgingAnalysisReport }>(
       `${this.baseUrl}/aging-analysis`
     );
@@ -273,7 +263,7 @@ class ReportsService {
   /**
    * Clear reports cache
    */
-  async clearCache(): Promise<ApiResponse<{ message: string }>> {
+  async clearCache() {
     return api.delete<{ data: { message: string } }>(`${this.baseUrl}/cache`);
   }
 

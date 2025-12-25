@@ -48,9 +48,7 @@ const paymentFormSchema = z.object({
   invoiceId: z.string().min(1, 'Please select an invoice'),
   amount: z.number().min(0.01, 'Amount must be greater than 0'),
   paidAt: z.string().min(1, 'Payment date is required'),
-  method: z.enum(['CASH', 'BANK', 'MOBILE', 'CARD', 'OTHER'], {
-    errorMap: () => ({ message: 'Please select a valid payment method' }),
-  }),
+  method: z.enum(['CASH', 'BANK', 'MOBILE', 'CARD', 'OTHER']),
   reference: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -110,7 +108,7 @@ export function PaymentFormDialog({
       const invoice = invoices.find((inv) => inv.id === invoiceId);
       setSelectedInvoice(invoice || null);
       if (invoice) {
-        const remainingAmount = invoice.totalAmount - invoice.paidAmount;
+        const remainingAmount = invoice.totalAmount - invoice.amountPaid;
         setValue('amount', remainingAmount);
       }
     }
@@ -128,7 +126,7 @@ export function PaymentFormDialog({
       if (response.data?.data) {
         // Filter invoices that still have unpaid amount
         const unpaidInvoices = response.data.data.filter(
-          (inv) => inv.totalAmount > inv.paidAmount
+          (inv) => inv.totalAmount > inv.amountPaid
         );
         setInvoices(unpaidInvoices);
 
@@ -188,11 +186,11 @@ export function PaymentFormDialog({
 
   const getInvoiceInfo = () => {
     if (!selectedInvoice) return null;
-    const remaining = selectedInvoice.totalAmount - selectedInvoice.paidAmount;
+    const remaining = selectedInvoice.totalAmount - selectedInvoice.amountPaid;
     return {
       invoiceNumber: selectedInvoice.invoiceNumber,
       totalAmount: selectedInvoice.totalAmount,
-      paidAmount: selectedInvoice.paidAmount,
+      paidAmount: selectedInvoice.amountPaid,
       remaining,
     };
   };
@@ -223,7 +221,7 @@ export function PaymentFormDialog({
                 {loadingInvoices ? 'Loading invoices...' : 'Select an invoice'}
               </option>
               {invoices.map((invoice) => {
-                const remaining = invoice.totalAmount - invoice.paidAmount;
+                const remaining = invoice.totalAmount - invoice.amountPaid;
                 return (
                   <option key={invoice.id} value={invoice.id}>
                     {invoice.invoiceNumber} - {remaining.toFixed(2)} {currency} due

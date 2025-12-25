@@ -126,8 +126,8 @@ export default function InvoiceDetailPage() {
   }
 
   const totalAmount = invoice.totalAmount || 0;
-  const paidAmount = invoice.paidAmount || 0;
-  const outstandingAmount = totalAmount - paidAmount;
+  const amountPaid = invoice.amountPaid || 0;
+  const outstandingAmount = totalAmount - amountPaid;
 
   return (
     <div className="space-y-6">
@@ -178,7 +178,7 @@ export default function InvoiceDetailPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">${paidAmount.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-green-600">${amountPaid.toLocaleString()}</div>
           </CardContent>
         </Card>
 
@@ -295,7 +295,7 @@ export default function InvoiceDetailPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {invoice.items?.map((item, index) => {
+              {invoice.lineItems?.map((item, index) => {
                 const itemQuantity = item.quantity || 0;
                 const itemPrice = item.unitPrice || 0;
                 const itemTotal = itemQuantity * itemPrice;
@@ -305,7 +305,7 @@ export default function InvoiceDetailPage() {
                     <TableCell>
                       <div>
                         <p className="font-medium">{item.description || 'N/A'}</p>
-                        <p className="text-sm text-muted-foreground capitalize">{item.itemType || 'N/A'}</p>
+                        <p className="text-sm text-muted-foreground capitalize">{item.type || 'N/A'}</p>
                       </div>
                     </TableCell>
                     <TableCell className="text-right">{itemQuantity}</TableCell>

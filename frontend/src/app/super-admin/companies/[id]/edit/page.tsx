@@ -53,7 +53,7 @@ export default function EditCompanyPage() {
         name: data.name,
         email: data.email,
         phone: data.phone || '',
-        currency: data.currency,
+        currency: data.currency as Currency,
         timezone: data.timezone || 'America/New_York',
       });
     } catch (err: any) {

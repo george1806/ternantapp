@@ -303,10 +303,10 @@ export default function PaymentsPage() {
                       <TableCell>
                         <div className="flex items-center gap-1.5 text-sm">
                           <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                          {formatDate(payment.paymentDate)}
+                          {formatDate(payment.paidAt)}
                         </div>
                       </TableCell>
-                      <TableCell>{getPaymentMethodBadge(payment.paymentMethod)}</TableCell>
+                      <TableCell>{getPaymentMethodBadge(payment.method)}</TableCell>
                       <TableCell className="text-right">
                         <div className="font-medium text-green-600">{formatCurrency(payment.amount, currency)}</div>
                       </TableCell>

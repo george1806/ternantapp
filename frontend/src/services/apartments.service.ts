@@ -71,7 +71,7 @@ export const apartmentsService = {
   /**
    * Get apartments by compound
    */
-  getByCompound: (compoundId: string, params?: PaginationParams) => {
+  getByCompound: (compoundId: string, params?: Omit<ApartmentFilters, 'compoundId'>) => {
     return api.get<PaginatedResponse<Apartment>>('/apartments', {
       params: { ...params, compoundId }
     });

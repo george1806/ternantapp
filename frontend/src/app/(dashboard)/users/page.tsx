@@ -80,14 +80,6 @@ export default function UsersPage() {
         }
         setTotal(response.data.meta?.total || response.data.data.length);
         setTotalPages(response.data.meta?.totalPages || 1);
-      } else if (Array.isArray(response.data)) {
-        if (append) {
-          setUsers(prev => [...prev, ...response.data]);
-        } else {
-          setUsers(response.data);
-        }
-        setTotal(response.data.length);
-        setTotalPages(1);
       } else {
         console.warn('Users endpoint returned unexpected format');
         if (!append) {
