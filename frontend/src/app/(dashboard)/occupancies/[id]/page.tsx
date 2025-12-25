@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { format, differenceInDays } from 'date-fns';
 import { formatCurrency } from '@/lib/currency';
+import { OccupancyFormDialog } from '@/components/occupancies/occupancy-form-dialog';
 import { EndLeaseDialog } from '@/components/occupancies/end-lease-dialog';
 import { CancelLeaseDialog } from '@/components/occupancies/cancel-lease-dialog';
 
@@ -41,6 +42,7 @@ export default function OccupancyDetailPage() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [showEndLeaseDialog, setShowEndLeaseDialog] = useState(false);
   const [showCancelLeaseDialog, setShowCancelLeaseDialog] = useState(false);
 
@@ -98,6 +100,11 @@ export default function OccupancyDetailPage() {
     }
   };
 
+  const handleEditSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['occupancies', occupancyId] });
+    queryClient.invalidateQueries({ queryKey: ['occupancies'] });
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -126,7 +133,7 @@ export default function OccupancyDetailPage() {
           {getStatusBadge()}
           {status === 'active' && (
             <>
-              <Button variant="outline">
+              <Button variant="outline" onClick={() => setShowEditDialog(true)}>
                 <Edit className="mr-2 h-4 w-4" />
                 Edit
               </Button>
@@ -138,7 +145,7 @@ export default function OccupancyDetailPage() {
           )}
           {status === 'pending' && (
             <>
-              <Button variant="outline">
+              <Button variant="outline" onClick={() => setShowEditDialog(true)}>
                 <Edit className="mr-2 h-4 w-4" />
                 Edit
               </Button>
@@ -468,6 +475,14 @@ export default function OccupancyDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Edit Occupancy Dialog */}
+      <OccupancyFormDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        occupancy={occupancy}
+        onSuccess={handleEditSuccess}
+      />
 
       {/* End Lease Dialog */}
       {occupancy && (
