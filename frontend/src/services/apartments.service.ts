@@ -44,21 +44,21 @@ export const apartmentsService = {
    * Get apartment by ID
    */
   getById: (id: string) => {
-    return api.get<{ data: Apartment }>(`/apartments/${id}`);
+    return api.get<Apartment>(`/apartments/${id}`);
   },
 
   /**
    * Create new apartment
    */
   create: (data: CreateApartmentDto) => {
-    return api.post<{ data: Apartment }>('/apartments', data);
+    return api.post<Apartment>('/apartments', data);
   },
 
   /**
    * Update apartment
    */
   update: (id: string, data: UpdateApartmentDto) => {
-    return api.patch<{ data: Apartment }>(`/apartments/${id}`, data);
+    return api.patch<Apartment>(`/apartments/${id}`, data);
   },
 
   /**

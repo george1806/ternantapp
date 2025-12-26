@@ -49,21 +49,21 @@ export const paymentsService = {
    * Get payment by ID
    */
   getById: (id: string) => {
-    return api.get<{ data: Payment }>(`/payments/${id}`);
+    return api.get<Payment>(`/payments/${id}`);
   },
 
   /**
    * Record new payment
    */
   create: (data: CreatePaymentDto) => {
-    return api.post<{ data: Payment }>('/payments', data);
+    return api.post<Payment>('/payments', data);
   },
 
   /**
    * Get payments for specific invoice
    */
   getByInvoice: (invoiceId: string) => {
-    return api.get<{ data: Payment[] }>(`/invoices/${invoiceId}/payments`);
+    return api.get<Payment[]>(`/invoices/${invoiceId}/payments`);
   },
 
   /**
@@ -83,27 +83,27 @@ export const paymentsService = {
    * Get payments by date range
    */
   getByDateRange: (params: { dateFrom: string; dateTo: string }) => {
-    return api.get<{ data: Payment[] }>('/payments/date-range', { params });
+    return api.get<Payment[]>('/payments/date-range', { params });
   },
 
   /**
    * Update payment
    */
   update: (id: string, data: UpdatePaymentDto) => {
-    return api.patch<{ data: Payment }>(`/payments/${id}`, data);
+    return api.patch<Payment>(`/payments/${id}`, data);
   },
 
   /**
    * Delete (soft delete) payment
    */
   delete: (id: string) => {
-    return api.delete<{ data: Payment }>(`/payments/${id}`);
+    return api.delete<Payment>(`/payments/${id}`);
   },
 
   /**
    * Reactivate deleted payment
    */
   activate: (id: string) => {
-    return api.post<{ data: Payment }>(`/payments/${id}/activate`);
+    return api.post<Payment>(`/payments/${id}/activate`);
   },
 };

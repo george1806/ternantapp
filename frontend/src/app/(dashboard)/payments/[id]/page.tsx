@@ -75,13 +75,12 @@ export default function PaymentDetailPage() {
       const paymentResponse = await paymentsService.getById(paymentId);
 
       if (paymentResponse.data) {
-        const paymentData = paymentResponse.data;
-        setPayment(paymentData);
+        setPayment(paymentResponse.data);
 
         // Fetch related invoice
-        if (paymentData.invoiceId) {
+        if (paymentResponse.data.invoiceId) {
           try {
-            const invoiceResponse = await invoicesService.getById(paymentData.invoiceId);
+            const invoiceResponse = await invoicesService.getById(paymentResponse.data.invoiceId);
             if (invoiceResponse.data) {
               setInvoice(invoiceResponse.data);
               setInvoiceNotFound(false);

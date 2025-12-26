@@ -56,7 +56,7 @@ export class BruteForceProtectionService {
             );
 
             this.logger.warn(
-                `Account locked: ${user.email} (${user.loginAttempts} attempts). ` +
+                `Account locked: ${user.email} (${user.loginAttempts || 0} attempts). ` +
                 `Unlocks in ${remainingMinutes} minutes.`
             );
 
@@ -89,8 +89,8 @@ export class BruteForceProtectionService {
             }
         }
 
-        // Increment failed attempts
-        user.loginAttempts += 1;
+        // Increment failed attempts (initialize to 0 if null/undefined)
+        user.loginAttempts = (user.loginAttempts || 0) + 1;
         user.lastFailedLogin = now;
 
         // Calculate lockout duration based on policy
@@ -100,7 +100,7 @@ export class BruteForceProtectionService {
             user.lockedUntil = new Date(now.getTime() + lockoutDuration * 60 * 1000);
 
             this.logger.warn(
-                `Account locked: ${user.email} (${user.loginAttempts} attempts). ` +
+                `Account locked: ${user.email} (${user.loginAttempts || 0} attempts). ` +
                 `Locked for ${lockoutDuration} minutes until ${user.lockedUntil.toISOString()}`
             );
 
@@ -113,7 +113,7 @@ export class BruteForceProtectionService {
 
         this.logger.log(
             `Failed login attempt recorded for ${user.email}. ` +
-            `Attempts: ${user.loginAttempts}`
+            `Attempts: ${user.loginAttempts || 0}`
         );
     }
 
@@ -121,9 +121,9 @@ export class BruteForceProtectionService {
      * Reset failed attempts and unlock account
      */
     async recordSuccessfulLogin(user: User): Promise<void> {
-        if (user.loginAttempts > 0 || user.lockedUntil) {
+        if ((user.loginAttempts || 0) > 0 || user.lockedUntil) {
             this.logger.log(
-                `Successful login for ${user.email}. Resetting ${user.loginAttempts} failed attempts.`
+                `Successful login for ${user.email}. Resetting ${user.loginAttempts || 0} failed attempts.`
             );
 
             user.loginAttempts = 0;
@@ -172,10 +172,10 @@ export class BruteForceProtectionService {
             throw new Error('User not found');
         }
 
-        if (user.loginAttempts > 0 || user.lockedUntil) {
+        if ((user.loginAttempts || 0) > 0 || user.lockedUntil) {
             this.logger.log(
                 `Manual unlock for ${user.email} by admin. ` +
-                `Clearing ${user.loginAttempts} attempts.`
+                `Clearing ${user.loginAttempts || 0} attempts.`
             );
 
             user.loginAttempts = 0;
@@ -207,7 +207,7 @@ export class BruteForceProtectionService {
 
         return {
             isLocked: !!isLocked,
-            attempts: user.loginAttempts,
+            attempts: user.loginAttempts || 0,
             lockedUntil: user.lockedUntil,
             remainingMinutes
         };

@@ -62,13 +62,13 @@ export default function TenantDetailPage() {
   });
 
   const tenant = tenantData?.data;
-  const occupancies = occupanciesData?.data || [];
+  const occupancies = occupanciesData?.data?.data || [];
 
   // Calculate stats from occupancies
-  const activeOccupancy = occupancies.find((occ) => occ.status === 'active');
+  const activeOccupancy = occupancies.find((occ: any) => occ.status === 'active');
   const totalLeases = occupancies.length;
-  const completedLeases = occupancies.filter((occ) => occ.status === 'ended').length;
-  const cancelledLeases = occupancies.filter((occ) => occ.status === 'cancelled').length;
+  const completedLeases = occupancies.filter((occ: any) => occ.status === 'ended').length;
+  const cancelledLeases = occupancies.filter((occ: any) => occ.status === 'cancelled').length;
 
   if (loadingTenant) {
     return (
@@ -429,7 +429,7 @@ export default function TenantDetailPage() {
             <Skeleton className="h-96 w-full" />
           ) : occupancies.length > 0 ? (
             <div className="space-y-4">
-              {occupancies.map((occupancy) => (
+              {occupancies.map((occupancy: any) => (
                 <Card key={occupancy.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="pt-6">
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">

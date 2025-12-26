@@ -321,6 +321,7 @@ export interface ApiError {
 export function getApiErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const apiError = error.response?.data as ApiError;
+    const status = error.response?.status;
 
     // Handle validation errors
     if (apiError?.errors) {
@@ -333,6 +334,27 @@ export function getApiErrorMessage(error: unknown): string {
       return apiError.message;
     }
 
+    // Handle specific HTTP status codes with user-friendly messages
+    if (status === 401) {
+      return 'Invalid email or password. Please try again.';
+    }
+
+    if (status === 403) {
+      return 'You do not have permission to perform this action.';
+    }
+
+    if (status === 404) {
+      return 'The requested resource was not found.';
+    }
+
+    if (status === 500) {
+      return 'A server error occurred. Please try again later.';
+    }
+
+    if (status === 503) {
+      return 'Service temporarily unavailable. Please try again later.';
+    }
+
     // Handle network errors
     if (error.code === 'ECONNABORTED') {
       return 'Request timeout. Please check your internet connection.';
@@ -342,8 +364,8 @@ export function getApiErrorMessage(error: unknown): string {
       return 'Network error. Please check your internet connection.';
     }
 
-    // Generic axios error
-    return error.message || 'An error occurred while communicating with the server';
+    // Generic axios error fallback
+    return 'An error occurred while communicating with the server';
   }
 
   if (error instanceof Error) {

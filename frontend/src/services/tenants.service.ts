@@ -44,21 +44,21 @@ export const tenantsService = {
    * Get tenant by ID
    */
   getById: (id: string) => {
-    return api.get<{ data: Tenant }>(`/tenants/${id}`);
+    return api.get<Tenant>(`/tenants/${id}`);
   },
 
   /**
    * Create new tenant
    */
   create: (data: CreateTenantDto) => {
-    return api.post<{ data: Tenant }>('/tenants', data);
+    return api.post<Tenant>('/tenants', data);
   },
 
   /**
    * Update tenant
    */
   update: (id: string, data: UpdateTenantDto) => {
-    return api.patch<{ data: Tenant }>(`/tenants/${id}`, data);
+    return api.patch<Tenant>(`/tenants/${id}`, data);
   },
 
   /**

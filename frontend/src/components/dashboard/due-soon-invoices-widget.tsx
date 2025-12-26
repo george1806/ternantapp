@@ -28,9 +28,9 @@ export function DueSoonInvoicesWidget() {
       setLoading(true);
       const response = await invoicesService.getDueSoon(7);
 
-      if (response.data?.data) {
+      if (response.data?.invoices) {
         // Take only first 5 for the widget
-        setInvoices(response.data.data.slice(0, 5));
+        setInvoices(response.data.invoices.slice(0, 5));
       }
     } catch (error) {
       console.error('Failed to fetch due soon invoices:', error);

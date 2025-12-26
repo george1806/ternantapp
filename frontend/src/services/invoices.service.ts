@@ -45,21 +45,21 @@ export const invoicesService = {
    * Get invoice by ID
    */
   getById: (id: string) => {
-    return api.get<{ data: Invoice }>(`/invoices/${id}`);
+    return api.get<Invoice>(`/invoices/${id}`);
   },
 
   /**
    * Create new invoice
    */
   create: (data: CreateInvoiceDto) => {
-    return api.post<{ data: Invoice }>('/invoices', data);
+    return api.post<Invoice>('/invoices', data);
   },
 
   /**
    * Update invoice
    */
   update: (id: string, data: UpdateInvoiceDto) => {
-    return api.patch<{ data: Invoice }>(`/invoices/${id}`, data);
+    return api.patch<Invoice>(`/invoices/${id}`, data);
   },
 
   /**
@@ -73,14 +73,14 @@ export const invoicesService = {
    * Mark invoice as sent
    */
   markAsSent: (id: string) => {
-    return api.patch<{ data: Invoice }>(`/invoices/${id}/send`);
+    return api.patch<Invoice>(`/invoices/${id}/send`);
   },
 
   /**
    * Cancel invoice
    */
   cancel: (id: string) => {
-    return api.patch<{ data: Invoice }>(`/invoices/${id}/cancel`);
+    return api.patch<Invoice>(`/invoices/${id}/cancel`);
   },
 
   /**
@@ -122,7 +122,7 @@ export const invoicesService = {
    * Get invoices due soon (within specified days)
    */
   getDueSoon: (days: number = 7) => {
-    return api.get<{ data: Invoice[]; count: number }>('/invoices/due-soon', {
+    return api.get<{ invoices: Invoice[]; count: number }>('/invoices/due-soon', {
       params: { days },
     });
   },

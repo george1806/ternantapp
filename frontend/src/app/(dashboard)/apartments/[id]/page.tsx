@@ -213,19 +213,19 @@ export default function ApartmentDetailPage() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Total Revenue</p>
-                <p className="text-2xl font-bold">{formatCurrency(financialSummary.totalRevenue)}</p>
+                <p className="text-2xl font-bold">{formatCurrency(financialSummary.totalRevenue || 0)}</p>
               </div>
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Current Monthly Revenue</p>
-                <p className="text-2xl font-bold">{formatCurrency(financialSummary.currentMonthlyRevenue)}</p>
+                <p className="text-2xl font-bold">{formatCurrency(financialSummary.currentMonthlyRevenue || 0)}</p>
               </div>
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Days Rented</p>
-                <p className="text-2xl font-bold">{financialSummary.totalDaysRented}</p>
+                <p className="text-2xl font-bold">{financialSummary.totalDaysRented || 0}</p>
               </div>
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Occupancy Rate</p>
-                <p className="text-2xl font-bold">{financialSummary.occupancyRate.toFixed(1)}%</p>
+                <p className="text-2xl font-bold">{(financialSummary.occupancyRate || 0).toFixed(1)}%</p>
               </div>
             </div>
           </CardContent>

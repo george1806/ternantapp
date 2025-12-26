@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Building2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import axios from 'axios';
 import { api, getApiErrorMessage, setJustLoggedIn, STORAGE_KEYS } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/components/ui/button';
@@ -89,7 +90,10 @@ export default function LoginPage() {
       console.log('Auth state set, redirecting to dashboard...');
       router.push('/dashboard');
     } catch (err) {
-      console.error('Login error:', err);
+      // Only log unexpected errors (not auth failures which are expected user errors)
+      if (!axios.isAxiosError(err) || err.response?.status !== 401) {
+        console.error('Login error:', err);
+      }
       setError(getApiErrorMessage(err));
     } finally {
       setIsLoading(false);

@@ -205,22 +205,16 @@ export function InvoiceFormDialog({
       const totalAmount = subtotal + taxAmount;
 
       // Generate invoice number (simple format: INV-YYYY-MM-XXXXX)
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const random = String(Math.floor(Math.random() * 100000)).padStart(5, '0');
-      const invoiceNumber = `INV-${year}-${month}-${random}`;
-
       await invoicesService.create({
-        invoiceNumber,
         occupancyId: data.occupancyId,
-        tenantId: selectedOccupancy.tenantId,
         invoiceDate: new Date(data.invoiceDate).toISOString().split('T')[0],
         dueDate: new Date(data.dueDate).toISOString().split('T')[0],
-        lineItems,
-        subtotal,
-        taxAmount,
-        totalAmount,
+        items: lineItems.map(item => ({
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          itemType: item.type,
+        })),
         notes: data.notes,
       });
 

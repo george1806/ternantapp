@@ -215,7 +215,7 @@ export function TenantFormDialog({
       } else {
         // Create new tenant
         const response = await tenantsService.create(cleanedData);
-        const newTenant = response.data.data;
+        const newTenant = response.data;
 
         // Store created tenant and show success dialog
         setCreatedTenant(newTenant);

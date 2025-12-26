@@ -47,28 +47,28 @@ export const occupanciesService = {
    * Get occupancy by ID
    */
   getById: (id: string) => {
-    return api.get<{ data: Occupancy }>(`/occupancies/${id}`);
+    return api.get<Occupancy>(`/occupancies/${id}`);
   },
 
   /**
    * Create new occupancy (assign tenant to apartment)
    */
   create: (data: CreateOccupancyDto) => {
-    return api.post<{ data: Occupancy }>('/occupancies', data);
+    return api.post<Occupancy>('/occupancies', data);
   },
 
   /**
    * Update occupancy
    */
   update: (id: string, data: UpdateOccupancyDto) => {
-    return api.patch<{ data: Occupancy }>(`/occupancies/${id}`, data);
+    return api.patch<Occupancy>(`/occupancies/${id}`, data);
   },
 
   /**
    * End occupancy (tenant move-out)
    */
   end: (id: string, moveOutDate: string) => {
-    return api.patch<{ data: Occupancy }>(`/occupancies/${id}/end`, { moveOutDate });
+    return api.patch<Occupancy>(`/occupancies/${id}/end`, { moveOutDate });
   },
 
   /**
@@ -143,20 +143,20 @@ export const occupanciesService = {
     reference?: string;
     notes?: string;
   }) => {
-    return api.post<{ data: Occupancy }>(`/occupancies/${id}/deposit-payment`, data);
+    return api.post<Occupancy>(`/occupancies/${id}/deposit-payment`, data);
   },
 
   /**
    * End a lease (marks as ended and sets move-out date)
    */
   endLease: (id: string, data: { moveOutDate: string; notes?: string }) => {
-    return api.post<{ data: Occupancy }>(`/occupancies/${id}/end`, data);
+    return api.post<Occupancy>(`/occupancies/${id}/end`, data);
   },
 
   /**
    * Cancel a lease (marks as cancelled)
    */
   cancelLease: (id: string, data: { reason: string }) => {
-    return api.post<{ data: Occupancy }>(`/occupancies/${id}/cancel`, data);
+    return api.post<Occupancy>(`/occupancies/${id}/cancel`, data);
   },
 };
