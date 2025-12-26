@@ -99,7 +99,7 @@ export default function RemindersPage() {
       setTotalPages(response.data.meta?.totalPages || 1);
 
       // Calculate stats
-      const allRemindersResponse = await remindersService.getAll({ limit: 1000 });
+      const allRemindersResponse = await remindersService.getAll({ page: 1, limit: 1000 });
       const allReminders = allRemindersResponse.data.data || [];
       setStats({
         total: allReminders.length,
