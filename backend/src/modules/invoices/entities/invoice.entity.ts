@@ -11,6 +11,7 @@ import { Tenant } from '../../tenants/entities/tenant.entity';
 @Index(['companyId', 'occupancyId', 'status'])
 @Index(['companyId', 'tenantId', 'status'])
 @Index(['companyId', 'dueDate'])
+@Index(['companyId', 'status', 'dueDate']) // Performance: Overdue invoice queries
 @Index(['companyId', 'invoiceNumber'], { unique: true })
 export class Invoice extends TenantBaseEntity {
     @Column({ name: 'invoice_number', length: 50, unique: false })

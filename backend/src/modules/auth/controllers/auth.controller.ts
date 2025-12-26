@@ -79,12 +79,19 @@ export class AuthController {
      * NOTE: Only used for web browsers. Mobile/API clients get tokens in response body.
      */
     private setAuthCookies(res: Response, tokens: { accessToken: string; refreshToken: string }) {
-        const isProduction = this.configService.get('NODE_ENV') === 'production';
+        const nodeEnv = this.configService.get('NODE_ENV', 'development');
+
+        // Enable secure cookies for:
+        // - Production (always HTTPS)
+        // - Any environment with HTTPS enabled
+        // - Disable only for explicit local development
+        const isLocal = nodeEnv === 'development' && !this.configService.get('USE_HTTPS');
+        const useSecureCookies = !isLocal;
 
         // Access token cookie (15 minutes)
         res.cookie('accessToken', tokens.accessToken, {
             httpOnly: true,
-            secure: isProduction, // HTTPS only in production
+            secure: useSecureCookies, // HTTPS for all non-local environments
             sameSite: 'strict',
             maxAge: 15 * 60 * 1000, // 15 minutes
             path: '/'
@@ -93,7 +100,7 @@ export class AuthController {
         // Refresh token cookie (7 days)
         res.cookie('refreshToken', tokens.refreshToken, {
             httpOnly: true,
-            secure: isProduction,
+            secure: useSecureCookies, // HTTPS for all non-local environments
             sameSite: 'strict',
             maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
             path: '/api/auth/refresh' // Only send on refresh endpoint

@@ -1,8 +1,25 @@
 import { WinstonModuleOptions } from 'nest-winston';
 import * as winston from 'winston';
 import { utilities as nestWinstonModuleUtilities } from 'nest-winston';
+import { sanitizeLogData } from '../utils/log-sanitizer.util';
 
 const isProduction = process.env.NODE_ENV === 'production';
+
+/**
+ * Custom Winston format to sanitize sensitive data from logs
+ * Prevents passwords, tokens, and PII from being logged
+ */
+const sanitizeFormat = winston.format((info) => {
+    // Sanitize the entire log object
+    const sanitized = sanitizeLogData(info);
+
+    // Preserve Winston metadata
+    sanitized.level = info.level;
+    sanitized.timestamp = info.timestamp;
+    sanitized.ms = info.ms;
+
+    return sanitized;
+})();
 
 export const winstonConfig: WinstonModuleOptions = {
   transports: [
@@ -10,6 +27,7 @@ export const winstonConfig: WinstonModuleOptions = {
     new winston.transports.Console({
       level: isProduction ? 'info' : 'debug',
       format: winston.format.combine(
+        sanitizeFormat, // Sanitize sensitive data FIRST
         winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
         winston.format.ms(),
         winston.format.errors({ stack: true }),
@@ -25,6 +43,7 @@ export const winstonConfig: WinstonModuleOptions = {
       filename: 'logs/error.log',
       level: 'error',
       format: winston.format.combine(
+        sanitizeFormat, // Sanitize sensitive data
         winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
         winston.format.errors({ stack: true }),
         winston.format.json(),
@@ -37,6 +56,7 @@ export const winstonConfig: WinstonModuleOptions = {
     new winston.transports.File({
       filename: 'logs/combined.log',
       format: winston.format.combine(
+        sanitizeFormat, // Sanitize sensitive data
         winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
         winston.format.errors({ stack: true }),
         winston.format.json(),
@@ -50,6 +70,7 @@ export const winstonConfig: WinstonModuleOptions = {
       filename: 'logs/warn.log',
       level: 'warn',
       format: winston.format.combine(
+        sanitizeFormat, // Sanitize sensitive data
         winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
         winston.format.errors({ stack: true }),
         winston.format.json(),
@@ -64,6 +85,7 @@ export const winstonConfig: WinstonModuleOptions = {
     new winston.transports.File({
       filename: 'logs/exceptions.log',
       format: winston.format.combine(
+        sanitizeFormat, // Sanitize sensitive data
         winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
         winston.format.errors({ stack: true }),
         winston.format.json(),
@@ -76,6 +98,7 @@ export const winstonConfig: WinstonModuleOptions = {
     new winston.transports.File({
       filename: 'logs/rejections.log',
       format: winston.format.combine(
+        sanitizeFormat, // Sanitize sensitive data
         winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
         winston.format.errors({ stack: true }),
         winston.format.json(),

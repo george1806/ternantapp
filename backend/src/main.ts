@@ -24,6 +24,44 @@ async function bootstrap() {
 
     const configService = app.get(ConfigService);
 
+    // SECURITY: Validate JWT secrets at startup
+    const jwtSecret = configService.get<string>('JWT_SECRET');
+    const jwtRefreshSecret = configService.get<string>('JWT_REFRESH_SECRET');
+    const nodeEnv = configService.get('NODE_ENV', 'development');
+
+    const MIN_SECRET_LENGTH = 32;
+
+    if (!jwtSecret || jwtSecret.length < MIN_SECRET_LENGTH) {
+        throw new Error(
+            `SECURITY ERROR: JWT_SECRET must be set and at least ${MIN_SECRET_LENGTH} characters long. ` +
+            `Current length: ${jwtSecret?.length || 0}. Generate a strong secret using: openssl rand -base64 32`
+        );
+    }
+
+    if (!jwtRefreshSecret || jwtRefreshSecret.length < MIN_SECRET_LENGTH) {
+        throw new Error(
+            `SECURITY ERROR: JWT_REFRESH_SECRET must be set and at least ${MIN_SECRET_LENGTH} characters long. ` +
+            `Current length: ${jwtRefreshSecret?.length || 0}. Generate a strong secret using: openssl rand -base64 32`
+        );
+    }
+
+    if (jwtSecret === jwtRefreshSecret) {
+        throw new Error(
+            'SECURITY ERROR: JWT_SECRET and JWT_REFRESH_SECRET must be different values for security'
+        );
+    }
+
+    if (nodeEnv === 'production') {
+        // Additional production checks
+        const commonWeakSecrets = ['secret', 'password', '12345678', 'changeme', 'default'];
+        if (commonWeakSecrets.some(weak => jwtSecret.toLowerCase().includes(weak))) {
+            throw new Error(
+                'SECURITY ERROR: JWT_SECRET appears to contain a common weak pattern. ' +
+                'Use a cryptographically random secret.'
+            );
+        }
+    }
+
     // Security Headers - Helmet.js with strict configuration
     app.use(
         helmet({
@@ -121,7 +159,7 @@ async function bootstrap() {
         new AuditLogInterceptor(auditLogService)
     );
 
-    // Swagger documentation - SECURITY: Only enable in development or with authentication
+    // Swagger documentation - SECURITY: Protected with basic auth in production
     const nodeEnv = configService.get('NODE_ENV', 'development');
     const enableSwagger = configService.get('ENABLE_SWAGGER', nodeEnv !== 'production');
 
@@ -152,11 +190,24 @@ async function bootstrap() {
             const swaggerPassword = configService.get('SWAGGER_PASSWORD');
 
             if (!swaggerPassword) {
-                console.warn(
-                    '⚠️  WARNING: Swagger is enabled in production but SWAGGER_PASSWORD is not set. ' +
-                    'API documentation will be publicly accessible!'
+                throw new Error(
+                    'SECURITY ERROR: Swagger is enabled in production but SWAGGER_PASSWORD is not set. ' +
+                    'Either set SWAGGER_PASSWORD or disable Swagger by setting ENABLE_SWAGGER=false'
                 );
             }
+
+            // Import express-basic-auth for production Swagger protection
+            const expressBasicAuth = require('express-basic-auth');
+
+            // Apply basic auth middleware to Swagger routes
+            app.use(
+                '/api/docs*',
+                expressBasicAuth({
+                    users: { [swaggerUser]: swaggerPassword },
+                    challenge: true,
+                    realm: 'Apartment Management API Documentation'
+                })
+            );
 
             SwaggerModule.setup('api/docs', app, document, {
                 swaggerOptions: {
@@ -165,16 +216,12 @@ async function bootstrap() {
                     operationsSorter: 'alpha'
                 },
                 customSiteTitle: 'Apartment Management API - Protected',
-                // Basic auth middleware
                 customCss: '.swagger-ui .topbar { display: none }',
                 customfavIcon: undefined
             });
 
-            // Add basic auth middleware for Swagger in production
-            // This requires setting up express-basic-auth or similar
-            // For now, we strongly recommend disabling Swagger in production
             console.log(
-                '📚 API Documentation available at /api/docs (Basic Auth Required)'
+                `📚 API Documentation available at /api/docs (Protected - User: ${swaggerUser})`
             );
         } else {
             // Development mode - no auth required
