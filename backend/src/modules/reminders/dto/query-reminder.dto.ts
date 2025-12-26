@@ -1,5 +1,6 @@
-import { IsEnum, IsOptional, IsUUID, IsDateString } from 'class-validator';
+import { IsEnum, IsOptional, IsUUID, IsDateString, IsString, IsInt, Min, Max } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import { ReminderType, ReminderStatus } from '../../../common/enums';
 
 /**
@@ -54,4 +55,35 @@ export class QueryReminderDto {
     @IsDateString()
     @IsOptional()
     scheduledTo?: string;
+
+    @ApiPropertyOptional({
+        description: 'Search term for recipient, subject, etc.',
+        example: 'john@example.com'
+    })
+    @IsString()
+    @IsOptional()
+    search?: string;
+
+    @ApiPropertyOptional({
+        description: 'Page number',
+        example: 1,
+        default: 1
+    })
+    @Type(() => Number)
+    @IsInt()
+    @Min(1)
+    @IsOptional()
+    page?: number;
+
+    @ApiPropertyOptional({
+        description: 'Items per page',
+        example: 10,
+        default: 10
+    })
+    @Type(() => Number)
+    @IsInt()
+    @Min(1)
+    @Max(100)
+    @IsOptional()
+    limit?: number;
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Mail, MessageSquare, Clock, CheckCircle2, XCircle, Search } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Plus, Mail, MessageSquare, Clock, CheckCircle2, XCircle, Search, MoreVertical, Eye, Send, Edit, Trash2, Users, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,25 +21,46 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { remindersService, type Reminder } from '@/services/reminders.service';
+import { remindersService, type Reminder, type PreviewResponse } from '@/services/reminders.service';
 import { getApiErrorMessage } from '@/lib/api';
 import { format } from 'date-fns';
 import { ReminderFormDialog } from '@/components/reminders/reminder-form-dialog';
+import { BatchSendDialog } from '@/components/reminders/batch-send-dialog';
 
 export default function RemindersPage() {
+  const router = useRouter();
   const { toast } = useToast();
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isBatchSendDialogOpen, setIsBatchSendDialogOpen] = useState(false);
   const [selectedReminder, setSelectedReminder] = useState<Reminder | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [previewDialog, setPreviewDialog] = useState<{
+    open: boolean;
+    data: PreviewResponse | null;
+  }>({ open: false, data: null });
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -135,6 +157,40 @@ export default function RemindersPage() {
     }
   };
 
+  const handlePreview = async (id: string) => {
+    try {
+      const response = await remindersService.preview(id);
+      setPreviewDialog({ open: true, data: response.data });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: getApiErrorMessage(error),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSendNow = async (id: string) => {
+    if (!confirm('Are you sure you want to send this reminder immediately?')) {
+      return;
+    }
+
+    try {
+      await remindersService.sendNow(id);
+      toast({
+        title: 'Success',
+        description: 'Reminder queued for immediate sending',
+      });
+      loadReminders();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: getApiErrorMessage(error),
+        variant: 'destructive',
+      });
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
@@ -205,13 +261,29 @@ export default function RemindersPage() {
             Manage automated tenant notifications and reminders
           </p>
         </div>
-        <Button onClick={() => {
-          setSelectedReminder(null);
-          setIsCreateDialogOpen(true);
-        }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Reminder
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => router.push('/reminders/analytics')}
+          >
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Analytics
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setIsBatchSendDialogOpen(true)}
+          >
+            <Users className="h-4 w-4 mr-2" />
+            Batch Send
+          </Button>
+          <Button onClick={() => {
+            setSelectedReminder(null);
+            setIsCreateDialogOpen(true);
+          }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Reminder
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -357,34 +429,42 @@ export default function RemindersPage() {
                       </TableCell>
                       <TableCell>{getStatusBadge(reminder.status)}</TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          {reminder.status === 'pending' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleMarkSent(reminder.id)}
-                            >
-                              Mark Sent
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreVertical className="h-4 w-4" />
                             </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedReminder(reminder);
-                              setIsCreateDialogOpen(true);
-                            }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDelete(reminder.id)}
-                          >
-                            Delete
-                          </Button>
-                        </div>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handlePreview(reminder.id)}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              Preview
+                            </DropdownMenuItem>
+                            {reminder.status === 'pending' && (
+                              <DropdownMenuItem onClick={() => handleSendNow(reminder.id)}>
+                                <Send className="h-4 w-4 mr-2" />
+                                Send Now
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedReminder(reminder);
+                                setIsCreateDialogOpen(true);
+                              }}
+                            >
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleDelete(reminder.id)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -432,6 +512,63 @@ export default function RemindersPage() {
           setSelectedReminder(null);
           loadReminders();
         }}
+      />
+
+      {/* Preview Dialog */}
+      <Dialog open={previewDialog.open} onOpenChange={(open) => setPreviewDialog({ open, data: null })}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Preview Reminder</DialogTitle>
+            <DialogDescription>
+              Review the reminder content before sending
+            </DialogDescription>
+          </DialogHeader>
+
+          {previewDialog.data && (
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Recipient</label>
+                <p className="text-sm text-muted-foreground">{previewDialog.data.recipient}</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Subject</label>
+                <p className="text-sm text-muted-foreground">{previewDialog.data.subject}</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Scheduled For</label>
+                <p className="text-sm text-muted-foreground">
+                  {format(new Date(previewDialog.data.scheduledFor), 'MMM dd, yyyy hh:mm a')}
+                </p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Message (Text)</label>
+                <div className="mt-2 p-4 bg-muted rounded-md">
+                  <pre className="whitespace-pre-wrap text-sm">{previewDialog.data.textPreview}</pre>
+                </div>
+              </div>
+
+              {previewDialog.data.htmlPreview && (
+                <div>
+                  <label className="text-sm font-medium">Message (HTML Preview)</label>
+                  <div
+                    className="mt-2 p-4 bg-white border rounded-md"
+                    dangerouslySetInnerHTML={{ __html: previewDialog.data.htmlPreview }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch Send Dialog */}
+      <BatchSendDialog
+        open={isBatchSendDialogOpen}
+        onOpenChange={setIsBatchSendDialogOpen}
+        onSuccess={loadReminders}
       />
     </div>
   );

@@ -73,6 +73,84 @@ export interface ReminderListResponse {
   };
 }
 
+export interface BatchSendDto {
+  type: 'DUE_SOON' | 'OVERDUE';
+  propertyIds?: string[];
+  apartmentIds?: string[];
+  tenantIds?: string[];
+  dryRun?: boolean;
+}
+
+export interface BatchSendResponse {
+  success: boolean;
+  message: string;
+  totalEligible: number;
+  totalQueued: number;
+  totalSkipped: number;
+  reminders: Array<{
+    id: string;
+    tenantName: string;
+    recipient: string;
+    subject: string;
+    status: string;
+  }>;
+  skippedReasons?: Record<string, number>;
+}
+
+export interface PreviewResponse {
+  id: string;
+  type: string;
+  subject: string;
+  message: string;
+  recipient: string;
+  scheduledFor: string;
+  metadata: Record<string, any>;
+  textPreview: string;
+  htmlPreview?: string;
+}
+
+export interface DeliveryStats {
+  totalSent: number;
+  successfulDeliveries: number;
+  failures: number;
+  bounces: number;
+  successRate: number;
+  bounceRate: number;
+  failureRate: number;
+}
+
+export interface ProcessingTimeResponse {
+  averageProcessingTime: number | null;
+  unit: string;
+  message: string;
+}
+
+export interface FailureReasonsResponse {
+  failureReasons: Record<string, number>;
+  totalFailures: number;
+}
+
+export interface ReminderLog {
+  id: string;
+  companyId: string;
+  type: string;
+  recipient: string;
+  subject: string;
+  status: 'queued' | 'sent' | 'failed';
+  queuedAt: string;
+  sentAt?: string;
+  failedAt?: string;
+  error?: string;
+  messageId?: string;
+  provider?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface AnalyticsQueryParams {
+  startDate?: string;
+  endDate?: string;
+}
+
 export const remindersService = {
   /**
    * Get all reminders with optional filters
@@ -128,5 +206,64 @@ export const remindersService = {
    */
   sendReceipt: (data: ReceiptDto) => {
     return api.post('/reminders/receipt', data);
+  },
+
+  /**
+   * Send a reminder immediately (manual trigger)
+   */
+  sendNow: (id: string) => {
+    return api.post<Reminder>(`/reminders/${id}/send-now`);
+  },
+
+  /**
+   * Preview a reminder without sending
+   */
+  preview: (id: string) => {
+    return api.post<PreviewResponse>(`/reminders/${id}/preview`);
+  },
+
+  /**
+   * Batch send reminders based on criteria
+   */
+  batchSend: (data: BatchSendDto) => {
+    return api.post<BatchSendResponse>('/reminders/batch/send', data);
+  },
+
+  /**
+   * Analytics: Get delivery statistics
+   */
+  getDeliveryStats: (params?: AnalyticsQueryParams) => {
+    return api.get<DeliveryStats>('/reminders/analytics/delivery-stats', { params });
+  },
+
+  /**
+   * Analytics: Get average processing time
+   */
+  getProcessingTime: (params?: AnalyticsQueryParams) => {
+    return api.get<ProcessingTimeResponse>('/reminders/analytics/processing-time', { params });
+  },
+
+  /**
+   * Analytics: Get failure reasons breakdown
+   */
+  getFailureReasons: (params?: AnalyticsQueryParams) => {
+    return api.get<FailureReasonsResponse>('/reminders/analytics/failure-reasons', { params });
+  },
+
+  /**
+   * Analytics: Get reminder logs
+   */
+  getLogs: (params?: AnalyticsQueryParams) => {
+    return api.get<ReminderLog[]>('/reminders/analytics/logs', { params });
+  },
+
+  /**
+   * Analytics: Clean up old logs
+   */
+  cleanupLogs: (daysToKeep?: number) => {
+    return api.get<{ success: boolean; message: string; deletedCount: number }>(
+      '/reminders/analytics/cleanup',
+      { params: { daysToKeep } }
+    );
   },
 };

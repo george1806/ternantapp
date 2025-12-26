@@ -1,0 +1,79 @@
+<mjml>
+  <mj-head>
+    <mj-title>Rent Payment Reminder</mj-title>
+    <mj-attributes>
+      <mj-all font-family="Arial, sans-serif" />
+      <mj-text font-size="14px" color="#333333" line-height="20px" />
+      <mj-section padding="20px" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body background-color="#f4f4f4">
+    <!-- Header -->
+    <mj-section background-color="#3182ce" padding="20px">
+      <mj-column>
+        <mj-text align="center" color="#ffffff" font-size="24px" font-weight="bold">
+          Apartment Management
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Content -->
+    <mj-section background-color="#ffffff" padding="30px">
+      <mj-column>
+        <mj-text font-size="18px" font-weight="bold" color="#2c5282">
+          Friendly Payment Reminder
+        </mj-text>
+
+        <mj-text>
+          Dear {{tenantName}},
+        </mj-text>
+
+        <mj:text>
+          We hope this message finds you well. We wanted to send you a friendly reminder that your rent payment for <strong>Unit {{unitNumber}}</strong> is now past the due date.
+        </mj:text>
+
+        <mj-text>
+          We understand that things can get busy, and wanted to reach out in case this payment may have been overlooked.
+        </mj-text>
+
+        <mj-divider border-color="#bee3f8" />
+
+        <mj-text font-weight="bold" color="#2c5282">Payment Details:</mj-text>
+        <mj-text>
+          • Unit: {{unitNumber}}<br/>
+          • Amount Due: ${{amount}}<br/>
+          • Original Due Date: {{dueDate}}<br/>
+          • Days Past Due: {{daysOverdue}}
+        </mj-text>
+
+        <mj-text>
+          Please submit your payment at your earliest convenience to keep your account current.
+        </mj-text>
+
+        <mj-button href="{{paymentUrl}}" background-color="#3182ce" color="#ffffff">
+          Make Payment
+        </mj-button>
+
+        <mj-text font-size="12px" color="#718096">
+          If you have already made payment or have any questions, please don't hesitate to contact us. We're here to help!
+        </mj-text>
+
+        <mj-text font-size="12px" color="#718096">
+          Thank you for your prompt attention to this matter.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Footer -->
+    <mj-section background-color="#e2e8f0" padding="20px">
+      <mj-column>
+        <mj-text align="center" font-size="12px" color="#718096">
+          &copy; {{year}} Apartment Management. All rights reserved.
+        </mj-text>
+        <mj-text align="center" font-size="11px" color="#a0aec0">
+          This is an automated message. For assistance, please contact our office.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

@@ -22,6 +22,7 @@ import { RemindersService } from '../services/reminders.service';
 import { CreateReminderDto } from '../dto/create-reminder.dto';
 import { UpdateReminderDto } from '../dto/update-reminder.dto';
 import { QueryReminderDto } from '../dto/query-reminder.dto';
+import { BatchSendRemindersDto } from '../dto/batch-send-reminders.dto';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { CurrentUser } from '../../../common/decorators/tenant.decorator';
@@ -300,5 +301,55 @@ export class RemindersController {
             type,
             recipient || userEmail
         );
+    }
+
+    /**
+     * Preview a reminder without sending
+     * Returns rendered email content for review
+     */
+    @Post(':id/preview')
+    @ApiOperation({
+        summary: 'Preview reminder content',
+        description: 'Preview the email content of a reminder without actually sending it'
+    })
+    @ApiParam({ name: 'id', description: 'Reminder UUID' })
+    @ApiResponse({
+        status: 200,
+        description: 'Reminder preview generated successfully'
+    })
+    @ApiResponse({
+        status: 404,
+        description: 'Reminder not found'
+    })
+    async previewReminder(
+        @Param('id') id: string,
+        @CurrentUser('companyId') companyId: string
+    ) {
+        return this.remindersService.previewReminder(id, companyId);
+    }
+
+    /**
+     * Batch send reminders based on criteria
+     * Supports filtering by properties, apartments, tenants
+     * Includes dry-run mode for testing
+     */
+    @Post('batch/send')
+    @ApiOperation({
+        summary: 'Batch send reminders',
+        description: 'Send reminders in bulk based on filtering criteria. Supports dry-run mode to preview what would be sent.'
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Batch send completed successfully'
+    })
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid batch criteria'
+    })
+    async batchSend(
+        @CurrentUser('companyId') companyId: string,
+        @Body() batchDto: BatchSendRemindersDto
+    ) {
+        return this.remindersService.sendBatchReminders(companyId, batchDto);
     }
 }

@@ -1,12 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
 import mjml2html from 'mjml';
 import * as Handlebars from 'handlebars';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { EmailOptions } from '../interfaces/email-options.interface';
+import {
+  EmailProviderFactory,
+  EmailProviderType,
+  BaseEmailProvider,
+} from '../providers';
 
 /**
  * Email Service
@@ -26,6 +30,7 @@ import { EmailOptions } from '../interfaces/email-options.interface';
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private transporter: Transporter;
+  private provider: BaseEmailProvider;
   private readonly templatesPath: string;
 
   constructor(private readonly configService: ConfigService) {
@@ -35,31 +40,77 @@ export class EmailService {
 
   /**
    * Initialize SMTP transporter with configuration
+   * Uses Factory Pattern to create appropriate email provider
    */
   private initializeTransporter(): void {
-    const host = this.configService.get<string>('MAIL_HOST', 'localhost');
-    const port = this.configService.get<number>('MAIL_PORT', 1025);
-    const user = this.configService.get<string>('MAIL_USER');
-    const pass = this.configService.get<string>('MAIL_PASSWORD');
-    const secure = this.configService.get<boolean>('MAIL_SECURE', false);
+    try {
+      // Get provider type from environment (defaults to 'mailpit' for development)
+      const providerType = this.configService.get<EmailProviderType>(
+        'MAIL_PROVIDER',
+        'mailpit'
+      );
+      const user = this.configService.get<string>('MAIL_USER', '');
+      const password = this.configService.get<string>('MAIL_PASSWORD', '');
 
-    this.transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: user && pass ? { user, pass } : undefined,
-      tls: {
-        rejectUnauthorized: false, // For development; set true in production
-      },
-    });
+      // Create provider instance using Factory Pattern
+      this.provider = EmailProviderFactory.create(providerType, user, password);
 
-    this.logger.log(`Email transporter initialized: ${host}:${port}`);
+      // Get transporter from provider
+      this.transporter = this.provider.getTransporter();
+
+      // Get provider information
+      const info = this.provider.getInfo();
+
+      // Log provider details
+      this.logger.log('═══════════════════════════════════════════════');
+      this.logger.log(`✓ Email Provider: ${info.name}`);
+      this.logger.log(`✓ Free Tier: ${info.freeLimit}`);
+      this.logger.log(`✓ Documentation: ${info.documentation}`);
+      this.logger.log('═══════════════════════════════════════════════');
+
+      // Warning for development mode
+      if (providerType === 'mailpit') {
+        this.logger.warn(
+          '⚠️  Using Mailpit (development mode) - Emails will NOT be sent to real addresses.'
+        );
+        this.logger.warn(
+          '   Change MAIL_PROVIDER to "brevo" for production. See: backend/docs/EMAIL_SETUP.md'
+        );
+      }
+
+      // Test connection (async, don't block startup)
+      this.testProviderConnection();
+
+    } catch (error) {
+      this.logger.error('Failed to initialize email provider:', error.message);
+      this.logger.error(
+        'Fix your email configuration in .env file. Using fallback (emails will fail).'
+      );
+      // Don't throw - allow app to start but log error clearly
+    }
+  }
+
+  /**
+   * Test email provider connection (non-blocking)
+   */
+  private async testProviderConnection(): Promise<void> {
+    try {
+      const isConnected = await this.provider.testConnection();
+      if (isConnected) {
+        this.logger.log('✓ Email provider connection test passed');
+      } else {
+        this.logger.warn('⚠️  Email provider connection test failed');
+      }
+    } catch (error) {
+      this.logger.warn(`⚠️  Could not verify email provider connection: ${error.message}`);
+    }
   }
 
   /**
    * Send email with options
+   * Returns the message ID from the email provider
    */
-  async sendMail(options: EmailOptions): Promise<void> {
+  async sendMail(options: EmailOptions): Promise<{ messageId: string; provider: string }> {
     try {
       const fromName = this.configService.get<string>('MAIL_FROM_NAME', 'Apartment Management');
       const fromEmail = this.configService.get<string>('MAIL_FROM_EMAIL', 'noreply@apartment.app');
@@ -87,6 +138,12 @@ export class EmailService {
 
       this.logger.log(`Email sent successfully: ${info.messageId}`);
       this.logger.debug(`Recipients: ${mailOptions.to}`);
+
+      // Return message ID and provider name for logging
+      return {
+        messageId: info.messageId,
+        provider: this.provider.getInfo().name,
+      };
     } catch (error) {
       this.logger.error(`Failed to send email: ${error.message}`, error.stack);
       throw error;

@@ -1,0 +1,83 @@
+<mjml>
+  <mj-head>
+    <mj-title>Important: Overdue Rent Payment</mj-title>
+    <mj-attributes>
+      <mj-all font-family="Arial, sans-serif" />
+      <mj-text font-size="14px" color="#333333" line-height="20px" />
+      <mj-section padding="20px" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body background-color="#f4f4f4">
+    <!-- Header -->
+    <mj-section background-color="#d97706" padding="20px">
+      <mj-column>
+        <mj-text align="center" color="#ffffff" font-size="24px" font-weight="bold">
+          Apartment Management
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Content -->
+    <mj-section background-color="#ffffff" padding="30px">
+      <mj-column>
+        <mj-text font-size="18px" font-weight="bold" color="#b45309">
+          Second Notice: Overdue Rent Payment
+        </mj-text>
+
+        <mj-text>
+          Dear {{tenantName}},
+        </mj-text>
+
+        <mj-text>
+          This is our <strong>second notice</strong> regarding your overdue rent payment for <strong>Unit {{unitNumber}}</strong>.
+        </mj-text>
+
+        <mj-text>
+          Despite our previous reminder, we have not yet received your payment. Your account is now significantly past due.
+        </mj-text>
+
+        <mj-divider border-color="#fcd34d" />
+
+        <mj-text font-weight="bold" color="#b45309">Payment Details:</mj-text>
+        <mj-text>
+          • Unit: {{unitNumber}}<br/>
+          • Amount Due: ${{amount}}<br/>
+          • Original Due Date: {{dueDate}}<br/>
+          • Days Past Due: {{daysOverdue}}
+        </mj-text>
+
+        <mj-text color="#b45309" font-weight="bold">
+          ⚠️ Important: Late fees have been applied to your account.
+        </mj-text>
+
+        <mj-text>
+          <strong>Immediate payment is required</strong> to avoid further action. Please submit your payment today.
+        </mj-text>
+
+        <mj-button href="{{paymentUrl}}" background-color="#d97706" color="#ffffff">
+          Pay Now - Avoid Further Fees
+        </mj-button>
+
+        <mj-text font-size="12px" color="#78350f" background-color="#fef3c7" padding="10px">
+          <strong>Action Required:</strong> If payment is not received within 48 hours, additional administrative actions may be taken in accordance with your lease agreement.
+        </mj-text>
+
+        <mj-text font-size="12px" color="#718096">
+          If you are experiencing financial difficulties, please contact our office immediately to discuss payment arrangements.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Footer -->
+    <mj-section background-color="#e2e8f0" padding="20px">
+      <mj-column>
+        <mj-text align="center" font-size="12px" color="#718096">
+          &copy; {{year}} Apartment Management. All rights reserved.
+        </mj-text>
+        <mj-text align="center" font-size="11px" color="#a0aec0">
+          This is an automated message. Please respond promptly to avoid further action.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

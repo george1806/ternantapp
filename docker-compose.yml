@@ -139,14 +139,14 @@ services:
       REFRESH_SESSION_PREFIX: ${REFRESH_SESSION_PREFIX:-refresh:}
       REFRESH_SESSION_TTL: ${REFRESH_SESSION_TTL:-604800}
 
-      # Email - Use service name
-      MAIL_HOST: ${MAIL_HOST:-mailpit}
-      MAIL_PORT: ${MAIL_PORT:-1025}
+      # Email Configuration (Provider-based architecture)
+      # Options: mailpit (development), brevo (recommended), sendgrid, gmail
+      # See backend/docs/EMAIL_SETUP.md for detailed setup instructions
+      MAIL_PROVIDER: ${MAIL_PROVIDER:-mailpit}
       MAIL_USER: ${MAIL_USER:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Apartment Management}
       MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-noreply@apartment.app}
-      MAIL_SECURE: ${MAIL_SECURE:-false}
 
       # Rate Limiting
       THROTTLE_TTL: ${THROTTLE_TTL:-60}

@@ -1,0 +1,106 @@
+<mjml>
+  <mj-head>
+    <mj-title>URGENT: Final Notice - Overdue Rent Payment</mj-title>
+    <mj-attributes>
+      <mj-all font-family="Arial, sans-serif" />
+      <mj-text font-size="14px" color="#333333" line-height="20px" />
+      <mj-section padding="20px" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body background-color="#f4f4f4">
+    <!-- Header -->
+    <mj-section background-color="#c53030" padding="20px">
+      <mj-column>
+        <mj-text align="center" color="#ffffff" font-size="24px" font-weight="bold">
+          Apartment Management
+        </mj-text>
+        <mj-text align="center" color="#ffffff" font-size="14px" font-weight="bold">
+          ⚠️ URGENT - FINAL NOTICE ⚠️
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Content -->
+    <mj-section background-color="#ffffff" padding="30px">
+      <mj-column>
+        <mj-text font-size="18px" font-weight="bold" color="#c53030">
+          FINAL NOTICE: Immediate Action Required
+        </mj-text>
+
+        <mj-text>
+          Dear {{tenantName}},
+        </mj-text>
+
+        <mj-text font-weight="bold">
+          This is your <strong style="color: #c53030;">FINAL NOTICE</strong> regarding your severely overdue rent payment for <strong>Unit {{unitNumber}}</strong>.
+        </mj-text>
+
+        <mj-text>
+          We have sent you multiple reminders, but your account remains unpaid. This situation requires your immediate attention.
+        </mj-text>
+
+        <mj-divider border-color="#fc8181" />
+
+        <mj-text font-weight="bold" color="#c53030">Outstanding Balance:</mj-text>
+        <mj-text>
+          • Unit: {{unitNumber}}<br/>
+          • Amount Due: ${{amount}}<br/>
+          • Original Due Date: {{dueDate}}<br/>
+          • Days Past Due: {{daysOverdue}}<br/>
+          • <strong style="color: #c53030;">Late Fees Applied</strong>
+        </mj-text>
+
+        <mj-text color="#ffffff" background-color="#c53030" padding="15px" font-weight="bold">
+          ⚠️ CRITICAL: Payment must be received within 24 hours to avoid lease violation proceedings.
+        </mj-text>
+
+        <mj-text>
+          <strong>Failure to remit payment immediately may result in:</strong>
+        </mj-text>
+
+        <mj-text>
+          • Additional late fees and penalties<br/>
+          • Legal action in accordance with your lease agreement<br/>
+          • Potential eviction proceedings<br/>
+          • Negative impact on your rental history
+        </mj-text>
+
+        <mj-button href="{{paymentUrl}}" background-color="#c53030" color="#ffffff" font-size="16px">
+          PAY NOW - URGENT
+        </mj-button>
+
+        <mj-divider border-color="#fc8181" />
+
+        <mj-text font-size="13px" color="#c53030" font-weight="bold">
+          If you cannot make full payment immediately:
+        </mj-text>
+
+        <mj-text font-size="12px">
+          Contact our office <strong>TODAY</strong> to discuss payment arrangements. We must hear from you within 24 hours to prevent further action.
+        </mj-text>
+
+        <mj-text font-size="12px" background-color="#fff5f5" padding="10px" border-left="4px solid #c53030">
+          <strong>Office Hours:</strong> Monday - Friday, 9 AM - 5 PM<br/>
+          <strong>Phone:</strong> {{officePhone}}<br/>
+          <strong>Email:</strong> {{officeEmail}}
+        </mj-text>
+
+        <mj-text font-size="11px" color="#718096">
+          This notice is sent in accordance with the terms of your lease agreement. All previous notices and communications remain in effect.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Footer -->
+    <mj-section background-color="#e2e8f0" padding="20px">
+      <mj-column>
+        <mj-text align="center" font-size="12px" color="#718096">
+          &copy; {{year}} Apartment Management. All rights reserved.
+        </mj-text>
+        <mj-text align="center" font-size="11px" color="#c53030" font-weight="bold">
+          FINAL NOTICE - IMMEDIATE ACTION REQUIRED
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

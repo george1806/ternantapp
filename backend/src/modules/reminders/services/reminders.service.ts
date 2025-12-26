@@ -12,6 +12,8 @@ import { QueryReminderDto } from '../dto/query-reminder.dto';
 import { ReminderStatus, ReminderType } from '../../../common/enums';
 import { Invoice } from '../../invoices/entities/invoice.entity';
 import { Tenant } from '../../tenants/entities/tenant.entity';
+import { ReminderSettingsService } from './reminder-settings.service';
+import { ReminderLogService } from './reminder-log.service';
 
 /**
  * Reminders Service
@@ -21,7 +23,9 @@ import { Tenant } from '../../tenants/entities/tenant.entity';
  * - CRUD operations for reminders
  * - Automatic reminder scheduling for due/overdue invoices
  * - Queue integration for async notification sending
- * - Cron jobs for periodic reminder checks
+ * - Cron jobs for periodic reminder checks (with configurable settings)
+ * - Grace period and weekend skip logic
+ * - Escalation levels for overdue reminders
  *
  * Author: george1806
  */
@@ -38,7 +42,9 @@ export class RemindersService {
         private readonly tenantRepository: Repository<Tenant>,
         @InjectQueue('reminders')
         private readonly reminderQueue: Queue,
-        private readonly configService: ConfigService
+        private readonly configService: ConfigService,
+        private readonly settingsService: ReminderSettingsService,
+        private readonly logService: ReminderLogService,
     ) {}
 
     /**
@@ -148,10 +154,21 @@ export class RemindersService {
     /**
      * Mark reminder as sent
      */
-    async markAsSent(id: string, companyId: string): Promise<Reminder> {
+    async markAsSent(
+        id: string,
+        companyId: string,
+        messageId?: string,
+        provider?: string
+    ): Promise<Reminder> {
         const reminder = await this.findOne(id, companyId);
         reminder.status = ReminderStatus.SENT;
         reminder.sentAt = new Date();
+
+        // Update audit log
+        if (messageId && provider) {
+            await this.logService.logSent(id, messageId, provider);
+        }
+
         return this.reminderRepository.save(reminder);
     }
 
@@ -167,6 +184,10 @@ export class RemindersService {
         reminder.status = ReminderStatus.FAILED;
         reminder.errorMessage = errorMessage;
         reminder.retryCount += 1;
+
+        // Update audit log
+        await this.logService.logFailed(id, errorMessage);
+
         return this.reminderRepository.save(reminder);
     }
 
@@ -214,141 +235,277 @@ export class RemindersService {
         };
         await this.reminderRepository.save(reminder);
 
+        // Create audit log entry
+        await this.logService.logQueued(
+            reminder.companyId,
+            reminder.id,
+            reminder.type,
+            reminder.recipient,
+            reminder.subject,
+            reminder.metadata,
+        );
+
         this.logger.debug(`Reminder queued: ${reminder.id}, Job ID: ${job.id}`);
     }
 
     /**
      * CRON: Check for due invoices and create reminders
-     * Runs based on REMINDER_DUE_SOON_CRON (default: daily at 8 AM)
+     * Runs daily at 9 AM (configurable per company via settings)
      */
-    @Cron(CronExpression.EVERY_DAY_AT_8AM)
+    @Cron(CronExpression.EVERY_DAY_AT_9AM)
     async checkDueInvoices(): Promise<void> {
         this.logger.log('Running scheduled check for due invoices...');
 
         try {
-            const dueSoonDays = this.configService.get<number>(
-                'REMINDER_DUE_SOON_DAYS',
-                3
-            );
-            const threeDaysFromNow = new Date();
-            threeDaysFromNow.setDate(threeDaysFromNow.getDate() + dueSoonDays);
+            // Get all unique companies with invoices
+            const companies = await this.invoiceRepository
+                .createQueryBuilder('invoice')
+                .select('DISTINCT invoice.companyId', 'companyId')
+                .getRawMany();
 
-            // Find invoices due in 3 days
-            const dueInvoices = await this.invoiceRepository.find({
-                where: {
-                    status: 'sent',
-                    dueDate: LessThan(threeDaysFromNow)
-                },
-                relations: ['occupancy', 'occupancy.tenant', 'occupancy.apartment']
-            });
-
-            this.logger.log(`Found ${dueInvoices.length} invoices due soon`);
-
-            for (const invoice of dueInvoices) {
-                // Check if reminder already sent
-                const existingReminder = await this.reminderRepository.findOne({
-                    where: {
-                        companyId: invoice.companyId,
-                        invoiceId: invoice.id,
-                        type: ReminderType.DUE_SOON,
-                        status: ReminderStatus.SENT
-                    }
-                });
-
-                if (!existingReminder) {
-                    await this.create(invoice.companyId, {
-                        type: ReminderType.DUE_SOON,
-                        tenantId: invoice.occupancy.tenantId,
-                        invoiceId: invoice.id,
-                        subject: `Rent Due Soon - Unit ${invoice.occupancy.apartment.unitNumber}`,
-                        message: `Dear ${invoice.occupancy.tenant.firstName}, your rent for Unit ${invoice.occupancy.apartment.unitNumber} is due on ${invoice.dueDate.toLocaleDateString()}. Amount: ${invoice.totalAmount}.`,
-                        scheduledFor: new Date(),
-                        metadata: {
-                            templateName: 'rent-due-soon',
-                            apartmentCode: invoice.occupancy.apartment.unitNumber,
-                            amount: invoice.totalAmount,
-                            dueDate: invoice.dueDate
-                        }
-                    });
-                }
+            for (const { companyId } of companies) {
+                await this.checkDueInvoicesForCompany(companyId);
             }
 
-            this.logger.log('Due invoice check completed');
+            this.logger.log('Due invoice check completed for all companies');
         } catch (error) {
             this.logger.error('Error checking due invoices:', error);
         }
     }
 
     /**
-     * CRON: Check for overdue invoices and create reminders
-     * Runs based on REMINDER_OVERDUE_CRON (default: daily at 9 AM)
+     * Check due invoices for a specific company (respects company settings)
      */
-    @Cron(CronExpression.EVERY_DAY_AT_9AM)
+    private async checkDueInvoicesForCompany(companyId: string): Promise<void> {
+        const settings = await this.settingsService.getSettings(companyId);
+
+        // Skip if due soon reminders are disabled
+        if (!settings.dueSoonConfig.enabled) {
+            this.logger.debug(`Due soon reminders disabled for company ${companyId}`);
+            return;
+        }
+
+        // Skip if today is a weekend and skip weekends is enabled
+        const today = new Date();
+        if (await this.settingsService.shouldSkipDate(companyId, today)) {
+            this.logger.debug(`Skipping due invoice check for company ${companyId} (weekend)`);
+            return;
+        }
+
+        const dueSoonDays = settings.dueSoonConfig.daysBeforeDue;
+        const targetDate = new Date();
+        targetDate.setDate(targetDate.getDate() + dueSoonDays);
+        targetDate.setHours(0, 0, 0, 0);
+
+        const nextDay = new Date(targetDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+
+        // Find invoices due in X days (based on settings)
+        const dueInvoices = await this.invoiceRepository.find({
+            where: {
+                companyId,
+                status: 'sent',
+                dueDate: Between(targetDate, nextDay),
+            },
+            relations: ['occupancy', 'occupancy.tenant', 'occupancy.apartment'],
+        });
+
+        this.logger.log(
+            `Found ${dueInvoices.length} invoices due in ${dueSoonDays} days for company ${companyId}`,
+        );
+
+        for (const invoice of dueInvoices) {
+            // Skip if invoice is already paid (based on business rules)
+            if (settings.businessRules.skipIfPaid && invoice.status === 'paid') {
+                continue;
+            }
+
+            // Check if reminder already sent
+            const existingReminder = await this.reminderRepository.findOne({
+                where: {
+                    companyId: invoice.companyId,
+                    invoiceId: invoice.id,
+                    type: ReminderType.DUE_SOON,
+                    status: ReminderStatus.SENT,
+                },
+            });
+
+            if (!existingReminder) {
+                await this.create(invoice.companyId, {
+                    type: ReminderType.DUE_SOON,
+                    tenantId: invoice.occupancy.tenantId,
+                    invoiceId: invoice.id,
+                    subject: `Rent Due Soon - Unit ${invoice.occupancy.apartment.unitNumber}`,
+                    message: `Dear ${invoice.occupancy.tenant.firstName}, your rent for Unit ${invoice.occupancy.apartment.unitNumber} is due on ${invoice.dueDate.toLocaleDateString()}. Amount: ${invoice.totalAmount}.`,
+                    scheduledFor: new Date(),
+                    metadata: {
+                        templateName: 'rent-due-soon',
+                        apartmentCode: invoice.occupancy.apartment.unitNumber,
+                        amount: invoice.totalAmount,
+                        dueDate: invoice.dueDate,
+                    },
+                });
+            }
+        }
+    }
+
+    /**
+     * CRON: Check for overdue invoices and create escalation reminders
+     * Runs daily at 10 AM (configurable per company via settings)
+     */
+    @Cron(CronExpression.EVERY_DAY_AT_10AM)
     async checkOverdueInvoices(): Promise<void> {
         this.logger.log('Running scheduled check for overdue invoices...');
 
         try {
-            const overdueIntervalDays = this.configService.get<number>(
-                'REMINDER_OVERDUE_INTERVAL_DAYS',
-                7
-            );
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            // Get all unique companies with invoices
+            const companies = await this.invoiceRepository
+                .createQueryBuilder('invoice')
+                .select('DISTINCT invoice.companyId', 'companyId')
+                .getRawMany();
 
-            // Find overdue invoices
-            const overdueInvoices = await this.invoiceRepository.find({
-                where: {
-                    status: 'overdue',
-                    dueDate: LessThan(today)
-                },
-                relations: ['occupancy', 'occupancy.tenant', 'occupancy.apartment']
-            });
-
-            this.logger.log(`Found ${overdueInvoices.length} overdue invoices`);
-
-            for (const invoice of overdueInvoices) {
-                // Send reminder every 7 days
-                const lastReminder = await this.reminderRepository.findOne({
-                    where: {
-                        companyId: invoice.companyId,
-                        invoiceId: invoice.id,
-                        type: ReminderType.OVERDUE,
-                        status: ReminderStatus.SENT
-                    },
-                    order: { sentAt: 'DESC' }
-                });
-
-                const shouldSend =
-                    !lastReminder ||
-                    (lastReminder.sentAt &&
-                        new Date().getTime() - lastReminder.sentAt.getTime() >
-                            overdueIntervalDays * 24 * 60 * 60 * 1000);
-
-                if (shouldSend) {
-                    await this.create(invoice.companyId, {
-                        type: ReminderType.OVERDUE,
-                        tenantId: invoice.occupancy.tenantId,
-                        invoiceId: invoice.id,
-                        subject: `Overdue Rent - Unit ${invoice.occupancy.apartment.unitNumber}`,
-                        message: `Dear ${invoice.occupancy.tenant.firstName}, your rent for Unit ${invoice.occupancy.apartment.unitNumber} is overdue. Due date was ${invoice.dueDate.toLocaleDateString()}. Amount: ${invoice.totalAmount}. Please settle this as soon as possible.`,
-                        scheduledFor: new Date(),
-                        metadata: {
-                            templateName: 'rent-overdue',
-                            apartmentCode: invoice.occupancy.apartment.unitNumber,
-                            amount: invoice.totalAmount,
-                            dueDate: invoice.dueDate,
-                            daysOverdue: Math.floor(
-                                (today.getTime() - invoice.dueDate.getTime()) /
-                                    (1000 * 60 * 60 * 24)
-                            )
-                        }
-                    });
-                }
+            for (const { companyId } of companies) {
+                await this.checkOverdueInvoicesForCompany(companyId);
             }
 
-            this.logger.log('Overdue invoice check completed');
+            this.logger.log('Overdue invoice check completed for all companies');
         } catch (error) {
             this.logger.error('Error checking overdue invoices:', error);
+        }
+    }
+
+    /**
+     * Check overdue invoices for a specific company (respects escalation levels)
+     */
+    private async checkOverdueInvoicesForCompany(companyId: string): Promise<void> {
+        const settings = await this.settingsService.getSettings(companyId);
+
+        // Skip if overdue reminders are disabled
+        if (!settings.overdueConfig.enabled) {
+            this.logger.debug(`Overdue reminders disabled for company ${companyId}`);
+            return;
+        }
+
+        // Skip if today is a weekend and skip weekends is enabled
+        const today = new Date();
+        if (await this.settingsService.shouldSkipDate(companyId, today)) {
+            this.logger.debug(`Skipping overdue invoice check for company ${companyId} (weekend)`);
+            return;
+        }
+
+        const enabledLevels = await this.settingsService.getEnabledEscalationLevels(companyId);
+        if (enabledLevels.length === 0) {
+            this.logger.debug(`No enabled escalation levels for company ${companyId}`);
+            return;
+        }
+
+        today.setHours(0, 0, 0, 0);
+
+        // Add grace period to due date
+        const gracePeriodDays = settings.businessRules.gracePeriodDays;
+
+        // Find overdue invoices
+        const overdueInvoices = await this.invoiceRepository.find({
+            where: {
+                companyId,
+                status: 'overdue',
+                dueDate: LessThan(today),
+            },
+            relations: ['occupancy', 'occupancy.tenant', 'occupancy.apartment'],
+        });
+
+        this.logger.log(`Found ${overdueInvoices.length} overdue invoices for company ${companyId}`);
+
+        for (const invoice of overdueInvoices) {
+            // Skip if invoice is already paid (based on business rules)
+            if (settings.overdueConfig.stopIfPaid && invoice.status === 'paid') {
+                continue;
+            }
+
+            // Calculate days overdue (including grace period)
+            const dueDateWithGrace = new Date(invoice.dueDate);
+            dueDateWithGrace.setDate(dueDateWithGrace.getDate() + gracePeriodDays);
+
+            const daysOverdue = Math.floor(
+                (today.getTime() - dueDateWithGrace.getTime()) / (1000 * 60 * 60 * 24),
+            );
+
+            if (daysOverdue < 0) {
+                // Still in grace period
+                continue;
+            }
+
+            // Check which escalation level applies
+            const applicableLevel = enabledLevels.find(
+                (level) => level.daysAfterDue === daysOverdue,
+            );
+
+            if (!applicableLevel) {
+                // No escalation level for this exact day
+                continue;
+            }
+
+            // Count existing overdue reminders
+            const reminderCount = await this.reminderRepository.count({
+                where: {
+                    companyId: invoice.companyId,
+                    invoiceId: invoice.id,
+                    type: ReminderType.OVERDUE,
+                    status: ReminderStatus.SENT,
+                },
+            });
+
+            // Check max escalations
+            if (reminderCount >= settings.overdueConfig.maxEscalations) {
+                this.logger.debug(
+                    `Max escalations (${settings.overdueConfig.maxEscalations}) reached for invoice ${invoice.id}`,
+                );
+                continue;
+            }
+
+            // Check if reminder already sent for this escalation level
+            const existingReminder = await this.reminderRepository.findOne({
+                where: {
+                    companyId: invoice.companyId,
+                    invoiceId: invoice.id,
+                    type: ReminderType.OVERDUE,
+                },
+                order: { sentAt: 'DESC' },
+            });
+
+            const lastReminderDays = existingReminder
+                ? Math.floor(
+                      (today.getTime() - existingReminder.sentAt.getTime()) / (1000 * 60 * 60 * 24),
+                  )
+                : null;
+
+            // Skip if already sent reminder for this level today
+            if (lastReminderDays !== null && lastReminderDays < 1) {
+                continue;
+            }
+
+            // Create reminder with escalation template
+            await this.create(invoice.companyId, {
+                type: ReminderType.OVERDUE,
+                tenantId: invoice.occupancy.tenantId,
+                invoiceId: invoice.id,
+                subject: `Overdue Rent - Unit ${invoice.occupancy.apartment.unitNumber}`,
+                message: `Dear ${invoice.occupancy.tenant.firstName}, your rent for Unit ${invoice.occupancy.apartment.unitNumber} is overdue. Due date was ${invoice.dueDate.toLocaleDateString()}. Amount: ${invoice.totalAmount}. Please settle this as soon as possible.`,
+                scheduledFor: new Date(),
+                metadata: {
+                    templateName: `rent-overdue-${applicableLevel.templateType}`,
+                    apartmentCode: invoice.occupancy.apartment.unitNumber,
+                    amount: invoice.totalAmount,
+                    dueDate: invoice.dueDate,
+                    daysOverdue,
+                    escalationLevel: applicableLevel.templateType,
+                    reminderCount: reminderCount + 1,
+                },
+            });
+
+            this.logger.log(
+                `Created ${applicableLevel.templateType} reminder for invoice ${invoice.id} (${daysOverdue} days overdue)`,
+            );
         }
     }
 
@@ -541,5 +698,221 @@ export class RemindersService {
             recipient,
             type
         };
+    }
+
+    /**
+     * Preview a reminder without sending
+     * Returns rendered content for review
+     */
+    async previewReminder(id: string, companyId: string): Promise<any> {
+        const reminder = await this.findOne(id, companyId);
+
+        // Build preview response
+        return {
+            id: reminder.id,
+            type: reminder.type,
+            subject: reminder.subject,
+            message: reminder.message,
+            recipient: reminder.recipient,
+            scheduledFor: reminder.scheduledFor,
+            metadata: reminder.metadata,
+            textPreview: reminder.message,
+            // TODO: Add HTML preview when email templates are implemented
+            htmlPreview: `<div style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2>${reminder.subject}</h2>
+                <p>${reminder.message.replace(/\n/g, '<br>')}</p>
+                ${reminder.metadata ? `<pre>${JSON.stringify(reminder.metadata, null, 2)}</pre>` : ''}
+            </div>`,
+        };
+    }
+
+    /**
+     * Batch send reminders based on criteria
+     * Supports dry-run mode for testing
+     */
+    async sendBatchReminders(companyId: string, dto: any): Promise<any> {
+        this.logger.log(`Starting batch send for company ${companyId}, type: ${dto.type}`);
+
+        const results = {
+            success: true,
+            message: '',
+            totalEligible: 0,
+            totalQueued: 0,
+            totalSkipped: 0,
+            reminders: [] as any[],
+            skippedReasons: {} as Record<string, number>,
+        };
+
+        try {
+            // Build query based on reminder type
+            let invoices: Invoice[] = [];
+
+            if (dto.type === ReminderType.DUE_SOON) {
+                // Get settings
+                const settings = await this.settingsService.getSettings(companyId);
+                if (!settings.dueSoonConfig.enabled) {
+                    results.message = 'Due soon reminders are disabled in settings';
+                    results.success = false;
+                    return results;
+                }
+
+                const daysBeforeDue = settings.dueSoonConfig.daysBeforeDue;
+                const targetDate = new Date();
+                targetDate.setDate(targetDate.getDate() + daysBeforeDue);
+
+                const queryBuilder = this.invoiceRepository
+                    .createQueryBuilder('invoice')
+                    .leftJoinAndSelect('invoice.occupancy', 'occupancy')
+                    .leftJoinAndSelect('occupancy.tenant', 'tenant')
+                    .leftJoinAndSelect('occupancy.apartment', 'apartment')
+                    .where('invoice.companyId = :companyId', { companyId })
+                    .andWhere('invoice.status = :status', { status: 'pending' })
+                    .andWhere('invoice.dueDate = :targetDate', { targetDate });
+
+                // Apply filters if provided
+                if (dto.apartmentIds && dto.apartmentIds.length > 0) {
+                    queryBuilder.andWhere('apartment.id IN (:...apartmentIds)', {
+                        apartmentIds: dto.apartmentIds,
+                    });
+                }
+
+                if (dto.tenantIds && dto.tenantIds.length > 0) {
+                    queryBuilder.andWhere('tenant.id IN (:...tenantIds)', {
+                        tenantIds: dto.tenantIds,
+                    });
+                }
+
+                invoices = await queryBuilder.getMany();
+            } else if (dto.type === ReminderType.OVERDUE) {
+                // Get settings
+                const settings = await this.settingsService.getSettings(companyId);
+                if (!settings.overdueConfig.enabled) {
+                    results.message = 'Overdue reminders are disabled in settings';
+                    results.success = false;
+                    return results;
+                }
+
+                const queryBuilder = this.invoiceRepository
+                    .createQueryBuilder('invoice')
+                    .leftJoinAndSelect('invoice.occupancy', 'occupancy')
+                    .leftJoinAndSelect('occupancy.tenant', 'tenant')
+                    .leftJoinAndSelect('occupancy.apartment', 'apartment')
+                    .where('invoice.companyId = :companyId', { companyId })
+                    .andWhere('invoice.status = :status', { status: 'pending' })
+                    .andWhere('invoice.dueDate < :today', { today: new Date() });
+
+                // Apply filters
+                if (dto.apartmentIds && dto.apartmentIds.length > 0) {
+                    queryBuilder.andWhere('apartment.id IN (:...apartmentIds)', {
+                        apartmentIds: dto.apartmentIds,
+                    });
+                }
+
+                if (dto.tenantIds && dto.tenantIds.length > 0) {
+                    queryBuilder.andWhere('tenant.id IN (:...tenantIds)', {
+                        tenantIds: dto.tenantIds,
+                    });
+                }
+
+                invoices = await queryBuilder.getMany();
+            }
+
+            results.totalEligible = invoices.length;
+
+            // Process each invoice
+            for (const invoice of invoices) {
+                try {
+                    // Check if reminder already exists
+                    const existing = await this.reminderRepository.findOne({
+                        where: {
+                            companyId,
+                            invoiceId: invoice.id,
+                            type: dto.type,
+                            status: ReminderStatus.PENDING,
+                        },
+                    });
+
+                    if (existing) {
+                        results.totalSkipped++;
+                        this.incrementSkipReason(results.skippedReasons, 'Already queued');
+                        continue;
+                    }
+
+                    // Build reminder data
+                    const reminderData = {
+                        type: dto.type,
+                        tenantId: invoice.occupancy.tenantId,
+                        invoiceId: invoice.id,
+                        subject:
+                            dto.type === ReminderType.DUE_SOON
+                                ? `Rent Due Soon - Unit ${invoice.occupancy.apartment.unitNumber}`
+                                : `Overdue Rent - Unit ${invoice.occupancy.apartment.unitNumber}`,
+                        message:
+                            dto.type === ReminderType.DUE_SOON
+                                ? `Dear ${invoice.occupancy.tenant.firstName}, your rent for Unit ${invoice.occupancy.apartment.unitNumber} is due on ${invoice.dueDate.toLocaleDateString()}. Amount: ${invoice.totalAmount}.`
+                                : `Dear ${invoice.occupancy.tenant.firstName}, your rent for Unit ${invoice.occupancy.apartment.unitNumber} is overdue. Due date was ${invoice.dueDate.toLocaleDateString()}. Amount: ${invoice.totalAmount}.`,
+                        scheduledFor: new Date(),
+                        metadata: {
+                            templateName:
+                                dto.type === ReminderType.DUE_SOON
+                                    ? 'rent-due-soon'
+                                    : 'rent-overdue-gentle',
+                            apartmentCode: invoice.occupancy.apartment.unitNumber,
+                            amount: invoice.totalAmount,
+                            dueDate: invoice.dueDate,
+                        },
+                    };
+
+                    if (dto.dryRun) {
+                        // Dry run - just add to results without creating
+                        results.reminders.push({
+                            id: 'dry-run',
+                            tenantName: `${invoice.occupancy.tenant.firstName} ${invoice.occupancy.tenant.lastName}`,
+                            recipient: invoice.occupancy.tenant.email,
+                            subject: reminderData.subject,
+                            status: 'would-send',
+                        });
+                        results.totalQueued++;
+                    } else {
+                        // Actually create and queue
+                        const created = await this.create(companyId, reminderData);
+                        results.reminders.push({
+                            id: created.id,
+                            tenantName: `${invoice.occupancy.tenant.firstName} ${invoice.occupancy.tenant.lastName}`,
+                            recipient: created.recipient,
+                            subject: created.subject,
+                            status: created.status,
+                        });
+                        results.totalQueued++;
+                    }
+                } catch (error) {
+                    results.totalSkipped++;
+                    this.incrementSkipReason(
+                        results.skippedReasons,
+                        error.message || 'Processing error',
+                    );
+                    this.logger.error(`Error processing invoice ${invoice.id}:`, error);
+                }
+            }
+
+            results.message = dto.dryRun
+                ? `Dry run completed. Would send ${results.totalQueued} reminders`
+                : `Batch send completed. ${results.totalQueued} reminders queued, ${results.totalSkipped} skipped`;
+
+            this.logger.log(results.message);
+            return results;
+        } catch (error) {
+            this.logger.error('Batch send error:', error);
+            results.success = false;
+            results.message = `Batch send failed: ${error.message}`;
+            return results;
+        }
+    }
+
+    /**
+     * Helper to increment skip reason counter
+     */
+    private incrementSkipReason(reasons: Record<string, number>, reason: string): void {
+        reasons[reason] = (reasons[reason] || 0) + 1;
     }
 }
