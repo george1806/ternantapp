@@ -160,7 +160,6 @@ async function bootstrap() {
     );
 
     // Swagger documentation - SECURITY: Protected with basic auth in production
-    const nodeEnv = configService.get('NODE_ENV', 'development');
     const enableSwagger = configService.get('ENABLE_SWAGGER', nodeEnv !== 'production');
 
     if (enableSwagger) {
