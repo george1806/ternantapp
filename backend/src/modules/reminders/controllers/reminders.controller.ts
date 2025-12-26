@@ -209,4 +209,96 @@ export class RemindersController {
             currency
         );
     }
+
+    /**
+     * TESTING: Force send a specific reminder immediately
+     * Bypasses queue delay and sends the reminder right now
+     */
+    @Post(':id/send-now')
+    @ApiOperation({
+        summary: 'Force send reminder immediately (Testing)',
+        description: 'Bypasses queue delay and sends the reminder immediately. For testing purposes.'
+    })
+    @ApiParam({ name: 'id', description: 'Reminder UUID' })
+    @ApiResponse({
+        status: 200,
+        description: 'Reminder sent immediately'
+    })
+    @ApiResponse({
+        status: 404,
+        description: 'Reminder not found'
+    })
+    async sendNow(
+        @Param('id') id: string,
+        @CurrentUser('companyId') companyId: string
+    ) {
+        return this.remindersService.sendNow(id, companyId);
+    }
+
+    /**
+     * TESTING: Manually trigger the "Due Soon" invoices cron job
+     * Normally runs daily at 8 AM automatically
+     */
+    @Post('test/cron-due-soon')
+    @ApiOperation({
+        summary: 'Manually trigger due invoices check (Testing)',
+        description: 'Manually triggers the cron job that checks for invoices due soon and creates reminders. Normally runs at 8 AM daily.'
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Due invoices check completed'
+    })
+    async testCronDueSoon() {
+        await this.remindersService.checkDueInvoices();
+        return {
+            message: 'Due invoices cron job executed successfully',
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    /**
+     * TESTING: Manually trigger the "Overdue" invoices cron job
+     * Normally runs daily at 9 AM automatically
+     */
+    @Post('test/cron-overdue')
+    @ApiOperation({
+        summary: 'Manually trigger overdue invoices check (Testing)',
+        description: 'Manually triggers the cron job that checks for overdue invoices and creates reminders. Normally runs at 9 AM daily.'
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Overdue invoices check completed'
+    })
+    async testCronOverdue() {
+        await this.remindersService.checkOverdueInvoices();
+        return {
+            message: 'Overdue invoices cron job executed successfully',
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    /**
+     * TESTING: Create and send a test reminder with sample data
+     */
+    @Post('test/simulate')
+    @ApiOperation({
+        summary: 'Create test reminder with sample data (Testing)',
+        description: 'Creates a test reminder with sample data and sends it immediately for testing email templates and delivery.'
+    })
+    @ApiResponse({
+        status: 201,
+        description: 'Test reminder created and sent'
+    })
+    async simulateReminder(
+        @CurrentUser('companyId') companyId: string,
+        @CurrentUser('email') userEmail: string,
+        @Body('type') type: 'DUE_SOON' | 'OVERDUE' | 'WELCOME' | 'RECEIPT' = 'DUE_SOON',
+        @Body('recipient') recipient?: string
+    ) {
+        return this.remindersService.createTestReminder(
+            companyId,
+            type,
+            recipient || userEmail
+        );
+    }
 }

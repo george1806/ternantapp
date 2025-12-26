@@ -25,13 +25,13 @@ export class ReminderProcessor extends WorkerHost {
 
       switch (type) {
         case 'due-soon':
-          await this.sendDueSoonReminder(companyId, invoiceId);
+          await this.sendDueSoonReminder(job.data);
           break;
         case 'overdue':
-          await this.sendOverdueReminder(companyId, invoiceId);
+          await this.sendOverdueReminder(job.data);
           break;
         case 'welcome':
-          await this.sendWelcomeMessage(companyId, tenantId);
+          await this.sendWelcomeMessage(job.data);
           break;
         case 'receipt':
           await this.sendPaymentReceipt(job.data);
@@ -47,42 +47,36 @@ export class ReminderProcessor extends WorkerHost {
     }
   }
 
-  private async sendDueSoonReminder(companyId: string, invoiceId: string): Promise<void> {
-    this.logger.log(`Sending due soon reminder for invoice ${invoiceId}`);
-
-    const { recipient, subject, message, metadata } = this.extractJobData();
+  private async sendDueSoonReminder(data: any): Promise<void> {
+    this.logger.log(`Sending due soon reminder for invoice ${data.invoiceId}`);
 
     await this.emailService.sendMail({
-      to: recipient,
-      subject,
-      html: message,
-      context: metadata,
+      to: data.recipient,
+      subject: data.subject,
+      html: data.message,
+      context: data.metadata,
     });
   }
 
-  private async sendOverdueReminder(companyId: string, invoiceId: string): Promise<void> {
-    this.logger.log(`Sending overdue reminder for invoice ${invoiceId}`);
-
-    const { recipient, subject, message, metadata } = this.extractJobData();
+  private async sendOverdueReminder(data: any): Promise<void> {
+    this.logger.log(`Sending overdue reminder for invoice ${data.invoiceId}`);
 
     await this.emailService.sendMail({
-      to: recipient,
-      subject,
-      html: message,
-      context: metadata,
+      to: data.recipient,
+      subject: data.subject,
+      html: data.message,
+      context: data.metadata,
     });
   }
 
-  private async sendWelcomeMessage(companyId: string, tenantId: string): Promise<void> {
-    this.logger.log(`Sending welcome message to tenant ${tenantId}`);
-
-    const { recipient, subject, message, metadata } = this.extractJobData();
+  private async sendWelcomeMessage(data: any): Promise<void> {
+    this.logger.log(`Sending welcome message to tenant ${data.tenantId}`);
 
     await this.emailService.sendMail({
-      to: recipient,
-      subject,
-      html: message,
-      context: metadata,
+      to: data.recipient,
+      subject: data.subject,
+      html: data.message,
+      context: data.metadata,
     });
   }
 
@@ -95,11 +89,5 @@ export class ReminderProcessor extends WorkerHost {
       html: data.message,
       context: data.metadata,
     });
-  }
-
-  private extractJobData(): any {
-    // This would be populated from job.data in the actual process method
-    // For now, return empty object as placeholder
-    return {};
   }
 }

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, Logger, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, MoreThanOrEqual, Between } from 'typeorm';
+import { Repository, LessThan, MoreThanOrEqual, Between, DeepPartial } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -412,5 +412,134 @@ export class RemindersService {
                 currency
             }
         });
+    }
+
+    /**
+     * TESTING: Force send a reminder immediately
+     * Bypasses queue delay and processes the reminder right away
+     */
+    async sendNow(id: string, companyId: string): Promise<Reminder> {
+        const reminder = await this.findOne(id, companyId);
+
+        if (!reminder) {
+            throw new NotFoundException(`Reminder with ID ${id} not found`);
+        }
+
+        if (reminder.status === ReminderStatus.SENT) {
+            this.logger.warn(`Reminder ${id} already sent, re-queuing...`);
+        }
+
+        // Queue with 0 delay (immediate processing)
+        await this.queueReminder(reminder, 0);
+
+        this.logger.log(`Reminder ${id} queued for immediate sending`);
+
+        return reminder;
+    }
+
+    /**
+     * TESTING: Create a test reminder with sample data
+     * Useful for testing email templates and delivery
+     */
+    async createTestReminder(
+        companyId: string,
+        type: 'DUE_SOON' | 'OVERDUE' | 'WELCOME' | 'RECEIPT',
+        recipient: string
+    ): Promise<any> {
+        this.logger.log(`Creating test reminder of type ${type} for ${recipient}`);
+
+        const sampleData = {
+            DUE_SOON: {
+                subject: 'TEST: Rent Due Soon - Unit 101',
+                message: 'This is a test reminder for rent due soon.',
+                metadata: {
+                    templateName: 'rent-due-soon',
+                    tenantName: 'Test Tenant',
+                    unitNumber: '101',
+                    amount: '1500.00',
+                    dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+                    paymentUrl: 'https://example.com/invoices/test',
+                    year: new Date().getFullYear()
+                }
+            },
+            OVERDUE: {
+                subject: 'TEST: Overdue Rent Payment - Unit 101',
+                message: 'This is a test reminder for overdue rent.',
+                metadata: {
+                    templateName: 'rent-overdue',
+                    tenantName: 'Test Tenant',
+                    unitNumber: '101',
+                    amount: '1500.00',
+                    dueDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+                    daysOverdue: 5,
+                    paymentUrl: 'https://example.com/invoices/test',
+                    year: new Date().getFullYear()
+                }
+            },
+            WELCOME: {
+                subject: 'TEST: Welcome to Your New Home - Unit 101',
+                message: 'This is a test welcome message.',
+                metadata: {
+                    templateName: 'tenant-welcome',
+                    tenantName: 'Test Tenant',
+                    unitNumber: '101',
+                    propertyName: 'Test Property',
+                    moveInDate: new Date().toLocaleDateString(),
+                    monthlyRent: '1500.00',
+                    emergencyContact: '555-0123',
+                    portalUrl: 'https://example.com/portal',
+                    year: new Date().getFullYear()
+                }
+            },
+            RECEIPT: {
+                subject: 'TEST: Payment Receipt - Unit 101',
+                message: 'This is a test payment receipt.',
+                metadata: {
+                    templateName: 'payment-receipt',
+                    tenantName: 'Test Tenant',
+                    unitNumber: '101',
+                    receiptNumber: 'REC-TEST-001',
+                    paymentDate: new Date().toLocaleDateString(),
+                    amount: '1500.00',
+                    paymentMethod: 'Bank Transfer',
+                    reference: 'TEST-REF-123',
+                    invoiceNumber: 'INV-TEST-001',
+                    invoiceTotal: '1500.00',
+                    remainingBalance: '0.00',
+                    receiptUrl: 'https://example.com/receipts/test',
+                    year: new Date().getFullYear()
+                }
+            }
+        };
+
+        const data = sampleData[type];
+
+        // Create reminder entity with proper typing using DeepPartial
+        const reminderData: DeepPartial<Reminder> = {
+            companyId,
+            type: ReminderType[type],
+            subject: data.subject,
+            message: data.message,
+            recipient,
+            status: ReminderStatus.PENDING,
+            scheduledFor: new Date(),
+            metadata: data.metadata,
+            retryCount: 0
+        };
+
+        // Save to database
+        const reminder = await this.reminderRepository.save(reminderData);
+
+        // Queue for immediate sending
+        await this.queueReminder(reminder, 0);
+
+        this.logger.log(`Test reminder created and queued: ${reminder.id}`);
+
+        return {
+            message: 'Test reminder created and queued for immediate sending',
+            reminder,
+            recipient,
+            type
+        };
     }
 }

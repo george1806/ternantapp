@@ -1,0 +1,71 @@
+<mjml>
+  <mj-head>
+    <mj-title>Rent Overdue Notice</mj-title>
+    <mj-attributes>
+      <mj-all font-family="Arial, sans-serif" />
+      <mj-text font-size="14px" color="#333333" line-height="20px" />
+      <mj-section padding="20px" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body background-color="#f4f4f4">
+    <!-- Header -->
+    <mj-section background-color="#c53030" padding="20px">
+      <mj-column>
+        <mj-text align="center" color="#ffffff" font-size="24px" font-weight="bold">
+          Apartment Management
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Content -->
+    <mj-section background-color="#ffffff" padding="30px">
+      <mj-column>
+        <mj-text font-size="18px" font-weight="bold" color="#c53030">
+          Overdue Rent Payment Notice
+        </mj-text>
+
+        <mj-text>
+          Dear {{tenantName}},
+        </mj-text>
+
+        <mj-text>
+          Our records show that your rent payment for <strong>Unit {{unitNumber}}</strong> is now overdue.
+        </mj-text>
+
+        <mj-divider border-color="#feb2b2" />
+
+        <mj-text font-weight="bold" color="#c53030">Payment Details:</mj-text>
+        <mj-text>
+          • Unit: {{unitNumber}}<br/>
+          • Amount Due: ${{amount}}<br/>
+          • Due Date: {{dueDate}}<br/>
+          • Days Overdue: {{daysOverdue}}
+        </mj-text>
+
+        <mj-text>
+          <strong>Late fees may apply.</strong> Please make payment immediately to avoid additional charges.
+        </mj-text>
+
+        <mj-button href="{{paymentUrl}}" background-color="#c53030" color="#ffffff">
+          Pay Now
+        </mj-button>
+
+        <mj-text font-size="12px" color="#718096">
+          If you have already made payment, please disregard this notice. For any questions or payment arrangements, please contact us immediately.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Footer -->
+    <mj-section background-color="#e2e8f0" padding="20px">
+      <mj-column>
+        <mj-text align="center" font-size="12px" color="#718096">
+          &copy; {{year}} Apartment Management. All rights reserved.
+        </mj-text>
+        <mj-text align="center" font-size="11px" color="#a0aec0">
+          This is an automated message, please do not reply to this email.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

@@ -1,0 +1,86 @@
+<mjml>
+  <mj-head>
+    <mj-title>Welcome to Your New Home</mj-title>
+    <mj-attributes>
+      <mj-all font-family="Arial, sans-serif" />
+      <mj-text font-size="14px" color="#333333" line-height="20px" />
+      <mj-section padding="20px" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body background-color="#f4f4f4">
+    <!-- Header -->
+    <mj-section background-color="#48bb78" padding="20px">
+      <mj-column>
+        <mj-text align="center" color="#ffffff" font-size="24px" font-weight="bold">
+          Apartment Management
+        </mj-text>
+        <mj-text align="center" color="#ffffff" font-size="16px">
+          Welcome Home!
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Content -->
+    <mj-section background-color="#ffffff" padding="30px">
+      <mj-column>
+        <mj-text font-size="18px" font-weight="bold" color="#2d3748">
+          Welcome to {{propertyName}}!
+        </mj-text>
+
+        <mj-text>
+          Dear {{tenantName}},
+        </mj-text>
+
+        <mj-text>
+          We are thrilled to welcome you to your new home at <strong>Unit {{unitNumber}}</strong>! We hope you'll enjoy living here and feel right at home.
+        </mj-text>
+
+        <mj-divider border-color="#e2e8f0" />
+
+        <mj-text font-weight="bold">Your Unit Information:</mj-text>
+        <mj-text>
+          • Unit Number: {{unitNumber}}<br/>
+          • Property: {{propertyName}}<br/>
+          • Move-in Date: {{moveInDate}}<br/>
+          • Monthly Rent: ${{monthlyRent}}
+        </mj-text>
+
+        <mj-text font-weight="bold">Important Information:</mj-text>
+        <mj-text>
+          • Rent is due on the 1st of each month<br/>
+          • You can view invoices and make payments through our portal<br/>
+          • For maintenance requests, please contact us through the portal<br/>
+          • Emergency contact number: {{emergencyContact}}
+        </mj-text>
+
+        <mj-button href="{{portalUrl}}" background-color="#48bb78" color="#ffffff">
+          Access Tenant Portal
+        </mj-button>
+
+        <mj-text>
+          If you have any questions or need assistance, please don't hesitate to reach out to us.
+        </mj:text>
+
+        <mj-text>
+          Welcome to the community!
+        </mj-text>
+
+        <mj-text font-weight="bold">
+          The Management Team
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Footer -->
+    <mj-section background-color="#e2e8f0" padding="20px">
+      <mj-column>
+        <mj-text align="center" font-size="12px" color="#718096">
+          &copy; {{year}} Apartment Management. All rights reserved.
+        </mj-text>
+        <mj-text align="center" font-size="11px" color="#a0aec0">
+          This is an automated message, please do not reply to this email.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>
