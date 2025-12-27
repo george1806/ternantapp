@@ -1,10 +1,11 @@
-import { Module, Global } from '@nestjs/common';
+import { Module, Global, forwardRef } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { EmailProcessor } from './processors/email.processor';
 import { InvoiceProcessor } from './processors/invoice.processor';
 import { ReminderProcessor } from './processors/reminder.processor';
 import { InvoicesModule } from '../../modules/invoices/invoices.module';
+import { RemindersModule } from '../../modules/reminders/reminders.module';
 
 /**
  * Queue Module
@@ -42,6 +43,7 @@ import { InvoicesModule } from '../../modules/invoices/invoices.module';
 
     // Import modules needed by processors
     InvoicesModule,
+    forwardRef(() => RemindersModule),
   ],
   providers: [EmailProcessor, InvoiceProcessor, ReminderProcessor],
   exports: [BullModule],

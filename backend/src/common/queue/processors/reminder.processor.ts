@@ -2,6 +2,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger, Inject, forwardRef } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { EmailService } from '../../email/services/email.service';
+import { RemindersService } from '../../../modules/reminders/services/reminders.service';
 
 /**
  * Reminder Queue Processor
@@ -19,7 +20,11 @@ import { EmailService } from '../../email/services/email.service';
 export class ReminderProcessor extends WorkerHost {
   private readonly logger = new Logger(ReminderProcessor.name);
 
-  constructor(private readonly emailService: EmailService) {
+  constructor(
+    private readonly emailService: EmailService,
+    @Inject(forwardRef(() => RemindersService))
+    private readonly remindersService: RemindersService,
+  ) {
     super();
   }
 
@@ -27,7 +32,7 @@ export class ReminderProcessor extends WorkerHost {
     this.logger.log(`Processing reminder job ${job.id}: ${job.data.type}`);
 
     try {
-      const { type } = job.data;
+      const { type, reminderId, companyId } = job.data;
 
       // Send email using appropriate method
       let emailResult;
@@ -58,11 +63,34 @@ export class ReminderProcessor extends WorkerHost {
         }
       }
 
+      // Mark reminder as sent with email provider details
+      await this.remindersService.markAsSent(
+        reminderId,
+        companyId,
+        emailResult.messageId,
+        emailResult.provider,
+      );
+
       this.logger.log(
         `Reminder job ${job.id} completed successfully. MessageID: ${emailResult.messageId}, Provider: ${emailResult.provider}`
       );
     } catch (error) {
       this.logger.error(`Reminder job ${job.id} failed:`, error);
+
+      // Mark reminder as failed
+      const { reminderId, companyId } = job.data;
+      if (reminderId && companyId) {
+        try {
+          await this.remindersService.markAsFailed(
+            reminderId,
+            companyId,
+            error.message || 'Unknown error occurred',
+          );
+        } catch (markFailedError) {
+          this.logger.error(`Failed to mark reminder as failed:`, markFailedError);
+        }
+      }
+
       throw error; // BullMQ will handle retry logic
     }
   }
