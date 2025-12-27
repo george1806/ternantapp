@@ -31,22 +31,31 @@ export class ReminderProcessor extends WorkerHost {
 
       // Send email using appropriate method
       let emailResult;
-      switch (type) {
-        case 'DUE_SOON':
-          emailResult = await this.sendDueSoonReminder(job.data);
-          break;
-        case 'OVERDUE':
-          emailResult = await this.sendOverdueReminder(job.data);
-          break;
-        case 'WELCOME':
-          emailResult = await this.sendWelcomeMessage(job.data);
-          break;
-        case 'RECEIPT':
-          emailResult = await this.sendPaymentReceipt(job.data);
-          break;
-        default:
-          this.logger.warn(`Unknown reminder job type: ${type}`);
-          return;
+
+      // Check if this is a custom message (no template)
+      const useCustomMessage = job.data.metadata?.originalType === 'custom' ||
+                               job.data.metadata?.useCustomMessage === true;
+
+      if (useCustomMessage) {
+        emailResult = await this.sendCustomReminder(job.data);
+      } else {
+        switch (type) {
+          case 'DUE_SOON':
+            emailResult = await this.sendDueSoonReminder(job.data);
+            break;
+          case 'OVERDUE':
+            emailResult = await this.sendOverdueReminder(job.data);
+            break;
+          case 'WELCOME':
+            emailResult = await this.sendWelcomeMessage(job.data);
+            break;
+          case 'RECEIPT':
+            emailResult = await this.sendPaymentReceipt(job.data);
+            break;
+          default:
+            this.logger.warn(`Unknown reminder job type: ${type}`);
+            return;
+        }
       }
 
       this.logger.log(
@@ -111,6 +120,43 @@ export class ReminderProcessor extends WorkerHost {
       subject: data.subject,
       template,
       context: data.metadata,
+    });
+  }
+
+  private async sendCustomReminder(data: any): Promise<{ messageId: string; provider: string }> {
+    this.logger.log(`Sending custom reminder to ${data.recipient}`);
+
+    // Replace placeholders in message
+    let message = data.message;
+    let subject = data.subject;
+
+    const replacements: Record<string, string> = {
+      '[Tenant Name]': data.metadata?.tenantName || '',
+      '[Tenant First Name]': data.metadata?.tenantFirstName || '',
+      '[Tenant Last Name]': data.metadata?.tenantLastName || '',
+      '[Amount]': data.metadata?.amount ? `$${data.metadata.amount}` : '',
+      '[Due Date]': data.metadata?.dueDate || '',
+      '[Unit]': data.metadata?.unit || data.metadata?.apartmentNumber || '',
+      '[Property]': data.metadata?.property || '',
+      '[Invoice Number]': data.metadata?.invoiceNumber || '',
+      '[Payment Date]': data.metadata?.paymentDate || '',
+    };
+
+    // Replace placeholders in both message and subject
+    for (const [placeholder, value] of Object.entries(replacements)) {
+      const regex = new RegExp(placeholder.replace(/[[\]]/g, '\\$&'), 'g');
+      message = message.replace(regex, value);
+      subject = subject.replace(regex, value);
+    }
+
+    // Convert line breaks to <br> for HTML
+    const htmlMessage = message.replace(/\n/g, '<br>');
+
+    return await this.emailService.sendMail({
+      to: data.recipient,
+      subject: subject,
+      html: htmlMessage,
+      text: message,
     });
   }
 }

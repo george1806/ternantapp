@@ -144,7 +144,13 @@ export class RemindersService {
                 ...dto.metadata,
                 channel: dto.channel,
                 occupancyId: dto.occupancyId,
-                originalType: dto.type
+                originalType: dto.type,
+                // Add tenant info for placeholder replacement
+                ...(tenant && {
+                    tenantName: `${tenant.firstName} ${tenant.lastName}`,
+                    tenantFirstName: tenant.firstName,
+                    tenantLastName: tenant.lastName,
+                })
             }
         };
 
