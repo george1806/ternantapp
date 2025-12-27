@@ -35,6 +35,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     // Get the exception response
     const exceptionResponse = exception.getResponse();
+
     const errorResponse = this.formatErrorResponse(
       exception,
       exceptionResponse,
