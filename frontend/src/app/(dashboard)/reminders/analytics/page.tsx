@@ -114,11 +114,25 @@ export default function RemindersAnalyticsPage() {
             Sent
           </Badge>
         );
+      case 'delivered':
+        return (
+          <Badge variant="default" className="bg-green-600">
+            <CheckCircle2 className="h-3 w-3 mr-1" />
+            Delivered
+          </Badge>
+        );
       case 'failed':
         return (
           <Badge variant="destructive">
             <XCircle className="h-3 w-3 mr-1" />
             Failed
+          </Badge>
+        );
+      case 'bounced':
+        return (
+          <Badge variant="destructive" className="bg-orange-600">
+            <AlertTriangle className="h-3 w-3 mr-1" />
+            Bounced
           </Badge>
         );
       default:
@@ -337,7 +351,7 @@ export default function RemindersAnalyticsPage() {
                     <TableCell className="text-sm">{log.recipient}</TableCell>
                     <TableCell className="text-sm truncate max-w-xs">{log.subject}</TableCell>
                     <TableCell>{getStatusBadge(log.status)}</TableCell>
-                    <TableCell className="text-sm">{log.provider || '-'}</TableCell>
+                    <TableCell className="text-sm">{log.metadata?.provider || '-'}</TableCell>
                   </TableRow>
                 ))
               )}

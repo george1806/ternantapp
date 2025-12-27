@@ -136,14 +136,17 @@ export interface ReminderLog {
   type: string;
   recipient: string;
   subject: string;
-  status: 'queued' | 'sent' | 'failed';
+  status: 'queued' | 'sent' | 'failed' | 'bounced' | 'delivered';
   queuedAt: string;
   sentAt?: string;
   failedAt?: string;
-  error?: string;
+  deliveredAt?: string;
+  failureReason?: string;
   messageId?: string;
-  provider?: string;
-  metadata?: Record<string, any>;
+  metadata?: {
+    provider?: string;
+    [key: string]: any;
+  };
 }
 
 export interface AnalyticsQueryParams {

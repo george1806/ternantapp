@@ -45,7 +45,18 @@ export class ReminderAnalyticsController {
         const start = startDate ? new Date(startDate) : undefined;
         const end = endDate ? new Date(endDate) : undefined;
 
-        return this.logService.getDeliveryStats(companyId, start, end);
+        const stats = await this.logService.getDeliveryStats(companyId, start, end);
+
+        // Map to frontend-expected format
+        return {
+            totalSent: stats.sent + stats.delivered,
+            successfulDeliveries: stats.sent + stats.delivered,
+            failures: stats.failed,
+            bounces: stats.bounced,
+            successRate: stats.deliveryRate,
+            bounceRate: stats.bounced > 0 ? (stats.bounced / stats.total) * 100 : 0,
+            failureRate: stats.failureRate,
+        };
     }
 
     /**
