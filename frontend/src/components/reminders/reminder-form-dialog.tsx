@@ -115,16 +115,26 @@ export function ReminderFormDialog({
   useEffect(() => {
     if (reminder) {
       // Editing existing reminder
+      // Map backend type to form type
+      const typeMap: Record<string, any> = {
+        'DUE_SOON': 'rent_due',
+        'OVERDUE': 'rent_due',
+        'RECEIPT': 'payment_received',
+        'WELCOME': 'custom',
+      };
+
+      const formType = typeMap[reminder.type] || reminder.metadata?.originalType || 'custom';
+
       reset({
-        type: reminder.type,
+        type: formType,
         subject: reminder.subject,
         message: reminder.message,
-        recipient: reminder.recipient,
-        sendAt: reminder.sendAt.split('T')[0] + 'T' + reminder.sendAt.split('T')[1]?.substring(0, 5) || '',
-        channel: reminder.channel,
-        tenantId: reminder.tenantId,
-        occupancyId: reminder.occupancyId,
-        invoiceId: reminder.invoiceId,
+        recipient: reminder.recipient || '',
+        sendAt: reminder.scheduledFor.split('T')[0] + 'T' + reminder.scheduledFor.split('T')[1]?.substring(0, 5) || '',
+        channel: reminder.metadata?.channel || 'email',
+        tenantId: reminder.tenantId || undefined,
+        occupancyId: reminder.metadata?.occupancyId || undefined,
+        invoiceId: reminder.invoiceId || undefined,
       });
     } else if (defaultValues) {
       reset({
