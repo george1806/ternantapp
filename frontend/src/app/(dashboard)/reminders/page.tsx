@@ -103,9 +103,9 @@ export default function RemindersPage() {
       const allReminders = allRemindersResponse.data.data || [];
       setStats({
         total: allReminders.length,
-        pending: allReminders.filter((r) => r.status === 'pending').length,
-        sent: allReminders.filter((r) => r.status === 'sent').length,
-        failed: allReminders.filter((r) => r.status === 'failed').length,
+        pending: allReminders.filter((r) => r.status === 'PENDING').length,
+        sent: allReminders.filter((r) => r.status === 'SENT').length,
+        failed: allReminders.filter((r) => r.status === 'FAILED').length,
       });
     } catch (error) {
       console.error('Error loading reminders:', error);
@@ -193,11 +193,11 @@ export default function RemindersPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'pending':
+      case 'PENDING':
         return <Badge variant="outline"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
-      case 'sent':
+      case 'SENT':
         return <Badge variant="default" className="bg-green-500"><CheckCircle2 className="h-3 w-3 mr-1" />Sent</Badge>;
-      case 'failed':
+      case 'FAILED':
         return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Failed</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
@@ -205,16 +205,18 @@ export default function RemindersPage() {
   };
 
   const getTypeBadge = (type: string) => {
-    const typeColors: Record<string, string> = {
-      rent_due: 'bg-blue-100 text-blue-800',
-      payment_received: 'bg-green-100 text-green-800',
-      lease_expiring: 'bg-yellow-100 text-yellow-800',
-      custom: 'bg-gray-100 text-gray-800',
+    const typeConfig: Record<string, { color: string; label: string }> = {
+      DUE_SOON: { color: 'bg-blue-100 text-blue-800', label: 'Rent Due' },
+      OVERDUE: { color: 'bg-red-100 text-red-800', label: 'Overdue' },
+      RECEIPT: { color: 'bg-green-100 text-green-800', label: 'Receipt' },
+      WELCOME: { color: 'bg-purple-100 text-purple-800', label: 'Welcome' },
     };
 
+    const config = typeConfig[type] || { color: 'bg-gray-100 text-gray-800', label: type };
+
     return (
-      <Badge variant="outline" className={typeColors[type] || ''}>
-        {type.replace('_', ' ').toUpperCase()}
+      <Badge variant="outline" className={config.color}>
+        {config.label}
       </Badge>
     );
   };
@@ -351,9 +353,9 @@ export default function RemindersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="sent">Sent</SelectItem>
-                <SelectItem value="failed">Failed</SelectItem>
+                <SelectItem value="PENDING">Pending</SelectItem>
+                <SelectItem value="SENT">Sent</SelectItem>
+                <SelectItem value="FAILED">Failed</SelectItem>
               </SelectContent>
             </Select>
 
@@ -363,10 +365,10 @@ export default function RemindersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="rent_due">Rent Due</SelectItem>
-                <SelectItem value="payment_received">Payment Received</SelectItem>
-                <SelectItem value="lease_expiring">Lease Expiring</SelectItem>
-                <SelectItem value="custom">Custom</SelectItem>
+                <SelectItem value="DUE_SOON">Rent Due</SelectItem>
+                <SelectItem value="OVERDUE">Overdue</SelectItem>
+                <SelectItem value="RECEIPT">Payment Receipt</SelectItem>
+                <SelectItem value="WELCOME">Welcome</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -415,15 +417,15 @@ export default function RemindersPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          {getChannelIcon(reminder.channel)}
-                          <span className="text-sm">{reminder.channel}</span>
+                          {getChannelIcon(reminder.metadata?.channel)}
+                          <span className="text-sm">{reminder.metadata?.channel || 'N/A'}</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
-                          {format(new Date(reminder.sendAt), 'MMM dd, yyyy')}
+                          {format(new Date(reminder.scheduledFor), 'MMM dd, yyyy')}
                           <div className="text-xs text-muted-foreground">
-                            {format(new Date(reminder.sendAt), 'hh:mm a')}
+                            {format(new Date(reminder.scheduledFor), 'hh:mm a')}
                           </div>
                         </div>
                       </TableCell>
@@ -440,7 +442,7 @@ export default function RemindersPage() {
                               <Eye className="h-4 w-4 mr-2" />
                               Preview
                             </DropdownMenuItem>
-                            {reminder.status === 'pending' && (
+                            {reminder.status === 'PENDING' && (
                               <DropdownMenuItem onClick={() => handleSendNow(reminder.id)}>
                                 <Send className="h-4 w-4 mr-2" />
                                 Send Now

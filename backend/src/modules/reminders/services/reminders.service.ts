@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan, MoreThanOrEqual, Between, DeepPartial } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -50,7 +50,7 @@ export class RemindersService {
     /**
      * Find all reminders with optional filtering
      */
-    async findAll(companyId: string, query?: QueryReminderDto): Promise<Reminder[]> {
+    async findAll(companyId: string, query?: QueryReminderDto): Promise<{ data: Reminder[], total: number }> {
         const where: any = { companyId };
 
         if (query?.type) where.type = query.type;
@@ -67,11 +67,19 @@ export class RemindersService {
             where.scheduledFor = MoreThanOrEqual(new Date(query.scheduledFrom));
         }
 
-        return this.reminderRepository.find({
+        const page = query?.page || 1;
+        const limit = query?.limit || 10;
+        const skip = (page - 1) * limit;
+
+        const [data, total] = await this.reminderRepository.findAndCount({
             where,
             relations: ['tenant', 'invoice'],
-            order: { scheduledFor: 'DESC' }
+            order: { scheduledFor: 'DESC' },
+            skip,
+            take: limit
         });
+
+        return { data, total };
     }
 
     /**
@@ -94,27 +102,67 @@ export class RemindersService {
      * Create a new reminder and optionally queue it
      */
     async create(companyId: string, dto: CreateReminderDto): Promise<Reminder> {
-        // Verify tenant exists
-        const tenant = await this.tenantRepository.findOne({
-            where: { id: dto.tenantId, companyId }
-        });
+        // Map frontend type values to backend enum
+        const typeMapping = {
+            'rent_due': ReminderType.DUE_SOON,
+            'payment_received': ReminderType.RECEIPT,
+            'lease_expiring': ReminderType.DUE_SOON,
+            'custom': ReminderType.DUE_SOON
+        };
 
-        if (!tenant) {
-            throw new NotFoundException(`Tenant with ID ${dto.tenantId} not found`);
+        let recipient = dto.recipient;
+        let tenant = null;
+
+        // Get tenant email if tenantId is provided
+        if (dto.tenantId) {
+            tenant = await this.tenantRepository.findOne({
+                where: { id: dto.tenantId, companyId }
+            });
+
+            if (!tenant) {
+                throw new NotFoundException(`Tenant with ID ${dto.tenantId} not found`);
+            }
+
+            recipient = recipient || tenant.email;
         }
 
-        // Create reminder
-        const reminder = this.reminderRepository.create({
-            ...dto,
-            companyId,
-            recipient: dto.recipient || tenant.email
-        });
+        // Validate recipient is provided
+        if (!recipient) {
+            throw new BadRequestException('Either tenantId or recipient email must be provided');
+        }
 
-        const saved = await this.reminderRepository.save(reminder);
+        // Create reminder with mapped fields
+        const reminderData: any = {
+            companyId,
+            type: typeMapping[dto.type] || ReminderType.DUE_SOON,
+            subject: dto.subject,
+            message: dto.message,
+            recipient: recipient,
+            scheduledFor: new Date(dto.sendAt),
+            status: ReminderStatus.PENDING,
+            metadata: {
+                ...dto.metadata,
+                channel: dto.channel,
+                occupancyId: dto.occupancyId,
+                originalType: dto.type
+            }
+        };
+
+        // Only include tenantId and invoiceId if provided
+        if (dto.tenantId) {
+            reminderData.tenantId = dto.tenantId;
+        }
+        if (dto.invoiceId) {
+            reminderData.invoiceId = dto.invoiceId;
+        }
+
+        const reminder = this.reminderRepository.create(reminderData);
+
+        const saved = await this.reminderRepository.save(reminder) as unknown as Reminder;
 
         // Queue for sending if scheduled for now or past
         const now = new Date();
-        const scheduledTime = new Date(dto.scheduledFor);
+        const scheduledTime = new Date(dto.sendAt);
 
         if (scheduledTime <= now) {
             await this.queueReminder(saved);
@@ -332,12 +380,13 @@ export class RemindersService {
 
             if (!existingReminder) {
                 await this.create(invoice.companyId, {
-                    type: ReminderType.DUE_SOON,
+                    type: 'rent_due',
                     tenantId: invoice.occupancy.tenantId,
                     invoiceId: invoice.id,
                     subject: `Rent Due Soon - Unit ${invoice.occupancy.apartment.unitNumber}`,
                     message: `Dear ${invoice.occupancy.tenant.firstName}, your rent for Unit ${invoice.occupancy.apartment.unitNumber} is due on ${invoice.dueDate.toLocaleDateString()}. Amount: ${invoice.totalAmount}.`,
-                    scheduledFor: new Date(),
+                    sendAt: new Date().toISOString(),
+                    channel: 'email',
                     metadata: {
                         templateName: 'rent-due-soon',
                         apartmentCode: invoice.occupancy.apartment.unitNumber,
@@ -486,12 +535,13 @@ export class RemindersService {
 
             // Create reminder with escalation template
             await this.create(invoice.companyId, {
-                type: ReminderType.OVERDUE,
+                type: 'rent_due',
                 tenantId: invoice.occupancy.tenantId,
                 invoiceId: invoice.id,
                 subject: `Overdue Rent - Unit ${invoice.occupancy.apartment.unitNumber}`,
                 message: `Dear ${invoice.occupancy.tenant.firstName}, your rent for Unit ${invoice.occupancy.apartment.unitNumber} is overdue. Due date was ${invoice.dueDate.toLocaleDateString()}. Amount: ${invoice.totalAmount}. Please settle this as soon as possible.`,
-                scheduledFor: new Date(),
+                sendAt: new Date().toISOString(),
+                channel: 'email',
                 metadata: {
                     templateName: `rent-overdue-${applicableLevel.templateType}`,
                     apartmentCode: invoice.occupancy.apartment.unitNumber,
@@ -526,11 +576,12 @@ export class RemindersService {
         }
 
         return this.create(companyId, {
-            type: ReminderType.WELCOME,
+            type: 'custom',
             tenantId,
             subject: `Welcome to ${apartmentCode}`,
             message: `Dear ${tenant.firstName}, welcome to your new apartment ${apartmentCode}! We're glad to have you. If you have any questions, please don't hesitate to contact us.`,
-            scheduledFor: new Date(),
+            sendAt: new Date().toISOString(),
+            channel: 'email',
             metadata: {
                 templateName: 'tenant-welcome',
                 apartmentCode
@@ -557,12 +608,13 @@ export class RemindersService {
         }
 
         return this.create(companyId, {
-            type: ReminderType.RECEIPT,
+            type: 'payment_received',
             tenantId,
             invoiceId,
             subject: 'Payment Receipt',
             message: `Dear ${tenant.firstName}, we have received your payment of ${currency} ${amount}. Thank you for your payment!`,
-            scheduledFor: new Date(),
+            sendAt: new Date().toISOString(),
+            channel: 'email',
             metadata: {
                 templateName: 'payment-receipt',
                 amount,
@@ -839,8 +891,9 @@ export class RemindersService {
                     }
 
                     // Build reminder data
-                    const reminderData = {
-                        type: dto.type,
+                    const reminderType: 'rent_due' | 'payment_received' | 'lease_expiring' | 'custom' = dto.type === ReminderType.DUE_SOON ? 'rent_due' : 'rent_due';
+                    const reminderData: CreateReminderDto = {
+                        type: reminderType,
                         tenantId: invoice.occupancy.tenantId,
                         invoiceId: invoice.id,
                         subject:
@@ -851,7 +904,8 @@ export class RemindersService {
                             dto.type === ReminderType.DUE_SOON
                                 ? `Dear ${invoice.occupancy.tenant.firstName}, your rent for Unit ${invoice.occupancy.apartment.unitNumber} is due on ${invoice.dueDate.toLocaleDateString()}. Amount: ${invoice.totalAmount}.`
                                 : `Dear ${invoice.occupancy.tenant.firstName}, your rent for Unit ${invoice.occupancy.apartment.unitNumber} is overdue. Due date was ${invoice.dueDate.toLocaleDateString()}. Amount: ${invoice.totalAmount}.`,
-                        scheduledFor: new Date(),
+                        sendAt: new Date().toISOString(),
+                        channel: 'email' as 'email' | 'sms' | 'both',
                         metadata: {
                             templateName:
                                 dto.type === ReminderType.DUE_SOON

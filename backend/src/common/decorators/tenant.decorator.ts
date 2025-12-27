@@ -13,11 +13,21 @@ export const TenantId = createParamDecorator(
 
 /**
  * Decorator to extract current user from request
- * Usage: @CurrentUser() user: User
+ * Usage:
+ *   @CurrentUser() user: User - returns full user object
+ *   @CurrentUser('companyId') companyId: string - returns specific property
  */
 export const CurrentUser = createParamDecorator(
-  (data: unknown, ctx: ExecutionContext) => {
+  (data: string, ctx: ExecutionContext) => {
     const request = ctx.switchToHttp().getRequest();
-    return request.user;
+    const user = request.user;
+
+    // If a property name is provided, return that property
+    if (data && user) {
+      return user[data];
+    }
+
+    // Otherwise return the full user object
+    return user;
   },
 );

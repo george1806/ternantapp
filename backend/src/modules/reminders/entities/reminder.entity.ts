@@ -23,7 +23,7 @@ export class Reminder extends TenantBaseEntity {
     @Column({ type: 'enum', enum: ReminderType })
     type: ReminderType;
 
-    @Column({ name: 'tenant_id', type: 'uuid' })
+    @Column({ name: 'tenant_id', type: 'uuid', nullable: true })
     tenantId: string;
 
     @Column({ name: 'invoice_id', type: 'uuid', nullable: true })

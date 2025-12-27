@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Check, ChevronsUpDown } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -23,14 +23,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { remindersService, type Reminder } from '@/services/reminders.service';
+import { tenantsService, type Tenant } from '@/services/tenants.service';
 import { getApiErrorMessage } from '@/lib/api';
 
 const reminderSchema = z.object({
   type: z.enum(['rent_due', 'payment_received', 'lease_expiring', 'custom']),
   subject: z.string().min(3, 'Subject must be at least 3 characters'),
   message: z.string().min(10, 'Message must be at least 10 characters'),
+  recipient: z.string().email('Invalid email address').optional().or(z.literal('')),
   sendAt: z.string().min(1, 'Send date is required'),
   channel: z.enum(['email', 'sms', 'both']),
   tenantId: z.string().optional(),
@@ -57,6 +73,8 @@ export function ReminderFormDialog({
 }: ReminderFormDialogProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [tenantSearchOpen, setTenantSearchOpen] = useState(false);
 
   const {
     register,
@@ -76,6 +94,23 @@ export function ReminderFormDialog({
 
   const selectedType = watch('type');
   const selectedChannel = watch('channel');
+  const selectedTenantId = watch('tenantId');
+
+  // Fetch tenants when dialog opens
+  useEffect(() => {
+    if (open) {
+      loadTenants();
+    }
+  }, [open]);
+
+  const loadTenants = async () => {
+    try {
+      const response = await tenantsService.getAll({ page: 1, limit: 1000 });
+      setTenants(response.data.data || []);
+    } catch (error) {
+      console.error('Error loading tenants:', error);
+    }
+  };
 
   useEffect(() => {
     if (reminder) {
@@ -84,6 +119,7 @@ export function ReminderFormDialog({
         type: reminder.type,
         subject: reminder.subject,
         message: reminder.message,
+        recipient: reminder.recipient,
         sendAt: reminder.sendAt.split('T')[0] + 'T' + reminder.sendAt.split('T')[1]?.substring(0, 5) || '',
         channel: reminder.channel,
         tenantId: reminder.tenantId,
@@ -136,6 +172,7 @@ export function ReminderFormDialog({
           type: data.type,
           subject: data.subject,
           message: data.message,
+          recipient: data.recipient,
           sendAt: new Date(data.sendAt).toISOString(),
           channel: data.channel,
           tenantId: data.tenantId,
@@ -198,6 +235,80 @@ export function ReminderFormDialog({
               <p className="text-sm text-destructive">{errors.type.message}</p>
             )}
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="tenantId">Tenant (Optional)</Label>
+            <Popover open={tenantSearchOpen} onOpenChange={setTenantSearchOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={tenantSearchOpen}
+                  className="w-full justify-between"
+                  disabled={isLoading}
+                >
+                  {selectedTenantId
+                    ? (() => {
+                        const tenant = tenants.find((t) => t.id === selectedTenantId);
+                        return tenant ? `${tenant.firstName} ${tenant.lastName} (${tenant.email})` : 'Select tenant...';
+                      })()
+                    : 'Select tenant...'}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0">
+                <Command>
+                  <CommandInput placeholder="Search tenant by name or email..." />
+                  <CommandList>
+                    <CommandEmpty>No tenant found.</CommandEmpty>
+                    <CommandGroup>
+                      {tenants.map((tenant) => (
+                        <CommandItem
+                          key={tenant.id}
+                          value={`${tenant.firstName} ${tenant.lastName} ${tenant.email}`}
+                          onSelect={() => {
+                            setValue('tenantId', tenant.id);
+                            setValue('recipient', ''); // Clear recipient when tenant is selected
+                            setTenantSearchOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              'mr-2 h-4 w-4',
+                              selectedTenantId === tenant.id ? 'opacity-100' : 'opacity-0'
+                            )}
+                          />
+                          {tenant.firstName} {tenant.lastName} ({tenant.email})
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            <p className="text-xs text-muted-foreground">
+              Select a tenant to send the reminder to their email
+            </p>
+          </div>
+
+          {!selectedTenantId && (
+            <div className="space-y-2">
+              <Label htmlFor="recipient">Recipient Email</Label>
+              <Input
+                id="recipient"
+                type="email"
+                placeholder="tenant@example.com"
+                {...register('recipient')}
+                disabled={isLoading}
+              />
+              {errors.recipient && (
+                <p className="text-sm text-destructive">{errors.recipient.message}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Or enter a recipient email address manually
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="subject">Subject</Label>

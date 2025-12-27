@@ -4,10 +4,10 @@ import {
     IsString,
     IsOptional,
     IsDateString,
-    IsObject
+    IsObject,
+    IsIn
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ReminderType } from '../../../common/enums';
 
 /**
  * Create Reminder DTO
@@ -17,19 +17,20 @@ import { ReminderType } from '../../../common/enums';
  */
 export class CreateReminderDto {
     @ApiProperty({
-        enum: ReminderType,
+        enum: ['rent_due', 'payment_received', 'lease_expiring', 'custom'],
         description: 'Type of reminder',
-        example: ReminderType.DUE_SOON
+        example: 'rent_due'
     })
-    @IsEnum(ReminderType)
-    type: ReminderType;
+    @IsIn(['rent_due', 'payment_received', 'lease_expiring', 'custom'])
+    type: 'rent_due' | 'payment_received' | 'lease_expiring' | 'custom';
 
     @ApiProperty({
         description: 'Tenant ID to receive the reminder',
         example: 'uuid-here'
     })
     @IsUUID()
-    tenantId: string;
+    @IsOptional()
+    tenantId?: string;
 
     @ApiPropertyOptional({
         description: 'Related invoice ID (required for payment reminders)',
@@ -38,6 +39,14 @@ export class CreateReminderDto {
     @IsUUID()
     @IsOptional()
     invoiceId?: string;
+
+    @ApiPropertyOptional({
+        description: 'Related occupancy ID',
+        example: 'uuid-here'
+    })
+    @IsUUID()
+    @IsOptional()
+    occupancyId?: string;
 
     @ApiProperty({
         description: 'Reminder email subject',
@@ -66,7 +75,15 @@ export class CreateReminderDto {
         example: '2025-01-10T09:00:00Z'
     })
     @IsDateString()
-    scheduledFor: Date;
+    sendAt: string;
+
+    @ApiProperty({
+        enum: ['email', 'sms', 'both'],
+        description: 'Notification channel',
+        example: 'email'
+    })
+    @IsIn(['email', 'sms', 'both'])
+    channel: 'email' | 'sms' | 'both';
 
     @ApiPropertyOptional({
         description: 'Additional metadata',

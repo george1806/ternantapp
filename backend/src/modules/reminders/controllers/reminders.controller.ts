@@ -61,7 +61,21 @@ export class RemindersController {
         @CurrentUser('companyId') companyId: string,
         @Query() query: QueryReminderDto
     ) {
-        return this.remindersService.findAll(companyId, query);
+        const { data, total } = await this.remindersService.findAll(companyId, query);
+
+        const page = query.page || 1;
+        const limit = query.limit || 10;
+        const totalPages = Math.ceil(total / limit);
+
+        return {
+            data,
+            meta: {
+                page,
+                limit,
+                total,
+                totalPages
+            }
+        };
     }
 
     /**
@@ -96,9 +110,10 @@ export class RemindersController {
         description: 'Invalid input data'
     })
     async create(
-        @CurrentUser('companyId') companyId: string,
+        @CurrentUser() user: any,
         @Body() createReminderDto: CreateReminderDto
     ) {
+        const companyId = user.companyId || user.company_id;
         return this.remindersService.create(companyId, createReminderDto);
     }
 
