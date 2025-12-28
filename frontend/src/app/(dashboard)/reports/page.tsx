@@ -48,9 +48,9 @@ export default function ReportsPage() {
         reportsService.getRevenueAnalytics(),
         reportsService.getOccupancyAnalytics(),
       ]);
-      setKpis(kpiResponse.data.data);
-      setRevenueData(revenueResponse.data.data);
-      setOccupancyData(occupancyResponse.data.data);
+      setKpis(kpiResponse.data);
+      setRevenueData(revenueResponse.data);
+      setOccupancyData(occupancyResponse.data);
     } catch (error) {
       toast({
         title: 'Error',
@@ -86,17 +86,24 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-2 sm:p-6 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 p-6 rounded-xl shadow-sm">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Reports & Analytics</h1>
-          <p className="text-muted-foreground mt-2 text-sm sm:text-base">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            Reports & Analytics
+          </h1>
+          <p className="text-muted-foreground mt-2 text-sm sm:text-base flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
             Comprehensive insights into your property management performance
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={clearCache} className="text-sm">
+          <Button
+            variant="outline"
+            onClick={clearCache}
+            className="text-sm hover:bg-blue-50 dark:hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md"
+          >
             <RefreshCw className="h-4 w-4 mr-2" />
             <span className="hidden sm:inline">Clear Cache</span>
             <span className="sm:hidden">Clear</span>
@@ -132,30 +139,33 @@ export default function ReportsPage() {
             <>
               {/* KPI Cards Row */}
               <div className="grid gap-4 md:grid-cols-4">
-                <Card>
+                <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500 hover:border-l-blue-600 bg-gradient-to-br from-white to-blue-50/30 dark:from-gray-900 dark:to-blue-950/20">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                        <TrendingUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      </div>
                       Total Revenue
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">
+                    <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                       {reportsService.formatCurrency(kpis?.totalRevenue || 0, currency)}
                     </div>
-                    <div className="flex items-center gap-1 text-sm mt-1">
+                    <div className="flex items-center gap-1 text-sm mt-2 px-2 py-1 rounded-md bg-green-50 dark:bg-green-900/20 w-fit">
                       {(kpis?.revenueGrowth || 0) >= 0 ? (
-                        <TrendingUp className="h-4 w-4 text-green-600" />
+                        <TrendingUp className="h-3 w-3 text-green-600 dark:text-green-400" />
                       ) : (
-                        <TrendingDown className="h-4 w-4 text-red-600" />
+                        <TrendingDown className="h-3 w-3 text-red-600 dark:text-red-400" />
                       )}
                       <span
                         className={
-                          (kpis?.revenueGrowth || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                          (kpis?.revenueGrowth || 0) >= 0 ? 'text-green-700 dark:text-green-400 font-medium' : 'text-red-700 dark:text-red-400 font-medium'
                         }
                       >
                         {Math.abs(kpis?.revenueGrowth || 0).toFixed(1)}%
                       </span>
-                      <span className="text-muted-foreground">vs prev period</span>
+                      <span className="text-muted-foreground text-xs">vs prev</span>
                     </div>
                   </CardContent>
                 </Card>

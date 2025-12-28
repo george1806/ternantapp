@@ -14,13 +14,21 @@ export function LeaseExpirationSection() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [daysAhead] = useState(90);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
   const { toast } = useToast();
+
+  // Calculate pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = expiringLeases.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(expiringLeases.length / itemsPerPage);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const response = await reportsService.getLeaseExpirationReport(daysAhead);
-      setExpiringLeases(response.data.data);
+      setExpiringLeases(response.data);
     } catch (error) {
       toast({
         title: 'Error',
@@ -177,7 +185,7 @@ export function LeaseExpirationSection() {
                   </tr>
                 </thead>
                 <tbody>
-                  {expiringLeases.map((lease) => (
+                  {currentItems.map((lease) => (
                     <tr key={lease.occupancyId} className="border-b hover:bg-muted/50">
                       <td className="p-3 font-medium">{lease.tenantName}</td>
                       <td className="p-3">{lease.apartmentUnit}</td>
@@ -212,6 +220,62 @@ export function LeaseExpirationSection() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {expiringLeases.length > itemsPerPage && (
+            <div className="flex items-center justify-between px-6 py-4 border-t">
+              <div className="text-sm text-muted-foreground">
+                Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, expiringLeases.length)} of {expiringLeases.length} leases
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                >
+                  Previous
+                </Button>
+                <div className="flex gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(page => {
+                      // Show first page, last page, current page, and pages around current
+                      return page === 1 ||
+                             page === totalPages ||
+                             (page >= currentPage - 1 && page <= currentPage + 1);
+                    })
+                    .map((page, index, array) => (
+                      <div key={page} className="flex gap-1">
+                        {index > 0 && array[index - 1] !== page - 1 && (
+                          <span className="px-2 py-1">...</span>
+                        )}
+                        <Button
+                          variant={currentPage === page ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(page)}
+                          className={currentPage === page ?
+                            "bg-blue-600 hover:bg-blue-700 text-white" :
+                            "hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                          }
+                        >
+                          {page}
+                        </Button>
+                      </div>
+                    ))}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                >
+                  Next
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
