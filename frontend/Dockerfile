@@ -103,8 +103,8 @@ WORKDIR /app/frontend
 
 # Copy built application from builder stage
 COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/frontend/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/.next/static ./frontend/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/frontend/public ./frontend/public
 
 # Set production environment
 ENV NODE_ENV=production
@@ -122,4 +122,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD nc -z localhost 3001 || exit 1
 
 # Start the Next.js application
-CMD ["node", "server.js"]
+CMD ["node", "frontend/server.js"]
