@@ -72,16 +72,17 @@ export default function UsersPage() {
 
       const response = await usersService.getAll(filters);
 
-      if (response.data?.data) {
+      // API interceptor unwraps response, so response.data is the users array directly
+      if (Array.isArray(response.data)) {
         if (append) {
-          setUsers(prev => [...prev, ...response.data.data]);
+          setUsers(prev => [...prev, ...response.data]);
         } else {
-          setUsers(response.data.data);
+          setUsers(response.data);
         }
-        setTotal(response.data.meta?.total || response.data.data.length);
-        setTotalPages(response.data.meta?.totalPages || 1);
+        setTotal(response.data.length);
+        setTotalPages(1); // No pagination from backend yet
       } else {
-        console.warn('Users endpoint returned unexpected format');
+        console.warn('Users endpoint returned unexpected format:', response.data);
         if (!append) {
           setUsers([]);
         }

@@ -198,8 +198,12 @@ export default function DashboardPage() {
   const fetchCompounds = async () => {
     try {
       const response = await compoundsService.getAll({ limit: 100 });
-      if (response.data?.data) {
+      // Compounds returns paginated response: { data: [...], meta: {...} }
+      if (response.data?.data && Array.isArray(response.data.data)) {
         setCompounds(response.data.data);
+      } else if (Array.isArray(response.data)) {
+        // Fallback for non-paginated response
+        setCompounds(response.data);
       }
     } catch (error) {
       console.error('Failed to fetch compounds:', error);
@@ -253,21 +257,27 @@ export default function DashboardPage() {
         statsData: statsResponse?.data
       });
 
+      // Dashboard controller returns { data: stats }, so after unwrapping we need .data.data
       if (statsResponse?.data?.data) {
         setStats(statsResponse.data.data);
       } else {
-        // Fallback: Backend endpoint doesn't exist yet
-        console.warn('Dashboard stats endpoint not available, using mock data');
+        console.warn('Dashboard stats endpoint not available');
       }
 
-      if (invoicesResponse?.data?.data) {
+      // Invoices returns paginated response: { data: [...], meta: {...} }
+      if (invoicesResponse?.data?.data && Array.isArray(invoicesResponse.data.data)) {
         setRecentInvoices(invoicesResponse.data.data);
+      } else if (Array.isArray(invoicesResponse?.data)) {
+        setRecentInvoices(invoicesResponse.data);
       } else {
         console.warn('Invoices endpoint not available');
       }
 
-      if (paymentsResponse?.data?.data) {
+      // Payments returns paginated response: { data: [...], meta: {...} }
+      if (paymentsResponse?.data?.data && Array.isArray(paymentsResponse.data.data)) {
         setRecentPayments(paymentsResponse.data.data);
+      } else if (Array.isArray(paymentsResponse?.data)) {
+        setRecentPayments(paymentsResponse.data);
       } else {
         console.warn('Payments endpoint not available');
       }

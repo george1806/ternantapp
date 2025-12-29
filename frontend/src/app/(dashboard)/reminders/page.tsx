@@ -103,9 +103,9 @@ export default function RemindersPage() {
       const allReminders = allRemindersResponse.data.data || [];
       setStats({
         total: allReminders.length,
-        pending: allReminders.filter((r) => r.status === 'PENDING').length,
-        sent: allReminders.filter((r) => r.status === 'SENT').length,
-        failed: allReminders.filter((r) => r.status === 'FAILED').length,
+        pending: allReminders.filter((r) => r.status === 'pending').length,
+        sent: allReminders.filter((r) => r.status === 'sent').length,
+        failed: allReminders.filter((r) => r.status === 'failed').length,
       });
     } catch (error) {
       console.error('Error loading reminders:', error);
@@ -417,15 +417,15 @@ export default function RemindersPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          {getChannelIcon(reminder.metadata?.channel)}
-                          <span className="text-sm">{reminder.metadata?.channel || 'N/A'}</span>
+                          {getChannelIcon(reminder.channel)}
+                          <span className="text-sm">{reminder.channel || 'N/A'}</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
-                          {format(new Date(reminder.scheduledFor), 'MMM dd, yyyy')}
+                          {format(new Date(reminder.sendAt), 'MMM dd, yyyy')}
                           <div className="text-xs text-muted-foreground">
-                            {format(new Date(reminder.scheduledFor), 'hh:mm a')}
+                            {format(new Date(reminder.sendAt), 'hh:mm a')}
                           </div>
                         </div>
                       </TableCell>
