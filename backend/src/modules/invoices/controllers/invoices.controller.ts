@@ -22,6 +22,7 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { InvoicesService } from '../services/invoices.service';
+import { InvoiceEmailLogService } from '../services/invoice-email-log.service';
 import { CreateInvoiceDto } from '../dto/create-invoice.dto';
 import { UpdateInvoiceDto } from '../dto/update-invoice.dto';
 import { BulkGenerateInvoicesDto, BulkGenerateInvoicesResponseDto } from '../dto/bulk-generate-invoices.dto';
@@ -41,17 +42,16 @@ import { CurrentUser } from '../../../common/decorators/tenant.decorator';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class InvoicesController {
-    constructor(private readonly invoicesService: InvoicesService) {}
+    constructor(
+        private readonly invoicesService: InvoicesService,
+        private readonly invoiceEmailLogService: InvoiceEmailLogService
+    ) {}
 
     @Post()
     @ApiOperation({ summary: 'Create a new invoice' })
     @ApiResponse({ status: 201, description: 'Invoice created successfully' })
     @ApiResponse({ status: 409, description: 'Invoice number already exists' })
     create(@Body() createDto: CreateInvoiceDto, @CurrentUser() user: any) {
-        console.log('=== INVOICE CREATE REQUEST ===');
-        console.log('DTO:', JSON.stringify(createDto, null, 2));
-        console.log('User company:', user.companyId);
-        console.log('============================');
         return this.invoicesService.create(createDto, user.companyId);
     }
 
@@ -225,6 +225,14 @@ export class InvoicesController {
         return this.invoicesService.markAsSent(id, user.companyId);
     }
 
+    @Post(':id/resend')
+    @ApiOperation({ summary: 'Resend invoice email to tenant' })
+    @ApiResponse({ status: 200, description: 'Invoice resent successfully' })
+    @ApiResponse({ status: 400, description: 'Cannot resend draft invoices' })
+    resendInvoice(@Param('id') id: string, @CurrentUser() user: any) {
+        return this.invoicesService.resendInvoice(id, user.companyId);
+    }
+
     @Post(':id/cancel')
     @ApiOperation({ summary: 'Cancel an invoice' })
     @ApiResponse({ status: 200, description: 'Invoice cancelled' })
@@ -273,5 +281,12 @@ export class InvoicesController {
     @ApiResponse({ status: 200, description: 'List of payments' })
     getPayments(@Param('id') id: string, @CurrentUser() user: any) {
         return this.invoicesService.getPayments(id, user.companyId);
+    }
+
+    @Get(':id/email-logs')
+    @ApiOperation({ summary: 'Get email send history for an invoice' })
+    @ApiResponse({ status: 200, description: 'List of email send logs' })
+    getEmailLogs(@Param('id') id: string, @CurrentUser() user: any) {
+        return this.invoiceEmailLogService.getLogsForInvoice(id);
     }
 }

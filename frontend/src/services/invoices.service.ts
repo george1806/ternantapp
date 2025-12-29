@@ -119,6 +119,30 @@ export const invoicesService = {
   },
 
   /**
+   * Resend invoice to tenant
+   */
+  resend: (id: string) => {
+    return api.post<Invoice>(`/invoices/${id}/resend`, {});
+  },
+
+  /**
+   * Get email send history for an invoice
+   */
+  getEmailLogs: (id: string) => {
+    return api.get<{
+      id: string;
+      invoiceId: string;
+      recipient: string;
+      subject: string;
+      status: 'queued' | 'sent' | 'failed' | 'bounced' | 'delivered';
+      isResend: boolean;
+      sentAt: string | null;
+      failureReason: string | null;
+      createdAt: string;
+    }[]>(`/invoices/${id}/email-logs`);
+  },
+
+  /**
    * Get payments for a specific invoice
    */
   getPayments: (id: string) => {
