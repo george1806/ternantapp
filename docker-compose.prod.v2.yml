@@ -1,0 +1,474 @@
+# ================================================================
+# PRODUCTION DOCKER COMPOSE CONFIGURATION v2.0
+# ================================================================
+# Complete production-ready setup with:
+# - Docker Secrets for sensitive data
+# - Network isolation (frontend/backend/database)
+# - Resource limits and scaling
+# - SSL/HTTPS with Certbot
+# - No exposed database ports
+# - Backup services
+# - Security hardening
+#
+# Usage:
+#   1. Create secrets: ./scripts/create-secrets.sh
+#   2. Configure .env.production
+#   3. Deploy: docker-compose -f docker-compose.prod.v2.yml up -d
+# ================================================================
+
+version: '3.8'
+
+services:
+  # ================================
+  # Nginx - Reverse Proxy & Load Balancer
+  # ================================
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: apartment-nginx
+    restart: always
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_cache:/var/cache/nginx
+      - certbot_webroot:/var/www/certbot:ro
+      - certbot_certs:/etc/letsencrypt:ro
+    depends_on:
+      - backend
+      - frontend
+    healthcheck:
+      test: ['CMD', 'nginx', '-t']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - frontend_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ================================
+  # Certbot - SSL Certificate Manager
+  # ================================
+  certbot:
+    image: certbot/certbot:latest
+    container_name: apartment-certbot
+    volumes:
+      - certbot_webroot:/var/www/certbot
+      - certbot_certs:/etc/letsencrypt
+      - certbot_logs:/var/log/letsencrypt
+    # Run renewal check twice daily
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done;'"
+    networks:
+      - frontend_network
+    depends_on:
+      - nginx
+
+  # ================================
+  # Database - MySQL 8.0 (Production Optimized)
+  # ================================
+  mysql:
+    image: mysql:8.0
+    container_name: apartment-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+      MYSQL_DATABASE: ${DB_DATABASE:-apartment_management}
+      MYSQL_USER: ${DB_USERNAME:-apartment_user}
+      MYSQL_PASSWORD_FILE: /run/secrets/mysql_password
+    secrets:
+      - mysql_root_password
+      - mysql_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/conf.d:/etc/mysql/conf.d:ro
+      - mysql_logs:/var/log/mysql
+      - mysql_backups:/backups
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --max_connections=500
+      --innodb_buffer_pool_size=2G
+      --innodb_log_file_size=512M
+      --innodb_flush_log_at_trx_commit=2
+      --innodb_flush_method=O_DIRECT
+      --innodb_file_per_table=1
+      --innodb_open_files=400
+      --table_open_cache=400
+      --innodb_stats_on_metadata=0
+      --slow_query_log=1
+      --long_query_time=2
+      --log_error=/var/log/mysql/error.log
+      --slow_query_log_file=/var/log/mysql/slow.log
+      --max_allowed_packet=64M
+      --skip-name-resolve
+      --query_cache_size=0
+      --query_cache_type=0
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    networks:
+      - database_network
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ================================
+  # MySQL Backup Service
+  # ================================
+  mysql-backup:
+    image: mysql:8.0
+    container_name: apartment-mysql-backup
+    restart: always
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER: root
+      MYSQL_PASSWORD_FILE: /run/secrets/mysql_root_password
+      MYSQL_DATABASE: ${DB_DATABASE:-apartment_management}
+      BACKUP_RETAIN_DAYS: ${BACKUP_RETAIN_DAYS:-7}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY_FILE: /run/secrets/aws_secret_key
+    secrets:
+      - mysql_root_password
+      - aws_secret_key
+    volumes:
+      - mysql_backups:/backups
+      - ./scripts/mysql-backup.sh:/backup.sh:ro
+    entrypoint: /bin/bash
+    command: >
+      -c "while true; do
+        echo \"[$(date)] Starting MySQL backup...\";
+        /backup.sh;
+        echo \"[$(date)] Backup completed. Next backup in 24 hours.\";
+        sleep 86400;
+      done"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - database_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ================================
+  # Cache & Queue - Redis 7 (Production)
+  # ================================
+  redis:
+    image: redis:7-alpine
+    container_name: apartment-redis
+    restart: always
+    command: >
+      sh -c "redis-server
+      --requirepass $$(cat /run/secrets/redis_password)
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --tcp-keepalive 300
+      --timeout 0
+      --databases 16
+      --lazyfree-lazy-eviction yes
+      --lazyfree-lazy-expire yes"
+    secrets:
+      - redis_password
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'sh', '-c', 'redis-cli -a "$$(cat /run/secrets/redis_password)" ping | grep PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - backend_network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 3G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ================================
+  # Backend API - NestJS (Production)
+  # ================================
+  backend:
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile
+      target: production
+      args:
+        NODE_ENV: production
+    image: apartment-backend:${IMAGE_TAG:-latest}
+    restart: always
+    environment:
+      # Application
+      NODE_ENV: production
+      PORT: 3000
+      API_PREFIX: ${API_PREFIX:-api}
+      APP_NAME: ${APP_NAME:-Apartment Management}
+      BASE_URL: ${BASE_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
+
+      # Database
+      DB_TYPE: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: ${DB_USERNAME:-apartment_user}
+      DB_PASSWORD_FILE: /run/secrets/mysql_password
+      DB_DATABASE: ${DB_DATABASE:-apartment_management}
+      DB_LOGGING: false
+      DB_SYNCHRONIZE: false
+      DB_RUN_MIGRATIONS: ${DB_RUN_MIGRATIONS:-true}
+      DB_POOL_SIZE: 50
+      DB_POOL_ACQUIRE_TIMEOUT: 30000
+
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD_FILE: /run/secrets/redis_password
+      REDIS_DB: 0
+      REDIS_TTL: 3600
+
+      # JWT
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_SECRET_FILE: /run/secrets/jwt_refresh_secret
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+
+      # Session
+      SESSION_PREFIX: 'session:'
+      SESSION_TTL: 900
+      REFRESH_SESSION_PREFIX: 'refresh:'
+      REFRESH_SESSION_TTL: 604800
+
+      # Email
+      MAIL_PROVIDER: ${MAIL_PROVIDER:-brevo}
+      MAIL_USER: ${MAIL_USER}
+      MAIL_PASSWORD_FILE: /run/secrets/mail_password
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME}
+      MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL}
+
+      # Rate Limiting
+      THROTTLE_TTL: 60
+      THROTTLE_LIMIT: ${THROTTLE_LIMIT:-100}
+
+      # Queue
+      QUEUE_REDIS_HOST: redis
+      QUEUE_REDIS_PORT: 6379
+      QUEUE_REDIS_PASSWORD_FILE: /run/secrets/redis_password
+      QUEUE_REDIS_DB: 1
+      QUEUE_JOB_ATTEMPTS: 3
+      QUEUE_JOB_BACKOFF_DELAY: 60000
+
+      # Security
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      CSRF_ENABLED: true
+      HELMET_ENABLED: true
+
+      # Features
+      FEATURE_QUEUE_ENABLED: true
+      FEATURE_AUDIT_LOG: true
+
+      # Monitoring
+      METRICS_ENABLED: true
+      HEALTH_CHECK_ENABLED: true
+
+    secrets:
+      - mysql_password
+      - redis_password
+      - jwt_secret
+      - jwt_refresh_secret
+      - mail_password
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:3000/api/v1/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    networks:
+      - backend_network
+      - database_network
+    deploy:
+      replicas: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ================================
+  # Frontend UI - Next.js (Production)
+  # ================================
+  frontend:
+    build:
+      context: .
+      dockerfile: ./frontend/Dockerfile
+      target: production
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NODE_ENV: production
+    image: apartment-frontend:${IMAGE_TAG:-latest}
+    restart: always
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      PORT: 3001
+      HOSTNAME: "0.0.0.0"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:3001']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - frontend_network
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ================================
+# Docker Secrets (Production)
+# ================================
+# Create these files in ./secrets/ directory
+# Never commit secrets to git!
+secrets:
+  mysql_root_password:
+    file: ./secrets/mysql_root_password.txt
+  mysql_password:
+    file: ./secrets/mysql_password.txt
+  redis_password:
+    file: ./secrets/redis_password.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+  jwt_refresh_secret:
+    file: ./secrets/jwt_refresh_secret.txt
+  mail_password:
+    file: ./secrets/mail_password.txt
+  aws_secret_key:
+    file: ./secrets/aws_secret_key.txt
+
+# ================================
+# Volumes
+# ================================
+volumes:
+  mysql_data:
+    driver: local
+  mysql_logs:
+    driver: local
+  mysql_backups:
+    driver: local
+  redis_data:
+    driver: local
+  nginx_cache:
+    driver: local
+  certbot_webroot:
+    driver: local
+  certbot_certs:
+    driver: local
+  certbot_logs:
+    driver: local
+
+# ================================
+# Networks (Isolated for Security)
+# ================================
+networks:
+  # Public-facing network (Nginx, Frontend)
+  frontend_network:
+    driver: bridge
+    name: apartment_frontend_network
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+  # Internal network (Backend, Redis)
+  backend_network:
+    driver: bridge
+    name: apartment_backend_network
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+
+  # Database network (MySQL only - no internet access)
+  database_network:
+    driver: bridge
+    internal: true
+    name: apartment_database_network
+    ipam:
+      config:
+        - subnet: 172.22.0.0/24
