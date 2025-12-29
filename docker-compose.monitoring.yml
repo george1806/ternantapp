@@ -1,177 +1,214 @@
-# ==========================================
-# Monitoring Stack - Docker Compose
-# ==========================================
-# Includes: Prometheus, Grafana, Node Exporter, MySQL Exporter, Redis Exporter
-# Usage: docker compose -f docker-compose.monitoring.yml up -d
-
-version: '3.8'
+# ================================================================
+# MONITORING STACK - OPTIONAL
+# ================================================================
+# Complete monitoring solution with:
+# - Prometheus for metrics collection
+# - Grafana for visualization
+# - Loki for log aggregation
+# - Promtail for log shipping
+# - Alertmanager for alerts
+# - Exporters for system, MySQL, and Redis metrics
+#
+# Usage:
+#   docker-compose -f docker-compose.monitoring.yml up -d
+#
+# Access:
+#   - Grafana: http://localhost:3002 (admin/admin)
+#   - Prometheus: http://localhost:9090
+#   - Alertmanager: http://localhost:9093
+# ================================================================
 
 services:
-  # Prometheus - Metrics collection
+  # ================================
+  # Prometheus - Metrics Collection
+  # ================================
   prometheus:
     image: prom/prometheus:latest
-    container_name: ternantapp-prometheus
-    restart: unless-stopped
+    container_name: apartment-prometheus
+    restart: always
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
       - '--web.enable-lifecycle'
     ports:
       - '9090:9090'
     volumes:
-      - ./backend/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus-data:/prometheus
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts:/etc/prometheus/alerts:ro
+      - prometheus_data:/prometheus
     networks:
-      - ternantapp-network
-    healthcheck:
-      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:9090/-/healthy']
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - apartment_network
+      - monitoring_network
 
-  # Grafana - Metrics visualization
+  # ================================
+  # Grafana - Visualization
+  # ================================
   grafana:
     image: grafana/grafana:latest
-    container_name: ternantapp-grafana
-    restart: unless-stopped
+    container_name: apartment-grafana
+    restart: always
     ports:
       - '3002:3000'
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SERVER_ROOT_URL=http://localhost:3002
-      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
     volumes:
-      - grafana-data:/var/lib/grafana
-      - ./backend/monitoring/grafana-dashboard.json:/etc/grafana/provisioning/dashboards/ternantapp.json:ro
-    networks:
-      - ternantapp-network
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
-    healthcheck:
-      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:3000/api/health']
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    networks:
+      - monitoring_network
 
-  # Node Exporter - System metrics
+  # ================================
+  # Loki - Log Aggregation
+  # ================================
+  loki:
+    image: grafana/loki:latest
+    container_name: apartment-loki
+    restart: always
+    ports:
+      - '3100:3100'
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./monitoring/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - monitoring_network
+
+  # ================================
+  # Promtail - Log Shipper
+  # ================================
+  promtail:
+    image: grafana/promtail:latest
+    container_name: apartment-promtail
+    restart: always
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    volumes:
+      - ./monitoring/promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    networks:
+      - monitoring_network
+
+  # ================================
+  # Alertmanager - Alert Routing
+  # ================================
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: apartment-alertmanager
+    restart: always
+    ports:
+      - '9093:9093'
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    networks:
+      - monitoring_network
+
+  # ================================
+  # Node Exporter - System Metrics
+  # ================================
   node-exporter:
     image: prom/node-exporter:latest
-    container_name: ternantapp-node-exporter
-    restart: unless-stopped
+    container_name: apartment-node-exporter
+    restart: always
     command:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'
-      - '--path.rootfs=/host'
+      - '--path.rootfs=/rootfs'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-    ports:
-      - '9100:9100'
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
-      - /:/host:ro,rslave
+      - /:/rootfs:ro
+    ports:
+      - '9100:9100'
     networks:
-      - ternantapp-network
-    healthcheck:
-      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:9100/metrics']
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - monitoring_network
 
-  # MySQL Exporter - Database metrics
+  # ================================
+  # cAdvisor - Container Metrics
+  # ================================
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: apartment-cadvisor
+    restart: always
+    ports:
+      - '8080:8080'
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+    networks:
+      - monitoring_network
+
+  # ================================
+  # MySQL Exporter - Database Metrics
+  # ================================
   mysql-exporter:
     image: prom/mysqld-exporter:latest
-    container_name: ternantapp-mysql-exporter
-    restart: unless-stopped
+    container_name: apartment-mysql-exporter
+    restart: always
+    environment:
+      - DATA_SOURCE_NAME=${DATABASE_USER}:${DATABASE_PASSWORD}@(mysql:3306)/${DATABASE_NAME}
     ports:
       - '9104:9104'
-    environment:
-      - DATA_SOURCE_NAME=root:${MYSQL_ROOT_PASSWORD:-root_password}@(mysql:3306)/
-    networks:
-      - ternantapp-network
     depends_on:
-      - mysql
-    healthcheck:
-      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:9104/metrics']
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - prometheus
+    networks:
+      - apartment_network
+      - monitoring_network
 
-  # Redis Exporter - Cache metrics
+  # ================================
+  # Redis Exporter - Cache Metrics
+  # ================================
   redis-exporter:
     image: oliver006/redis_exporter:latest
-    container_name: ternantapp-redis-exporter
-    restart: unless-stopped
-    ports:
-      - '9121:9121'
+    container_name: apartment-redis-exporter
+    restart: always
     environment:
       - REDIS_ADDR=redis:6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
-    networks:
-      - ternantapp-network
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - '9121:9121'
     depends_on:
-      - redis
-    healthcheck:
-      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:9121/metrics']
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # MySQL (reference - should already exist in docker-compose.prod.yml)
-  mysql:
-    image: mysql:8.0
-    container_name: ternantapp-mysql-prod
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
-      MYSQL_DATABASE: ${DATABASE_NAME:-ternantapp_production}
-      MYSQL_USER: ${DATABASE_USER:-ternantapp_prod}
-      MYSQL_PASSWORD: ${DATABASE_PASSWORD:-password}
-    ports:
-      - '3306:3306'
-    volumes:
-      - mysql-data:/var/lib/mysql
-      - ./docker/mysql/conf.d:/etc/mysql/conf.d:ro
+      - prometheus
     networks:
-      - ternantapp-network
-    healthcheck:
-      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - apartment_network
+      - monitoring_network
 
-  # Redis (reference - should already exist in docker-compose.prod.yml)
-  redis:
-    image: redis:7-alpine
-    container_name: ternantapp-redis-prod
-    restart: unless-stopped
-    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_password} --appendonly yes
-    ports:
-      - '6379:6379'
-    volumes:
-      - redis-data:/data
-      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
-    networks:
-      - ternantapp-network
-    healthcheck:
-      test: ['CMD', 'redis-cli', '--raw', 'incr', 'ping']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-networks:
-  ternantapp-network:
-    driver: bridge
-
+# ================================
+# Volumes
+# ================================
 volumes:
-  prometheus-data:
+  prometheus_data:
     driver: local
-  grafana-data:
+  grafana_data:
     driver: local
-  mysql-data:
+  loki_data:
     driver: local
-  redis-data:
+  alertmanager_data:
     driver: local
+
+# ================================
+# Networks
+# ================================
+networks:
+  apartment_network:
+    external: true
+    name: apartment_network
+  monitoring_network:
+    driver: bridge
+    name: monitoring_network
