@@ -7,11 +7,25 @@ import {
     IsEnum,
     ValidateNested,
     Min,
-    MaxLength,
-    ValidateBy
+    MaxLength
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+
+export enum LineItemType {
+    RENT = 'rent',
+    UTILITY = 'utility',
+    MAINTENANCE = 'maintenance',
+    OTHER = 'other'
+}
+
+export enum InvoiceStatus {
+    DRAFT = 'draft',
+    SENT = 'sent',
+    PAID = 'paid',
+    OVERDUE = 'overdue',
+    CANCELLED = 'cancelled'
+}
 
 class LineItemDto {
     @ApiProperty({
@@ -38,11 +52,11 @@ class LineItemDto {
 
     @ApiPropertyOptional({
         description: 'Line item type',
-        enum: ['rent', 'utility', 'maintenance', 'other']
+        enum: LineItemType
     })
     @IsOptional()
-    @IsEnum(['rent', 'utility', 'maintenance', 'other'])
-    type?: 'rent' | 'utility' | 'maintenance' | 'other';
+    @IsEnum(LineItemType)
+    type?: LineItemType;
 }
 
 export class CreateInvoiceDto {
@@ -80,27 +94,16 @@ export class CreateInvoiceDto {
         example: '2024-01-05'
     })
     @IsDateString()
-    @ValidateBy({
-        name: 'isDueDateValid',
-        validator: (value: any, args: any) => {
-            const dueDate = new Date(value);
-            const invoiceDate = new Date((args.object as any).invoiceDate);
-            if (dueDate < invoiceDate) {
-                throw new Error('Due date must be on or after invoice date');
-            }
-            return true;
-        }
-    })
     dueDate: string;
 
     @ApiPropertyOptional({
         description: 'Invoice status',
-        enum: ['draft', 'sent', 'paid', 'overdue', 'cancelled'],
+        enum: InvoiceStatus,
         default: 'draft'
     })
     @IsOptional()
-    @IsEnum(['draft', 'sent', 'paid', 'overdue', 'cancelled'])
-    status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled' = 'draft';
+    @IsEnum(InvoiceStatus)
+    status?: InvoiceStatus;
 
     @ApiProperty({
         description: 'Line items',

@@ -125,6 +125,16 @@ export function InvoiceFormDialog({
     }
   }, [open]);
 
+  // Auto-calculate amount for each line item when quantity or unitPrice changes
+  useEffect(() => {
+    items.forEach((item, index) => {
+      const calculatedAmount = item.quantity * item.unitPrice;
+      if (item.amount !== calculatedAmount) {
+        setValue(`items.${index}.amount`, calculatedAmount);
+      }
+    });
+  }, [items, setValue]);
+
   // Update selected occupancy and pre-fill first item with monthly rent
   useEffect(() => {
     if (occupancyId) {
@@ -201,22 +211,30 @@ export function InvoiceFormDialog({
 
       // Calculate totals
       const subtotal = lineItems.reduce((sum, item) => sum + item.amount, 0);
-      const taxAmount = 0; // TODO: Add tax support if needed
+      const taxAmount = 0;
       const totalAmount = subtotal + taxAmount;
 
-      // Generate invoice number (simple format: INV-YYYY-MM-XXXXX)
-      await invoicesService.create({
+      // Generate invoice number (format: INV-YYYY-MM-XXXXX)
+      const now = new Date();
+      const invoiceNumber = `INV-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(Date.now()).slice(-5)}`;
+
+      const payload = {
+        invoiceNumber,
         occupancyId: data.occupancyId,
-        invoiceDate: new Date(data.invoiceDate).toISOString().split('T')[0],
-        dueDate: new Date(data.dueDate).toISOString().split('T')[0],
-        items: lineItems.map(item => ({
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          itemType: item.type,
-        })),
-        notes: data.notes,
-      });
+        tenantId: selectedOccupancy.tenantId,
+        invoiceDate: data.invoiceDate,
+        dueDate: data.dueDate,
+        lineItems: lineItems,
+        subtotal: subtotal,
+        taxAmount: taxAmount,
+        totalAmount: totalAmount,
+        status: 'draft' as const,
+        notes: data.notes || '',
+      };
+
+      console.log('Creating invoice with payload:', payload);
+
+      await invoicesService.create(payload);
 
       toast({
         title: 'Success',
@@ -227,11 +245,12 @@ export function InvoiceFormDialog({
       setSelectedOccupancy(null);
       onOpenChange(false);
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create invoice:', error);
+      console.error('Error response:', error?.response?.data);
       toast({
         title: 'Error',
-        description: getApiErrorMessage(error),
+        description: error?.response?.data?.message || getApiErrorMessage(error),
         variant: 'destructive',
       });
     } finally {

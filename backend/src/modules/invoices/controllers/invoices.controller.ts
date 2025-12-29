@@ -48,6 +48,10 @@ export class InvoicesController {
     @ApiResponse({ status: 201, description: 'Invoice created successfully' })
     @ApiResponse({ status: 409, description: 'Invoice number already exists' })
     create(@Body() createDto: CreateInvoiceDto, @CurrentUser() user: any) {
+        console.log('=== INVOICE CREATE REQUEST ===');
+        console.log('DTO:', JSON.stringify(createDto, null, 2));
+        console.log('User company:', user.companyId);
+        console.log('============================');
         return this.invoicesService.create(createDto, user.companyId);
     }
 

@@ -12,15 +12,22 @@ import type { Invoice, PaginatedResponse, PaginationParams } from '@/types';
  */
 
 export interface CreateInvoiceDto {
+  invoiceNumber: string;
   occupancyId: string;
+  tenantId: string;
   invoiceDate: string;
   dueDate: string;
-  items: {
+  lineItems: {
     description: string;
     quantity: number;
     unitPrice: number;
-    itemType: 'rent' | 'utility' | 'maintenance' | 'other';
+    amount: number;
+    type?: 'rent' | 'utility' | 'maintenance' | 'other';
   }[];
+  subtotal: number;
+  taxAmount?: number;
+  totalAmount: number;
+  status?: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   notes?: string;
 }
 
