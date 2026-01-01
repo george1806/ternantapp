@@ -2,6 +2,13 @@
 
 Complete step-by-step deployment guide for both development and production environments.
 
+> **📢 IMPORTANT UPDATE (2026-01-01):**
+> The deployment system has been restructured to use **modular compose files** and service-specific deployment scripts.
+> For the latest deployment approach, see:
+> - **Quick Deployment**: [QUICK_START.md](./QUICK_START.md) - 15-minute guide
+> - **Migration from Old System**: [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md)
+> - **New Deployment Scripts**: `deploy/scripts/deploy-01-mysql.sh` through `deploy-04-frontend.sh`
+
 ---
 
 ## Table of Contents
@@ -31,38 +38,39 @@ git clone <repository-url>
 cd ternantapp
 
 # Setup environment
-cd deploy/scripts
-./utils/setup-env.sh dev
-cd ../..
+cp .env.example .env
+nano .env  # Configure as needed
 
-# Configure environment (edit as needed)
-nano .env
-
-# Deploy
-cd deploy/scripts
-./deploy.sh dev
+# Deploy using development docker-compose
+docker compose up -d
 
 # Access application
 # Frontend: http://localhost:3001
 # Backend: http://localhost:3000/api/v1
 ```
 
-### Production (Server)
+### Production (Server) - NEW Modular Approach
 
 ```bash
-# Setup environment
-cd deploy/scripts
-./utils/setup-env.sh prod
+# 1. Setup environment
+cp .env.production.example .env.production
+nano .env.production  # Update all CHANGE_ME values
 
-# Configure production settings
-nano ../../.env.production
+# 2. Deploy all services (individually or in sequence)
+bash deploy/scripts/deploy-01-mysql.sh prod
+bash deploy/scripts/deploy-02-redis.sh prod
+bash deploy/scripts/deploy-03-backend.sh prod
+bash deploy/scripts/deploy-04-frontend.sh prod
 
-# Deploy
-./deploy.sh prod
+# 3. Verify deployment
+bash deploy/scripts/health-check.sh
+bash deploy/scripts/07-verify-deployment.sh prod
 
-# Verify deployment
-./07-verify-deployment.sh prod
+# 4. Create default super admin (optional)
+bash deploy/scripts/create-super-admin.sh prod
 ```
+
+**See [QUICK_START.md](./QUICK_START.md) for detailed 15-minute deployment guide.**
 
 ---
 
