@@ -2,112 +2,198 @@
 # ================================================================
 # Deploy Frontend Application Service
 # ================================================================
-# Purpose: Deploys Next.js frontend using separate compose file
+# Purpose: Deploys Next.js frontend application using separate compose file
 # Deploy order: 4 (Fourth - depends on Backend)
 # Usage: ./deploy-04-frontend.sh [prod|dev]
 # ================================================================
 
 set -e
 
-ENVIRONMENT=${1:-prod}
-
+# ================================
+# Color Definitions
+# ================================
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo "========================================"
-echo "Deploying Frontend Application Service"
-echo "Environment: $ENVIRONMENT"
-echo "========================================"
-echo ""
-
-# Determine environment file
-if [ "$ENVIRONMENT" = "prod" ]; then
-    ENV_FILE="${ENV_FILE:-.env.production}"
-else
-    ENV_FILE="${ENV_FILE:-.env}"
-fi
-
-# Check if env file exists
-if [ ! -f "$ENV_FILE" ]; then
-    echo -e "${RED}Error: Environment file not found: $ENV_FILE${NC}"
-    exit 1
-fi
-
-# Compose file
+# ================================
+# Global Variables
+# ================================
+ENVIRONMENT=${1:-prod}
+ENV_FILE=""
 COMPOSE_FILE="deploy/compose/04-frontend.yml"
+SERVICE_NAME="frontend"
 
-# Check if compose file exists
-if [ ! -f "$COMPOSE_FILE" ]; then
-    echo -e "${RED}Error: Compose file not found: $COMPOSE_FILE${NC}"
-    exit 1
-fi
+# ================================
+# Helper Functions
+# ================================
 
-# Check if network exists
-NETWORK_NAME=$(grep "^NETWORK_NAME=" "$ENV_FILE" | cut -d'=' -f2 || echo "apartment_network")
-if ! docker network inspect "$NETWORK_NAME" &>/dev/null; then
-    echo -e "${RED}Error: Network $NETWORK_NAME does not exist${NC}"
-    echo "Please deploy MySQL first (deploy-01-mysql.sh)"
-    exit 1
-fi
+print_header() {
+    echo "========================================"
+    echo "$1"
+    echo "Environment: $ENVIRONMENT"
+    echo "========================================"
+    echo ""
+}
 
-# Check if Backend is healthy
-echo "Checking Backend dependency..."
-BACKEND_CONTAINER=$(grep "^BACKEND_CONTAINER_NAME=" "$ENV_FILE" | cut -d'=' -f2 || echo "apartment-backend")
-if ! docker ps --filter "name=$BACKEND_CONTAINER" --filter "health=healthy" | grep -q "$BACKEND_CONTAINER" || false; then
-    echo -e "${RED}Error: Backend is not healthy${NC}"
-    echo "Please ensure Backend is running: ./deploy-03-backend.sh $ENVIRONMENT"
-    exit 1
-fi
-echo -e "${GREEN}✓ Backend is healthy${NC}"
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
 
-# Deploy Frontend
-echo ""
-echo -e "${BLUE}Starting Frontend service...${NC}"
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build
+print_error() {
+    echo -e "${RED}✗ $1${NC}"
+}
 
-# Wait for Frontend to be healthy
-echo ""
-echo "Waiting for Frontend to be ready..."
-RETRIES=${FRONTEND_HEALTH_RETRIES:-60}
-COUNT=0
+print_info() {
+    echo -e "${BLUE}$1${NC}"
+}
 
-while [ $COUNT -lt $RETRIES ]; do
-    if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps frontend 2>/dev/null | grep -q "healthy" || false; then
-        echo -e "${GREEN}✓ Frontend is ready and healthy${NC}"
-        break
+print_warning() {
+    echo -e "${YELLOW}⚠ $1${NC}"
+}
+
+# ================================
+# Validation Functions
+# ================================
+
+validate_environment_file() {
+    if [ "$ENVIRONMENT" = "prod" ]; then
+        ENV_FILE="${ENV_FILE:-.env.production}"
+    else
+        ENV_FILE="${ENV_FILE:-.env}"
     fi
 
-    # Check if container is running but not healthy yet
-    if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps frontend 2>/dev/null | grep -q "Up" || false; then
-        echo -n "."
-    else
-        echo -e "${RED}✗ Frontend container is not running${NC}"
-        echo "Showing logs:"
-        docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --tail=100 frontend
+    if [ ! -f "$ENV_FILE" ]; then
+        print_error "Environment file not found: $ENV_FILE"
+        exit 1
+    fi
+}
+
+validate_compose_file() {
+    if [ ! -f "$COMPOSE_FILE" ]; then
+        print_error "Compose file not found: $COMPOSE_FILE"
+        exit 1
+    fi
+}
+
+get_container_name_from_env() {
+    local var_name=$1
+    local default_value=$2
+    grep "^${var_name}=" "$ENV_FILE" | cut -d'=' -f2 || echo "$default_value"
+}
+
+check_dependency_healthy() {
+    local container_name=$1
+    local service_label=$2
+
+    echo "Checking $service_label dependency..."
+
+    if ! docker ps --filter "name=$container_name" --filter "health=healthy" | grep -q "$container_name" || false; then
+        print_error "$service_label is not healthy"
+        echo "Please ensure $service_label is running first"
+        return 1
+    fi
+
+    print_success "$service_label is healthy"
+    return 0
+}
+
+validate_dependencies() {
+    local backend_container
+
+    backend_container=$(get_container_name_from_env "BACKEND_CONTAINER_NAME" "apartment-backend")
+
+    if ! check_dependency_healthy "$backend_container" "Backend"; then
+        echo "Deploy Backend first: ./deploy-03-backend.sh $ENVIRONMENT"
+        exit 1
+    fi
+}
+
+# ================================
+# Deployment Functions
+# ================================
+
+start_service() {
+    print_info "Starting Frontend service..."
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build
+}
+
+wait_for_healthy() {
+    local service=$1
+    local retries=${2:-60}
+    local count=0
+
+    echo ""
+    echo "Waiting for $service to be ready..."
+
+    while [ $count -lt $retries ]; do
+        if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps "$service" 2>/dev/null | grep -q "healthy" || false; then
+            print_success "$service is ready and healthy"
+            return 0
+        fi
+
+        # Check if container is running but not healthy yet
+        if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps "$service" 2>/dev/null | grep -q "Up" || false; then
+            echo -n "."
+        else
+            print_error "$service container is not running"
+            show_logs "$service"
+            return 1
+        fi
+
+        ((count++))
+        sleep 2
+    done
+
+    # Timeout reached
+    echo ""
+    print_error "$service failed to become healthy after $retries retries"
+    show_logs "$service"
+    return 1
+}
+
+show_logs() {
+    local service=$1
+    echo "Showing logs:"
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --tail=100 "$service"
+}
+
+show_status() {
+    local service=$1
+    echo ""
+    echo "$service Status:"
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps "$service"
+}
+
+# ================================
+# Main Deployment Function
+# ================================
+
+deploy_frontend() {
+    print_header "Deploying Frontend Application Service"
+
+    validate_environment_file
+    validate_compose_file
+    validate_dependencies
+
+    start_service
+
+    if ! wait_for_healthy "$SERVICE_NAME" "${FRONTEND_HEALTH_RETRIES:-60}"; then
         exit 1
     fi
 
-    ((COUNT++))
-    sleep 2
-done
+    show_status "$SERVICE_NAME"
 
-if [ $COUNT -eq $RETRIES ]; then
     echo ""
-    echo -e "${RED}Error: Frontend failed to become healthy after ${RETRIES} retries${NC}"
-    echo "Showing logs:"
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --tail=100 frontend
-    exit 1
-fi
+    echo "========================================"
+    print_success "Frontend deployed successfully"
+    echo "========================================"
+}
 
-# Show Frontend status
-echo ""
-echo "Frontend Status:"
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps frontend
+# ================================
+# Script Entry Point
+# ================================
 
-echo ""
-echo "========================================"
-echo -e "${GREEN}✓ Frontend deployed successfully${NC}"
-echo "========================================"
+deploy_frontend
