@@ -24,8 +24,8 @@ services:
     image: ${BACKEND_IMAGE:-apartment-backend:latest}
     container_name: ${BACKEND_CONTAINER_NAME:-apartment-backend}
     restart: ${RESTART_POLICY:-always}
-    expose:
-      - '${BACKEND_INTERNAL_PORT:-3000}'
+    ports:
+      - '${BACKEND_EXTERNAL_PORT:-3000}:${BACKEND_INTERNAL_PORT:-3000}'
     environment:
       # Application
       NODE_ENV: ${NODE_ENV:-production}
