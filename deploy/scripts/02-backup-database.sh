@@ -25,12 +25,8 @@ echo ""
 # Load environment
 if [ "$ENVIRONMENT" = "prod" ]; then
     ENV_FILE=".env.production"
-    COMPOSE_FILE="docker-compose.prod.yml"
-    CONTAINER_NAME="apartment-mysql"
 else
     ENV_FILE=".env"
-    COMPOSE_FILE="docker-compose.yml"
-    CONTAINER_NAME="apartment-mysql-dev"
 fi
 
 if [ ! -f "$ENV_FILE" ]; then
@@ -39,6 +35,19 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 
 source "$ENV_FILE"
+
+# Set container name from environment or use defaults
+if [ "$ENVIRONMENT" = "prod" ]; then
+    CONTAINER_NAME="${MYSQL_CONTAINER_NAME:-apartment-mysql}"
+    DB_NAME="${DATABASE_NAME}"
+    DB_USER="${DATABASE_USER}"
+    DB_PASS="${DATABASE_PASSWORD}"
+else
+    CONTAINER_NAME="apartment-mysql-dev"
+    DB_NAME="${DB_DATABASE}"
+    DB_USER="${DB_USERNAME}"
+    DB_PASS="${DB_PASSWORD}"
+fi
 
 # Create backup directory
 mkdir -p "$BACKUP_DIR"
@@ -52,13 +61,13 @@ if ! docker ps --format '{{.Names}}' | grep -q "$CONTAINER_NAME"; then
 fi
 
 # Create backup
-BACKUP_FILE="$BACKUP_DIR/${ENVIRONMENT}_${DB_DATABASE}_${TIMESTAMP}.sql"
+BACKUP_FILE="$BACKUP_DIR/${ENVIRONMENT}_${DB_NAME}_${TIMESTAMP}.sql"
 
 echo "Creating backup: $BACKUP_FILE"
 docker exec "$CONTAINER_NAME" mysqldump \
-    -u"${DB_USERNAME}" \
-    -p"${DB_PASSWORD}" \
-    "${DB_DATABASE}" \
+    -u"${DB_USER}" \
+    -p"${DB_PASS}" \
+    "${DB_NAME}" \
     > "$BACKUP_FILE" 2>/dev/null
 
 if [ $? -eq 0 ]; then

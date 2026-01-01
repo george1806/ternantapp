@@ -1,0 +1,155 @@
+# ================================================================
+# Backend API Service - Production
+# ================================================================
+# This compose file deploys NestJS backend API
+# Deploy order: 3 (Third - depends on MySQL and Redis)
+#
+# Dependencies:
+#   - MySQL must be running and healthy
+#   - Redis must be running and healthy
+#
+# Usage:
+#   docker compose --env-file .env.production -f deploy/compose/03-backend.yml up -d
+# ================================================================
+
+services:
+  # ================================
+  # Backend API - NestJS
+  # ================================
+  backend:
+    build:
+      context: ${BUILD_CONTEXT:-../..}
+      dockerfile: ${BACKEND_DOCKERFILE:-backend/Dockerfile}
+      target: ${BUILD_TARGET:-production}
+    image: ${BACKEND_IMAGE:-apartment-backend:latest}
+    container_name: ${BACKEND_CONTAINER_NAME:-apartment-backend}
+    restart: ${RESTART_POLICY:-always}
+    expose:
+      - '${BACKEND_INTERNAL_PORT:-3000}'
+    environment:
+      # Application
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${BACKEND_INTERNAL_PORT:-3000}
+      API_PREFIX: ${API_PREFIX:-api/v1}
+      APP_NAME: ${APP_NAME:-Apartment Management}
+      BASE_URL: ${BASE_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
+      TZ: ${TIMEZONE:-UTC}
+
+      # Database
+      DB_TYPE: ${DB_TYPE:-mysql}
+      DB_HOST: ${DATABASE_HOST:-mysql}
+      DB_PORT: ${DATABASE_PORT:-3306}
+      DB_USERNAME: ${DATABASE_USER}
+      DB_PASSWORD: ${DATABASE_PASSWORD}
+      DB_DATABASE: ${DATABASE_NAME}
+      DB_LOGGING: ${DB_LOGGING:-false}
+      DB_SYNCHRONIZE: ${DB_SYNCHRONIZE:-false}
+      DB_RUN_MIGRATIONS: ${DB_RUN_MIGRATIONS:-true}
+      DB_MIGRATIONS_RUN: ${DB_MIGRATIONS_RUN:-false}
+
+      # Database Connection Pool
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
+      DB_POOL_ACQUIRE_TIMEOUT: ${DB_POOL_ACQUIRE_TIMEOUT:-30000}
+      DB_POOL_IDLE_TIMEOUT: ${DB_POOL_IDLE_TIMEOUT:-10000}
+      DB_POOL_MAX_REUSES: ${DB_POOL_MAX_REUSES:-100}
+
+      # Redis
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_TTL: ${REDIS_TTL:-3600}
+
+      # JWT
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+
+      # Session Management
+      SESSION_PREFIX: ${SESSION_PREFIX:-sess:}
+      SESSION_TTL: ${SESSION_TTL:-900}
+      REFRESH_SESSION_PREFIX: ${REFRESH_SESSION_PREFIX:-refresh:}
+      REFRESH_SESSION_TTL: ${REFRESH_SESSION_TTL:-604800}
+
+      # Email
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Apartment Management}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+
+      # Rate Limiting
+      THROTTLE_TTL: ${THROTTLE_TTL:-60}
+      THROTTLE_LIMIT: ${THROTTLE_LIMIT:-100}
+
+      # Queue (BullMQ)
+      QUEUE_REDIS_HOST: ${QUEUE_REDIS_HOST:-redis}
+      QUEUE_REDIS_PORT: ${QUEUE_REDIS_PORT:-6379}
+      QUEUE_REDIS_PASSWORD: ${QUEUE_REDIS_PASSWORD:-${REDIS_PASSWORD}}
+      QUEUE_REDIS_DB: ${QUEUE_REDIS_DB:-1}
+      QUEUE_JOB_ATTEMPTS: ${QUEUE_JOB_ATTEMPTS:-3}
+      QUEUE_JOB_BACKOFF_DELAY: ${QUEUE_JOB_BACKOFF_DELAY:-5000}
+      QUEUE_COMPLETED_JOB_AGE: ${QUEUE_COMPLETED_JOB_AGE:-86400}
+      QUEUE_FAILED_JOB_AGE: ${QUEUE_FAILED_JOB_AGE:-604800}
+
+      # Reminders
+      REMINDER_DUE_SOON_DAYS: ${REMINDER_DUE_SOON_DAYS:-3}
+      REMINDER_DUE_SOON_CRON: ${REMINDER_DUE_SOON_CRON:-0 9 * * *}
+      REMINDER_OVERDUE_CRON: ${REMINDER_OVERDUE_CRON:-0 10 * * *}
+      REMINDER_OVERDUE_INTERVAL_DAYS: ${REMINDER_OVERDUE_INTERVAL_DAYS:-7}
+      REMINDER_MAX_RETRIES: ${REMINDER_MAX_RETRIES:-3}
+
+      # Security
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      CSRF_ENABLED: ${CSRF_ENABLED:-true}
+      HELMET_ENABLED: ${HELMET_ENABLED:-true}
+
+      # Features
+      FEATURE_TENANT_PORTAL: ${FEATURE_TENANT_PORTAL:-true}
+      FEATURE_FILE_UPLOAD: ${FEATURE_FILE_UPLOAD:-true}
+      FEATURE_AUDIT_LOG: ${FEATURE_AUDIT_LOG:-true}
+      FEATURE_QUEUE_ENABLED: ${FEATURE_QUEUE_ENABLED:-true}
+
+      # Monitoring
+      HEALTH_CHECK_ENABLED: ${HEALTH_CHECK_ENABLED:-true}
+      METRICS_ENABLED: ${METRICS_ENABLED:-true}
+
+    volumes:
+      - backend_logs:/app/backend/logs
+      - uploads:/app/backend/uploads
+    healthcheck:
+      test: ['CMD', 'nc', '-z', 'localhost', '${BACKEND_INTERNAL_PORT:-3000}']
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-3}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-60s}
+    logging:
+      driver: ${LOG_DRIVER:-json-file}
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-5}
+    networks:
+      - apartment_network
+
+# ================================
+# Volumes
+# ================================
+volumes:
+  backend_logs:
+    driver: local
+    name: ${BACKEND_LOGS_VOLUME_NAME:-apartment_backend_logs}
+  uploads:
+    driver: local
+    name: ${UPLOADS_VOLUME_NAME:-apartment_uploads}
+
+# ================================
+# Networks
+# ================================
+networks:
+  apartment_network:
+    external: true
+    name: ${NETWORK_NAME:-apartment_network}

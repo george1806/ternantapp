@@ -62,22 +62,41 @@ fi
 echo ""
 echo "Validating environment variables..."
 
-required_vars=(
-    "DB_DATABASE"
-    "DB_USERNAME"
-    "DB_PASSWORD"
-    "JWT_SECRET"
-    "JWT_REFRESH_SECRET"
-)
+# Different required vars for dev vs prod
+if [ "$ENVIRONMENT" = "prod" ]; then
+    required_vars=(
+        "DATABASE_NAME"
+        "DATABASE_USER"
+        "DATABASE_PASSWORD"
+        "MYSQL_ROOT_PASSWORD"
+        "REDIS_PASSWORD"
+        "JWT_SECRET"
+        "JWT_REFRESH_SECRET"
+        "NETWORK_NAME"
+        "MYSQL_CONTAINER_NAME"
+        "REDIS_CONTAINER_NAME"
+        "BACKEND_CONTAINER_NAME"
+        "FRONTEND_CONTAINER_NAME"
+    )
+else
+    required_vars=(
+        "DB_DATABASE"
+        "DB_USERNAME"
+        "DB_PASSWORD"
+        "JWT_SECRET"
+        "JWT_REFRESH_SECRET"
+    )
+fi
 
 if [ -f "$ENV_FILE" ]; then
     source "$ENV_FILE"
     for var in "${required_vars[@]}"; do
         echo -n "  $var: "
-        if [ -n "${!var}" ]; then
+        varval="${!var}"
+        if [ -n "$varval" ]; then
             # Check if secret is strong enough (at least 32 chars for JWT)
             if [[ "$var" == *"SECRET"* ]]; then
-                if [ ${#!var} -ge 32 ]; then
+                if [ ${#varval} -ge 32 ]; then
                     echo -e "${GREEN}✓${NC}"
                 else
                     echo -e "${YELLOW}⚠ Too short (< 32 chars)${NC}"

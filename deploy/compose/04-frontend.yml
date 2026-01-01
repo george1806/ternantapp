@@ -1,0 +1,56 @@
+# ================================================================
+# Frontend Application Service - Production
+# ================================================================
+# This compose file deploys Next.js frontend application
+# Deploy order: 4 (Fourth - depends on Backend)
+#
+# Dependencies:
+#   - Backend must be running and healthy
+#
+# Usage:
+#   docker compose --env-file .env.production -f deploy/compose/04-frontend.yml up -d
+# ================================================================
+
+services:
+  # ================================
+  # Frontend UI - Next.js 15
+  # ================================
+  frontend:
+    build:
+      context: ${BUILD_CONTEXT:-../..}
+      dockerfile: ${FRONTEND_DOCKERFILE:-frontend/Dockerfile}
+      target: ${BUILD_TARGET:-production}
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    image: ${FRONTEND_IMAGE:-apartment-frontend:latest}
+    container_name: ${FRONTEND_CONTAINER_NAME:-apartment-frontend}
+    restart: ${RESTART_POLICY:-always}
+    expose:
+      - '${FRONTEND_INTERNAL_PORT:-3001}'
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      PORT: ${FRONTEND_INTERNAL_PORT:-3001}
+      HOSTNAME: ${FRONTEND_HOSTNAME:-0.0.0.0}
+      TZ: ${TIMEZONE:-UTC}
+    healthcheck:
+      test: ['CMD', 'node', '-e', 'require("http").get("http://localhost:${FRONTEND_INTERNAL_PORT:-3001}", (r) => process.exit(r.statusCode === 200 ? 0 : 1))']
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-3}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-60s}
+    logging:
+      driver: ${LOG_DRIVER:-json-file}
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-3}
+    networks:
+      - apartment_network
+
+# ================================
+# Networks
+# ================================
+networks:
+  apartment_network:
+    external: true
+    name: ${NETWORK_NAME:-apartment_network}
