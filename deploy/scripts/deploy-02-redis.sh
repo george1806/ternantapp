@@ -64,13 +64,13 @@ RETRIES=${REDIS_HEALTH_RETRIES:-30}
 COUNT=0
 
 while [ $COUNT -lt $RETRIES ]; do
-    if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps redis 2>/dev/null | grep -q "healthy"; then
+    if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps redis 2>/dev/null | grep -q "healthy" || false; then
         echo -e "${GREEN}✓ Redis is ready and healthy${NC}"
         break
     fi
 
     # Check if container is running but not healthy yet
-    if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps redis 2>/dev/null | grep -q "Up"; then
+    if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps redis 2>/dev/null | grep -q "Up" || false; then
         echo -n "."
     else
         echo -e "${RED}✗ Redis container is not running${NC}"

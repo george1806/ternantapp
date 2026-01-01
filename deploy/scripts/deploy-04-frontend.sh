@@ -56,18 +56,12 @@ fi
 # Check if Backend is healthy
 echo "Checking Backend dependency..."
 BACKEND_CONTAINER=$(grep "^BACKEND_CONTAINER_NAME=" "$ENV_FILE" | cut -d'=' -f2 || echo "apartment-backend")
-if ! docker ps --filter "name=$BACKEND_CONTAINER" --filter "health=healthy" | grep -q "$BACKEND_CONTAINER"; then
-    echo -e "${YELLOW}⚠ Backend is not healthy${NC}"
-    echo "Frontend can start but may not function properly without Backend"
-    echo "Recommended: ensure Backend is running: ./deploy-03-backend.sh $ENVIRONMENT"
-    read -p "Continue anyway? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
-    fi
-else
-    echo -e "${GREEN}✓ Backend is healthy${NC}"
+if ! docker ps --filter "name=$BACKEND_CONTAINER" --filter "health=healthy" | grep -q "$BACKEND_CONTAINER" || false; then
+    echo -e "${RED}Error: Backend is not healthy${NC}"
+    echo "Please ensure Backend is running: ./deploy-03-backend.sh $ENVIRONMENT"
+    exit 1
 fi
+echo -e "${GREEN}✓ Backend is healthy${NC}"
 
 # Deploy Frontend
 echo ""
@@ -81,13 +75,13 @@ RETRIES=${FRONTEND_HEALTH_RETRIES:-60}
 COUNT=0
 
 while [ $COUNT -lt $RETRIES ]; do
-    if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps frontend 2>/dev/null | grep -q "healthy"; then
+    if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps frontend 2>/dev/null | grep -q "healthy" || false; then
         echo -e "${GREEN}✓ Frontend is ready and healthy${NC}"
         break
     fi
 
     # Check if container is running but not healthy yet
-    if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps frontend 2>/dev/null | grep -q "Up"; then
+    if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps frontend 2>/dev/null | grep -q "Up" || false; then
         echo -n "."
     else
         echo -e "${RED}✗ Frontend container is not running${NC}"

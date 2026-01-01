@@ -56,7 +56,7 @@ fi
 # Check if MySQL is healthy
 echo "Checking MySQL dependency..."
 MYSQL_CONTAINER=$(grep "^MYSQL_CONTAINER_NAME=" "$ENV_FILE" | cut -d'=' -f2 || echo "apartment-mysql")
-if ! docker ps --filter "name=$MYSQL_CONTAINER" --filter "health=healthy" | grep -q "$MYSQL_CONTAINER"; then
+if ! docker ps --filter "name=$MYSQL_CONTAINER" --filter "health=healthy" | grep -q "$MYSQL_CONTAINER" || false; then
     echo -e "${RED}Error: MySQL is not healthy${NC}"
     echo "Please ensure MySQL is running: ./deploy-01-mysql.sh $ENVIRONMENT"
     exit 1
@@ -66,7 +66,7 @@ echo -e "${GREEN}✓ MySQL is healthy${NC}"
 # Check if Redis is healthy
 echo "Checking Redis dependency..."
 REDIS_CONTAINER=$(grep "^REDIS_CONTAINER_NAME=" "$ENV_FILE" | cut -d'=' -f2 || echo "apartment-redis")
-if ! docker ps --filter "name=$REDIS_CONTAINER" --filter "health=healthy" | grep -q "$REDIS_CONTAINER"; then
+if ! docker ps --filter "name=$REDIS_CONTAINER" --filter "health=healthy" | grep -q "$REDIS_CONTAINER" || false; then
     echo -e "${RED}Error: Redis is not healthy${NC}"
     echo "Please ensure Redis is running: ./deploy-02-redis.sh $ENVIRONMENT"
     exit 1
@@ -85,13 +85,13 @@ RETRIES=${BACKEND_HEALTH_RETRIES:-60}
 COUNT=0
 
 while [ $COUNT -lt $RETRIES ]; do
-    if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps backend 2>/dev/null | grep -q "healthy"; then
+    if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps backend 2>/dev/null | grep -q "healthy" || false; then
         echo -e "${GREEN}✓ Backend is ready and healthy${NC}"
         break
     fi
 
     # Check if container is running but not healthy yet
-    if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps backend 2>/dev/null | grep -q "Up"; then
+    if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps backend 2>/dev/null | grep -q "Up" || false; then
         echo -n "."
     else
         echo -e "${RED}✗ Backend container is not running${NC}"
