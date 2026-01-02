@@ -7,10 +7,11 @@ Complete automated deployment system with modular, functional approach for both 
 1. [Overview](#overview)
 2. [Quick Start](#quick-start)
 3. [Deployment Scripts](#deployment-scripts)
-4. [Utility Scripts](#utility-scripts)
-5. [Admin User Management](#admin-user-management)
-6. [Common Workflows](#common-workflows)
-7. [Troubleshooting](#troubleshooting)
+4. [Service Management](#service-management)
+5. [Utility Scripts](#utility-scripts)
+6. [Admin User Management](#admin-user-management)
+7. [Common Workflows](#common-workflows)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -93,6 +94,59 @@ Apartment Management System
 - ✅ Clear error messages with logs
 - ✅ Color-coded output
 - ✅ No manual intervention required
+
+---
+
+## Service Management
+
+### teardown.sh
+
+**Purpose**: Stop and optionally remove apartment management services
+
+**Features**:
+- Stop all services or specific ones
+- Configurable service selection
+- Optional volume removal
+- Shows status before and after teardown
+- Stops services in reverse dependency order
+- Interactive confirmation prompts
+
+**Usage**:
+
+```bash
+# Stop all production services
+./teardown.sh prod
+
+# Stop specific services only
+./teardown.sh prod backend frontend
+
+# Stop all services and remove volumes (with confirmation)
+./teardown.sh prod --remove-volumes
+
+# Stop development MySQL only
+./teardown.sh dev mysql
+
+# Available services: mysql, redis, backend, frontend, all
+```
+
+**Options**:
+- `[prod|dev]` - Environment (default: prod)
+- `[service1 service2 ...]` - Specific services to stop (default: all)
+- `--remove-volumes` - Remove data volumes after stopping (requires confirmation)
+
+**Service Stop Order**:
+Services are stopped in reverse dependency order:
+1. Frontend (depends on Backend)
+2. Backend (depends on MySQL & Redis)
+3. Redis
+4. MySQL
+
+**Safety Features**:
+- Interactive confirmation before teardown
+- Shows current status before stopping
+- Verifies each service is stopped
+- Additional confirmation for volume removal
+- Shows final status summary
 
 ---
 
@@ -401,6 +455,7 @@ deploy/scripts/
 ├── deploy-03-backend.sh        # Deploy NestJS backend
 ├── deploy-04-frontend.sh       # Deploy Next.js frontend
 ├── deploy-all.sh               # Deploy all services
+├── teardown.sh                 # Stop services (all or specific)
 ├── create-default-admin.sh     # Create default admin
 ├── create-super-admin.sh       # Create custom admin
 ├── 01-validate-environment.sh  # Validate configuration
