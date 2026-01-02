@@ -14,51 +14,85 @@
 
 set -e
 
-ENVIRONMENT=${1:-prod}
-
+# ================================
+# Color Definitions
+# ================================
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo "========================================"
-echo "Create Default Super Admin"
-echo "Environment: $ENVIRONMENT"
-echo "========================================"
-echo ""
-
-# Determine container name
-if [ "$ENVIRONMENT" = "prod" ]; then
-    CONTAINER_NAME="${BACKEND_CONTAINER_NAME:-apartment-backend}"
-    ENV_FILE=".env.production"
-else
-    CONTAINER_NAME="apartment-backend-dev"
-    ENV_FILE=".env"
-fi
-
-# Load environment for database credentials
-if [ -f "$ENV_FILE" ]; then
-    source "$ENV_FILE"
-fi
-
-# Check if backend container is running
-if ! docker ps --filter "name=$CONTAINER_NAME" --format "{{.Names}}" | grep -q "$CONTAINER_NAME"; then
-    echo -e "${RED}✗ Backend container ($CONTAINER_NAME) not running${NC}"
-    exit 1
-fi
-
-# Default credentials
+# ================================
+# Global Variables
+# ================================
+ENVIRONMENT=${1:-prod}
+CONTAINER_NAME=""
+ENV_FILE=""
 ADMIN_EMAIL="admin@ternantapp.com"
 ADMIN_PASSWORD="Admin@123"
 ADMIN_FIRST_NAME="Super"
 ADMIN_LAST_NAME="Admin"
 
-echo "Creating super admin with default credentials..."
-echo "Email: $ADMIN_EMAIL"
-echo ""
+# ================================
+# Helper Functions
+# ================================
 
-# Create inline script and execute
-docker exec -i $CONTAINER_NAME node << 'SCRIPT'
+print_header() {
+    echo "========================================"
+    echo "$1"
+    echo "Environment: $ENVIRONMENT"
+    echo "========================================"
+    echo ""
+}
+
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}✗ $1${NC}"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+# ================================
+# Validation Functions
+# ================================
+
+setup_environment() {
+    if [ "$ENVIRONMENT" = "prod" ]; then
+        CONTAINER_NAME="${BACKEND_CONTAINER_NAME:-apartment-backend}"
+        ENV_FILE=".env.production"
+    else
+        CONTAINER_NAME="apartment-backend-dev"
+        ENV_FILE=".env"
+    fi
+
+    if [ -f "$ENV_FILE" ]; then
+        source "$ENV_FILE"
+    fi
+}
+
+validate_backend_running() {
+    if ! docker ps --filter "name=$CONTAINER_NAME" --format "{{.Names}}" | grep -q "$CONTAINER_NAME" || false; then
+        print_error "Backend container ($CONTAINER_NAME) not running"
+        echo "Please start backend first: ./deploy-03-backend.sh $ENVIRONMENT"
+        exit 1
+    fi
+}
+
+# ================================
+# Admin Creation Functions
+# ================================
+
+create_admin_user() {
+    echo "Creating super admin with default credentials..."
+    echo "Email: $ADMIN_EMAIL"
+    echo ""
+
+    docker exec -i "$CONTAINER_NAME" node << 'SCRIPT'
 const crypto = require('crypto');
 const mysql = require('mysql2/promise');
 
@@ -116,16 +150,38 @@ async function createSuperAdmin() {
 
 createSuperAdmin();
 SCRIPT
+}
 
-echo ""
-echo "========================================"
-echo -e "${GREEN}✓ Default super admin setup completed${NC}"
-echo "========================================"
-echo ""
-echo -e "${YELLOW}⚠️  SECURITY WARNING:${NC}"
-echo "Default credentials have been created:"
-echo "  Email: admin@ternantapp.com"
-echo "  Password: Admin@123"
-echo ""
-echo "These are PUBLIC credentials. Change them immediately!"
-echo ""
+show_security_warning() {
+    echo ""
+    echo "========================================"
+    print_success "Default super admin setup completed"
+    echo "========================================"
+    echo ""
+    print_warning "SECURITY WARNING:"
+    echo "Default credentials have been created:"
+    echo "  Email: admin@ternantapp.com"
+    echo "  Password: Admin@123"
+    echo ""
+    echo "These are PUBLIC credentials. Change them immediately!"
+    echo ""
+}
+
+# ================================
+# Main Function
+# ================================
+
+main() {
+    print_header "Create Default Super Admin"
+
+    setup_environment
+    validate_backend_running
+    create_admin_user
+    show_security_warning
+}
+
+# ================================
+# Script Entry Point
+# ================================
+
+main

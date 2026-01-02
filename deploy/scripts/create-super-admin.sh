@@ -1,75 +1,136 @@
 #!/bin/bash
 # ================================================================
-# Create Default Super Admin User
+# Create Super Admin User (Interactive)
 # ================================================================
-# Purpose: Creates a default super admin user for initial setup
+# Purpose: Creates a super admin user with custom credentials
 # Usage: ./create-super-admin.sh [prod|dev]
+#
+# Interactive Prompts:
+#   - Email address
+#   - Password (hidden input)
+#   - First name
+#   - Last name
+#
+# ⚠️  SECURITY: Choose a strong password!
 # ================================================================
 
 set -e
 
-ENVIRONMENT=${1:-prod}
-
+# ================================
+# Color Definitions
+# ================================
 GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
 RED='\033[0;31m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo "========================================"
-echo "Create Super Admin User"
-echo "Environment: $ENVIRONMENT"
-echo "========================================"
-echo ""
+# ================================
+# Global Variables
+# ================================
+ENVIRONMENT=${1:-prod}
+CONTAINER_NAME=""
+ENV_FILE=""
+ADMIN_EMAIL=""
+ADMIN_PASSWORD=""
+ADMIN_FIRST_NAME=""
+ADMIN_LAST_NAME=""
+TEMP_SCRIPT="/tmp/create-admin.js"
 
-# Determine environment file and container name
-if [ "$ENVIRONMENT" = "prod" ]; then
-    ENV_FILE="${ENV_FILE:-.env.production}"
-    CONTAINER_NAME="apartment-backend"
-else
-    ENV_FILE="${ENV_FILE:-.env}"
-    CONTAINER_NAME="apartment-backend-dev"
-fi
+# ================================
+# Helper Functions
+# ================================
 
-# Load environment
-if [ -f "$ENV_FILE" ]; then
-    source "$ENV_FILE"
-else
-    echo -e "${RED}Error: Environment file not found: $ENV_FILE${NC}"
-    exit 1
-fi
+print_header() {
+    echo "========================================"
+    echo "$1"
+    echo "Environment: $ENVIRONMENT"
+    echo "========================================"
+    echo ""
+}
 
-# Check if backend container is running
-echo -n "Checking backend container... "
-if ! docker ps --filter "name=$CONTAINER_NAME" | grep -q "$CONTAINER_NAME"; then
-    echo -e "${RED}✗ Backend container not running${NC}"
-    echo "Please deploy the backend first"
-    exit 1
-fi
-echo -e "${GREEN}✓${NC}"
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
 
-# Get admin credentials
-echo ""
-echo "Super Admin Credentials:"
-echo "------------------------"
-read -p "Email (default: admin@ternantapp.com): " ADMIN_EMAIL
-ADMIN_EMAIL=${ADMIN_EMAIL:-admin@ternantapp.com}
+print_error() {
+    echo -e "${RED}✗ $1${NC}"
+}
 
-read -sp "Password (default: Admin@123): " ADMIN_PASSWORD
-echo ""
-ADMIN_PASSWORD=${ADMIN_PASSWORD:-Admin@123}
+print_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
 
-read -p "First Name (default: Super): " ADMIN_FIRST_NAME
-ADMIN_FIRST_NAME=${ADMIN_FIRST_NAME:-Super}
+print_info() {
+    echo -e "${BLUE}$1${NC}"
+}
 
-read -p "Last Name (default: Admin): " ADMIN_LAST_NAME
-ADMIN_LAST_NAME=${ADMIN_LAST_NAME:-Admin}
+# ================================
+# Validation Functions
+# ================================
 
-echo ""
-echo "Creating super admin user..."
+setup_environment() {
+    if [ "$ENVIRONMENT" = "prod" ]; then
+        ENV_FILE="${ENV_FILE:-.env.production}"
+        CONTAINER_NAME="${BACKEND_CONTAINER_NAME:-apartment-backend}"
+    else
+        ENV_FILE="${ENV_FILE:-.env}"
+        CONTAINER_NAME="apartment-backend-dev"
+    fi
 
-# Create a Node.js script to create the user
-cat > /tmp/create-admin.js << 'SCRIPT'
+    if [ -f "$ENV_FILE" ]; then
+        source "$ENV_FILE"
+    else
+        print_error "Environment file not found: $ENV_FILE"
+        echo "Please create it from .env.example"
+        exit 1
+    fi
+}
+
+validate_backend_running() {
+    echo -n "Checking backend container... "
+
+    if ! docker ps --filter "name=$CONTAINER_NAME" --format "{{.Names}}" | grep -q "$CONTAINER_NAME" || false; then
+        echo ""
+        print_error "Backend container ($CONTAINER_NAME) not running"
+        echo "Please deploy the backend first: ./deploy-03-backend.sh $ENVIRONMENT"
+        exit 1
+    fi
+
+    print_success "Running"
+}
+
+# ================================
+# Input Functions
+# ================================
+
+prompt_for_credentials() {
+    echo ""
+    echo "Super Admin Credentials:"
+    echo "------------------------"
+
+    read -p "Email (default: admin@ternantapp.com): " ADMIN_EMAIL
+    ADMIN_EMAIL=${ADMIN_EMAIL:-admin@ternantapp.com}
+
+    read -sp "Password (default: Admin@123): " ADMIN_PASSWORD
+    echo ""
+    ADMIN_PASSWORD=${ADMIN_PASSWORD:-Admin@123}
+
+    read -p "First Name (default: Super): " ADMIN_FIRST_NAME
+    ADMIN_FIRST_NAME=${ADMIN_FIRST_NAME:-Super}
+
+    read -p "Last Name (default: Admin): " ADMIN_LAST_NAME
+    ADMIN_LAST_NAME=${ADMIN_LAST_NAME:-Admin}
+
+    echo ""
+}
+
+# ================================
+# Admin Creation Functions
+# ================================
+
+create_temp_script() {
+    cat > "$TEMP_SCRIPT" << 'SCRIPT'
 const crypto = require('crypto');
 const mysql = require('mysql2/promise');
 
@@ -141,33 +202,73 @@ async function createSuperAdmin() {
 
 createSuperAdmin();
 SCRIPT
+}
 
-# Copy script to container and execute
-echo "Executing user creation script..."
-docker cp /tmp/create-admin.js $CONTAINER_NAME:/tmp/create-admin.js
+execute_admin_creation() {
+    echo "Creating super admin user..."
+    echo ""
 
-docker exec -e DB_HOST="${DATABASE_HOST:-mysql}" \
-           -e DB_USERNAME="${DATABASE_USER}" \
-           -e DB_PASSWORD="${DATABASE_PASSWORD}" \
-           -e DB_DATABASE="${DATABASE_NAME}" \
-           -e ADMIN_EMAIL="$ADMIN_EMAIL" \
-           -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
-           -e ADMIN_FIRST_NAME="$ADMIN_FIRST_NAME" \
-           -e ADMIN_LAST_NAME="$ADMIN_LAST_NAME" \
-           $CONTAINER_NAME node /tmp/create-admin.js
+    # Copy script to container
+    docker cp "$TEMP_SCRIPT" "$CONTAINER_NAME:/tmp/create-admin.js"
 
-# Cleanup
-rm /tmp/create-admin.js 2>/dev/null || true
-docker exec $CONTAINER_NAME rm /tmp/create-admin.js 2>/dev/null || true
+    # Execute script with environment variables
+    docker exec \
+        -e DB_HOST="${DATABASE_HOST:-mysql}" \
+        -e DB_USERNAME="${DATABASE_USER}" \
+        -e DB_PASSWORD="${DATABASE_PASSWORD}" \
+        -e DB_DATABASE="${DATABASE_NAME}" \
+        -e ADMIN_EMAIL="$ADMIN_EMAIL" \
+        -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+        -e ADMIN_FIRST_NAME="$ADMIN_FIRST_NAME" \
+        -e ADMIN_LAST_NAME="$ADMIN_LAST_NAME" \
+        "$CONTAINER_NAME" node /tmp/create-admin.js
+}
 
-echo ""
-echo "========================================"
-echo -e "${GREEN}✓ Super admin creation completed${NC}"
-echo "========================================"
-echo ""
-echo "You can now login with:"
-echo "  Email: $ADMIN_EMAIL"
-echo "  Password: [the password you entered]"
-echo ""
-echo -e "${YELLOW}⚠️  SECURITY: Please change the password immediately after first login!${NC}"
-echo ""
+# ================================
+# Cleanup Functions
+# ================================
+
+cleanup_temp_files() {
+    rm -f "$TEMP_SCRIPT" 2>/dev/null || true
+    docker exec "$CONTAINER_NAME" rm -f /tmp/create-admin.js 2>/dev/null || true
+}
+
+# ================================
+# Summary Functions
+# ================================
+
+show_success_summary() {
+    echo ""
+    echo "========================================"
+    print_success "Super admin creation completed"
+    echo "========================================"
+    echo ""
+    echo "You can now login with:"
+    echo "  Email: $ADMIN_EMAIL"
+    echo "  Password: [the password you entered]"
+    echo ""
+    print_warning "SECURITY: Please change the password immediately after first login!"
+    echo ""
+}
+
+# ================================
+# Main Function
+# ================================
+
+main() {
+    print_header "Create Super Admin User"
+
+    setup_environment
+    validate_backend_running
+    prompt_for_credentials
+    create_temp_script
+    execute_admin_creation
+    cleanup_temp_files
+    show_success_summary
+}
+
+# ================================
+# Script Entry Point
+# ================================
+
+main
