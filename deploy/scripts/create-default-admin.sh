@@ -2,14 +2,16 @@
 # ================================================================
 # Create Default Super Admin User (Non-Interactive)
 # ================================================================
-# Purpose: Creates a default super admin with preset credentials
+# Purpose: Creates a default super admin with credentials from env
 # Usage: ./create-default-admin.sh [prod|dev]
 #
-# Default Credentials:
-#   Email: admin@ternantapp.com
-#   Password: Admin@123
+# Required Environment Variables:
+#   DEFAULT_ADMIN_EMAIL - Admin email address
+#   DEFAULT_ADMIN_PASSWORD - Admin password (use strong password!)
+#   DEFAULT_ADMIN_FIRST_NAME - Admin first name (optional, defaults to 'Super')
+#   DEFAULT_ADMIN_LAST_NAME - Admin last name (optional, defaults to 'Admin')
 #
-# ⚠️  SECURITY: Change password after first login!
+# ⚠️  SECURITY: Use strong passwords and change after first login!
 # ================================================================
 
 set -e
@@ -28,10 +30,10 @@ NC='\033[0m'
 ENVIRONMENT=${1:-prod}
 CONTAINER_NAME=""
 ENV_FILE=""
-ADMIN_EMAIL="admin@ternantapp.com"
-ADMIN_PASSWORD="Admin@123"
-ADMIN_FIRST_NAME="Super"
-ADMIN_LAST_NAME="Admin"
+ADMIN_EMAIL=""
+ADMIN_PASSWORD=""
+ADMIN_FIRST_NAME=""
+ADMIN_LAST_NAME=""
 
 # ================================
 # Helper Functions
@@ -75,6 +77,33 @@ setup_environment() {
     fi
 }
 
+load_admin_credentials() {
+    # Load credentials from environment variables
+    ADMIN_EMAIL="${DEFAULT_ADMIN_EMAIL:-}"
+    ADMIN_PASSWORD="${DEFAULT_ADMIN_PASSWORD:-}"
+    ADMIN_FIRST_NAME="${DEFAULT_ADMIN_FIRST_NAME:-Super}"
+    ADMIN_LAST_NAME="${DEFAULT_ADMIN_LAST_NAME:-Admin}"
+
+    # Validate required credentials
+    if [ -z "$ADMIN_EMAIL" ]; then
+        print_error "DEFAULT_ADMIN_EMAIL not set in $ENV_FILE"
+        echo "Please add DEFAULT_ADMIN_EMAIL to your environment file"
+        exit 1
+    fi
+
+    if [ -z "$ADMIN_PASSWORD" ]; then
+        print_error "DEFAULT_ADMIN_PASSWORD not set in $ENV_FILE"
+        echo "Please add DEFAULT_ADMIN_PASSWORD to your environment file"
+        exit 1
+    fi
+
+    # Validate password strength (minimum 8 characters)
+    if [ ${#ADMIN_PASSWORD} -lt 8 ]; then
+        print_error "DEFAULT_ADMIN_PASSWORD must be at least 8 characters long"
+        exit 1
+    fi
+}
+
 validate_backend_running() {
     if ! docker ps --filter "name=$CONTAINER_NAME" --format "{{.Names}}" | grep -q "$CONTAINER_NAME" || false; then
         print_error "Backend container ($CONTAINER_NAME) not running"
@@ -88,11 +117,20 @@ validate_backend_running() {
 # ================================
 
 create_admin_user() {
-    echo "Creating super admin with default credentials..."
+    echo "Creating super admin from environment credentials..."
     echo "Email: $ADMIN_EMAIL"
     echo ""
 
-    docker exec -i "$CONTAINER_NAME" node << 'SCRIPT'
+    docker exec -i \
+        -e DB_HOST="${DATABASE_HOST:-mysql}" \
+        -e DB_USERNAME="${DATABASE_USER}" \
+        -e DB_PASSWORD="${DATABASE_PASSWORD}" \
+        -e DB_DATABASE="${DATABASE_NAME}" \
+        -e ADMIN_EMAIL="$ADMIN_EMAIL" \
+        -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+        -e ADMIN_FIRST_NAME="$ADMIN_FIRST_NAME" \
+        -e ADMIN_LAST_NAME="$ADMIN_LAST_NAME" \
+        "$CONTAINER_NAME" node << 'SCRIPT'
 const crypto = require('crypto');
 const mysql = require('mysql2/promise');
 
@@ -105,7 +143,10 @@ async function createSuperAdmin() {
   });
 
   try {
-    const email = 'admin@ternantapp.com';
+    const email = process.env.ADMIN_EMAIL;
+    const password = process.env.ADMIN_PASSWORD;
+    const firstName = process.env.ADMIN_FIRST_NAME;
+    const lastName = process.env.ADMIN_LAST_NAME;
 
     // Check if user exists
     const [existing] = await connection.execute(
@@ -121,7 +162,7 @@ async function createSuperAdmin() {
     // Import bcryptjs (used by NestJS backend)
     const bcrypt = require('bcryptjs');
     const uuid = crypto.randomUUID();
-    const passwordHash = await bcrypt.hash('Admin@123', 10);
+    const passwordHash = await bcrypt.hash(password, 10);
 
     // Create user
     await connection.execute(`
@@ -130,13 +171,13 @@ async function createSuperAdmin() {
         role, is_super_admin, status, email_verified_at,
         created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, 'ADMIN', 1, 'ACTIVE', NOW(), NOW(), NOW())
-    `, [uuid, 'Super', 'Admin', email, passwordHash]);
+    `, [uuid, firstName, lastName, email, passwordHash]);
 
     console.log('✅ Super admin created successfully');
     console.log('');
     console.log('Login credentials:');
-    console.log('  Email: admin@ternantapp.com');
-    console.log('  Password: Admin@123');
+    console.log('  Email:', email);
+    console.log('  Password: [hidden]');
     console.log('');
     console.log('⚠️  IMPORTANT: Change password after first login!');
 
@@ -159,11 +200,11 @@ show_security_warning() {
     echo "========================================"
     echo ""
     print_warning "SECURITY WARNING:"
-    echo "Default credentials have been created:"
-    echo "  Email: admin@ternantapp.com"
-    echo "  Password: Admin@123"
+    echo "Admin credentials have been created from environment variables:"
+    echo "  Email: $ADMIN_EMAIL"
+    echo "  Password: [hidden]"
     echo ""
-    echo "These are PUBLIC credentials. Change them immediately!"
+    echo "Please change the password immediately after first login!"
     echo ""
 }
 
@@ -175,6 +216,7 @@ main() {
     print_header "Create Default Super Admin"
 
     setup_environment
+    load_admin_credentials
     validate_backend_running
     create_admin_user
     show_security_warning

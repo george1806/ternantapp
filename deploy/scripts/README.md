@@ -123,15 +123,22 @@ Apartment Management System
 
 **Purpose**: Create default admin user (non-interactive, automation-friendly)
 
-**Default Credentials**:
-- Email: `admin@ternantapp.com`
-- Password: `Admin@123`
+**Credentials Source**: Reads from environment variables in `.env.production`:
+- `DEFAULT_ADMIN_EMAIL` - Admin email address
+- `DEFAULT_ADMIN_PASSWORD` - Admin password (minimum 8 characters)
+- `DEFAULT_ADMIN_FIRST_NAME` - First name (optional, defaults to 'Super')
+- `DEFAULT_ADMIN_LAST_NAME` - Last name (optional, defaults to 'Admin')
 
 **Usage**:
 ```bash
+# 1. Set credentials in .env.production:
+#    DEFAULT_ADMIN_EMAIL=admin@your-domain.com
+#    DEFAULT_ADMIN_PASSWORD=YourStrongPassword123!
+
+# 2. Run the script:
 ./create-default-admin.sh prod
 
-# ⚠️ SECURITY: Change password immediately after first login!
+# ⚠️ SECURITY: Use strong passwords and change immediately after first login!
 ```
 
 ### create-super-admin.sh
