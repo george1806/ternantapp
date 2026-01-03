@@ -77,6 +77,30 @@ export class SuperAdminCompaniesController {
     }
 
     /**
+     * Get all compounds/properties for a company
+     */
+    @Get(':id/compounds')
+    async getCompanyCompounds(@Param('id') id: string) {
+        return this.superAdminCompaniesService.getCompanyCompounds(id);
+    }
+
+    /**
+     * Get all apartments for a company
+     */
+    @Get(':id/apartments')
+    async getCompanyApartments(@Param('id') id: string) {
+        return this.superAdminCompaniesService.getCompanyApartments(id);
+    }
+
+    /**
+     * Get all tenants for a company
+     */
+    @Get(':id/tenants')
+    async getCompanyTenants(@Param('id') id: string) {
+        return this.superAdminCompaniesService.getCompanyTenants(id);
+    }
+
+    /**
      * Create a new company (with owner)
      */
     @Post()

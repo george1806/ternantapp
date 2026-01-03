@@ -210,6 +210,59 @@ export class SuperAdminCompaniesService {
     }
 
     /**
+     * Get all compounds/properties for a company
+     */
+    async getCompanyCompounds(companyId: string) {
+        await this.findOne(companyId); // Verify company exists
+
+        const compounds = await this.compoundRepository.find({
+            where: { companyId },
+            order: { createdAt: 'DESC' }
+        });
+
+        // Add apartment count to each compound
+        const compoundsWithCounts = await Promise.all(
+            compounds.map(async (compound) => {
+                const apartmentCount = await this.apartmentRepository.count({
+                    where: { compoundId: compound.id }
+                });
+                return {
+                    ...compound,
+                    totalUnits: apartmentCount
+                };
+            })
+        );
+
+        return compoundsWithCounts;
+    }
+
+    /**
+     * Get all apartments for a company
+     */
+    async getCompanyApartments(companyId: string) {
+        await this.findOne(companyId); // Verify company exists
+
+        return this.apartmentRepository.find({
+            where: { companyId },
+            relations: ['compound'],
+            order: { createdAt: 'DESC' }
+        });
+    }
+
+    /**
+     * Get all tenants for a company
+     */
+    async getCompanyTenants(companyId: string) {
+        await this.findOne(companyId); // Verify company exists
+
+        return this.tenantRepository.find({
+            where: { companyId },
+            relations: ['occupancies', 'occupancies.apartment'],
+            order: { createdAt: 'DESC' }
+        });
+    }
+
+    /**
      * Get platform-wide statistics
      */
     async getPlatformStats() {
