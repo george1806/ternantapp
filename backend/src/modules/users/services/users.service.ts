@@ -391,11 +391,16 @@ export class UsersService {
             throw new BadRequestException(MESSAGES.VALIDATION.INVALID_PASSWORD);
         }
 
-        user.passwordHash = await bcrypt.hash(
+        const passwordHash = await bcrypt.hash(
             newPassword,
             APP_CONFIG.PASSWORD.BCRYPT_ROUNDS
         );
-        await this.userRepository.save(user);
+
+        // Use update() instead of save() to ensure the password is actually updated
+        await this.userRepository.update(
+            { id, companyId },
+            { passwordHash }
+        );
 
         // Invalidate cache
         await this.invalidateCache(id);
