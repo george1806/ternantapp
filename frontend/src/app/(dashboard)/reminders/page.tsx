@@ -70,6 +70,14 @@ export default function RemindersPage() {
 
   const limit = 10;
 
+  // Helper function to safely format dates
+  const formatSafeDate = (dateValue: string | undefined | null, formatStr: string): string => {
+    if (!dateValue) return 'N/A';
+    const date = new Date(dateValue);
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    return format(date, formatStr);
+  };
+
   useEffect(() => {
     loadReminders();
   }, [currentPage, statusFilter, typeFilter, searchTerm]);
@@ -423,9 +431,9 @@ export default function RemindersPage() {
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
-                          {format(new Date(reminder.sendAt), 'MMM dd, yyyy')}
+                          {formatSafeDate(reminder.sendAt, 'MMM dd, yyyy')}
                           <div className="text-xs text-muted-foreground">
-                            {format(new Date(reminder.sendAt), 'hh:mm a')}
+                            {formatSafeDate(reminder.sendAt, 'hh:mm a')}
                           </div>
                         </div>
                       </TableCell>
@@ -541,7 +549,7 @@ export default function RemindersPage() {
               <div>
                 <label className="text-sm font-medium">Scheduled For</label>
                 <p className="text-sm text-muted-foreground">
-                  {format(new Date(previewDialog.data.scheduledFor), 'MMM dd, yyyy hh:mm a')}
+                  {formatSafeDate(previewDialog.data.scheduledFor, 'MMM dd, yyyy hh:mm a')}
                 </p>
               </div>
 
