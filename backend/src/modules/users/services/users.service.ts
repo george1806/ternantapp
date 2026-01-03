@@ -396,11 +396,14 @@ export class UsersService {
             APP_CONFIG.PASSWORD.BCRYPT_ROUNDS
         );
 
-        // Use update() instead of save() to ensure the password is actually updated
-        await this.userRepository.update(
-            { id, companyId },
-            { passwordHash }
-        );
+        // Use update() with explicit column name to ensure the password is actually updated
+        await this.userRepository
+            .createQueryBuilder()
+            .update()
+            .set({ passwordHash })
+            .where('id = :id', { id })
+            .andWhere('companyId = :companyId', { companyId })
+            .execute();
 
         // Invalidate cache
         await this.invalidateCache(id);
