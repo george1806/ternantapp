@@ -190,7 +190,7 @@ export class UserQueryDto extends PaginationQueryDto {
 
     @ApiPropertyOptional({
         description: 'Filter by role',
-        enum: ['ADMIN', 'OWNER', 'WORKER']
+        enum: ['ADMIN', 'OWNER', 'STAFF']
     })
     @IsOptional()
     @IsString()

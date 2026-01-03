@@ -17,6 +17,7 @@ import {
   Bell,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { useAuthStore } from '@/store/auth';
 
 /**
  * Sidebar Component
@@ -107,6 +108,10 @@ interface SidebarProps {
 
 export function Sidebar({ isMobileMenuOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const { user } = useAuthStore();
+
+  // Check if user is super admin (has ADMIN role and no company)
+  const isSuperAdmin = user?.role === 'ADMIN' && user?.companyId === null;
 
   return (
     <aside
@@ -127,30 +132,49 @@ export function Sidebar({ isMobileMenuOpen, onClose }: SidebarProps) {
       {/* Navigation */}
       <nav className="flex flex-col h-[calc(100vh-4rem)] py-4">
         <div className="flex-1 space-y-1 px-3">
-          {navItems.map((item) => {
+          {navItems.map((item, index) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
 
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => onClose?.()}
-                className={cn(
-                  'flex items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+              <>
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => onClose?.()}
+                  className={cn(
+                    'flex items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span>{item.title}</span>
+                  {item.badge && (
+                    <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs">
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+
+                {/* Insert Companies after Properties (Super Admin Only) */}
+                {index === 1 && isSuperAdmin && (
+                  <Link
+                    href="/super-admin/companies"
+                    onClick={() => onClose?.()}
+                    className={cn(
+                      'flex items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                      (pathname === '/super-admin/companies' || pathname.startsWith('/super-admin/companies/'))
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                    )}
+                  >
+                    <Building2 className="h-5 w-5" />
+                    <span>Companies</span>
+                  </Link>
                 )}
-              >
-                <Icon className="h-5 w-5" />
-                <span>{item.title}</span>
-                {item.badge && (
-                  <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs">
-                    {item.badge}
-                  </span>
-                )}
-              </Link>
+              </>
             );
           })}
         </div>

@@ -41,6 +41,11 @@ export class CreateCompanyDto {
     @IsString()
     timezone?: string;
 
+    @IsOptional()
+    @IsString()
+    @MaxLength(100)
+    country?: string;
+
     // Owner information
     @IsString()
     @MinLength(2)

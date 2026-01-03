@@ -301,6 +301,7 @@ export class SuperAdminCompaniesService {
             phone: createCompanyDto.phone,
             currency: createCompanyDto.currency || Currency.USD,
             timezone: createCompanyDto.timezone || 'UTC',
+            country: createCompanyDto.country,
             isActive: true
         });
 

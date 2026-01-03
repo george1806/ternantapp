@@ -57,7 +57,7 @@ export class UserSeeder {
                 lastName: 'Worker',
                 email: `worker1@${company.slug}.com`,
                 passwordHash: password,
-                role: UserRole.WORKER,
+                role: UserRole.STAFF,
                 status: UserStatus.ACTIVE,
                 profile: {
                     phone: '+254-700-000-002'
@@ -71,7 +71,7 @@ export class UserSeeder {
                 lastName: 'Worker',
                 email: `worker2@${company.slug}.com`,
                 passwordHash: password,
-                role: UserRole.WORKER,
+                role: UserRole.STAFF,
                 status: UserStatus.ACTIVE,
                 profile: {
                     phone: '+254-700-000-003'

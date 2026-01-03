@@ -8,20 +8,26 @@
  *
  * OWNER (Company Owner):
  * - Owns a company
- * - Manages workers in their company
+ * - Manages staff in their company
  * - Full access to company data
  * - Cannot manage other companies
  *
- * WORKER (Company Employee):
+ * STAFF (Company Employee):
  * - Belongs to a company (managed by Owner)
  * - Registers apartments, units, tenants, etc.
  * - No user management access
  * - Limited to their company's data
+ *
+ * AUDITOR (Read-Only Access):
+ * - Can view company data but cannot modify
+ * - Useful for accountants, auditors, reporting
+ * - Read-only access to their company's data
  */
 export enum UserRole {
   ADMIN = 'ADMIN',
   OWNER = 'OWNER',
-  WORKER = 'WORKER',
+  STAFF = 'STAFF',
+  AUDITOR = 'AUDITOR',
 }
 
 /**

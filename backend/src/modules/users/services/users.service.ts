@@ -91,7 +91,7 @@ export class UsersService {
      */
     private validateUserCreation(currentUser: User, targetRole: UserRole, targetCompanyId: string): void {
         // Only ADMIN and OWNER can create users
-        if (currentUser.role === UserRole.WORKER) {
+        if (currentUser.role === UserRole.STAFF) {
             throw new ForbiddenException(MESSAGES.PERMISSION.INSUFFICIENT_PERMISSIONS);
         }
 
@@ -102,7 +102,7 @@ export class UsersService {
 
         // OWNER can only create WORKER users
         if (currentUser.role === UserRole.OWNER) {
-            if (targetRole !== UserRole.WORKER) {
+            if (targetRole !== UserRole.STAFF) {
                 throw new ForbiddenException(MESSAGES.USER.NO_PERMISSION_CREATE_OWNER);
             }
 
@@ -311,7 +311,7 @@ export class UsersService {
 
         // OWNER cannot modify OWNER or ADMIN users
         if (currentUser.role === UserRole.OWNER) {
-            if (user.role !== UserRole.WORKER) {
+            if (user.role !== UserRole.STAFF) {
                 throw new ForbiddenException(MESSAGES.PERMISSION.INSUFFICIENT_PERMISSIONS);
             }
         }
@@ -444,7 +444,7 @@ export class UsersService {
 
         // OWNER cannot deactivate OWNER or ADMIN users
         if (currentUser.role === UserRole.OWNER) {
-            if (user.role !== UserRole.WORKER) {
+            if (user.role !== UserRole.STAFF) {
                 throw new ForbiddenException(MESSAGES.PERMISSION.INSUFFICIENT_PERMISSIONS);
             }
         }
@@ -481,7 +481,7 @@ export class UsersService {
 
         // OWNER cannot activate OWNER or ADMIN users
         if (currentUser.role === UserRole.OWNER) {
-            if (user.role !== UserRole.WORKER) {
+            if (user.role !== UserRole.STAFF) {
                 throw new ForbiddenException(MESSAGES.PERMISSION.INSUFFICIENT_PERMISSIONS);
             }
         }
