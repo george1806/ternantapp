@@ -48,14 +48,14 @@ const createUserSchema = z.object({
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
       'Password must contain uppercase, lowercase, number and special character'
     ),
-  role: z.enum(['ADMIN', 'OWNER', 'WORKER']),
+  role: z.enum(['ADMIN', 'OWNER', 'STAFF', 'AUDITOR']),
   phone: z.string().optional(),
 });
 
 const updateUserSchema = z.object({
   firstName: z.string().min(2, 'First name must be at least 2 characters').max(100),
   lastName: z.string().min(2, 'Last name must be at least 2 characters').max(100),
-  role: z.enum(['ADMIN', 'OWNER', 'WORKER']),
+  role: z.enum(['ADMIN', 'OWNER', 'STAFF', 'AUDITOR']),
   phone: z.string().optional(),
 });
 
@@ -76,23 +76,25 @@ export function UserFormDialog({ open, onOpenChange, user, onSuccess }: UserForm
   const isEditing = !!user;
 
   // Filter available roles based on current user's role
-  // - ADMIN: can create ADMIN, OWNER, WORKER
-  // - OWNER: can only create WORKER
-  // - WORKER: cannot create users (shouldn't reach here)
+  // - ADMIN: can create ADMIN, OWNER, STAFF, AUDITOR
+  // - OWNER: can create STAFF and AUDITOR
+  // - STAFF: cannot create users (shouldn't reach here)
   const getAvailableRoles = () => {
     const userRole = currentUser?.role;
 
     if (userRole === 'ADMIN') {
       return [
         { value: 'ADMIN', label: 'Admin', description: 'Platform admin, manages all users' },
-        { value: 'OWNER', label: 'Owner', description: 'Company owner, manages workers' },
-        { value: 'WORKER', label: 'Worker', description: 'Company employee' },
+        { value: 'OWNER', label: 'Owner', description: 'Company owner, manages staff' },
+        { value: 'STAFF', label: 'Staff', description: 'Company employee with full access' },
+        { value: 'AUDITOR', label: 'Auditor', description: 'Read-only access for accountants' },
       ];
     }
 
     if (userRole === 'OWNER') {
       return [
-        { value: 'WORKER', label: 'Worker', description: 'Company employee' },
+        { value: 'STAFF', label: 'Staff', description: 'Company employee with full access' },
+        { value: 'AUDITOR', label: 'Auditor', description: 'Read-only access for accountants' },
       ];
     }
 
