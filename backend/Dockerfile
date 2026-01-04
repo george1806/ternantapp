@@ -85,10 +85,13 @@ RUN pnpm install --prod --frozen-lockfile
 # Copy built application from builder stage
 COPY --from=builder --chown=nestjs:nodejs /app/backend/dist ./backend/dist
 
-# Copy necessary runtime files
-COPY --chown=nestjs:nodejs backend/src/email/templates ./backend/src/email/templates
+# Copy necessary runtime files (email templates)
+COPY --chown=nestjs:nodejs backend/src/common/email/templates ./backend/src/common/email/templates
 
 WORKDIR /app/backend
+
+# Create logs directory with proper permissions
+RUN mkdir -p logs && chown nestjs:nodejs logs
 
 # Set production environment
 ENV NODE_ENV=production

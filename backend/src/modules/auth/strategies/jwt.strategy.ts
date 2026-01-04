@@ -59,7 +59,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         const session = await this.authService.validateAccessToken(token);
 
         // Return user data to be attached to request.user
+        // Note: Both 'id' and 'userId' are provided for compatibility
         return {
+            id: session.userId,
             userId: session.userId,
             companyId: session.companyId,
             email: session.email,

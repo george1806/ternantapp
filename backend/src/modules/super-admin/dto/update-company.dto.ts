@@ -38,6 +38,11 @@ export class UpdateCompanyDto {
     timezone?: string;
 
     @IsOptional()
+    @IsString()
+    @MaxLength(100)
+    country?: string;
+
+    @IsOptional()
     @IsEnum(CompanyStatus)
     status?: CompanyStatus;
 }

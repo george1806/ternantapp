@@ -28,7 +28,7 @@ import { invoicesService } from '@/services/invoices.service';
 import { occupanciesService } from '@/services/occupancies.service';
 import { getApiErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
-import type { Occupancy } from '@/types';
+import type { Occupancy, Invoice } from '@/types';
 import { Loader2, Trash2, Plus } from 'lucide-react';
 
 /**
@@ -36,6 +36,7 @@ import { Loader2, Trash2, Plus } from 'lucide-react';
  *
  * Features:
  * - Create new invoices against occupancies
+ * - Edit existing invoices
  * - Dynamic line items management (add/remove rows)
  * - Auto-calculate subtotal and total
  * - Load active occupancies from backend
@@ -66,13 +67,16 @@ interface InvoiceFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  invoice?: Invoice | null;
 }
 
 export function InvoiceFormDialog({
   open,
   onOpenChange,
   onSuccess,
+  invoice,
 }: InvoiceFormDialogProps) {
+  const isEditing = !!invoice;
   const [submitting, setSubmitting] = useState(false);
   const [loadingOccupancies, setLoadingOccupancies] = useState(false);
   const [occupancies, setOccupancies] = useState<Occupancy[]>([]);
@@ -118,12 +122,47 @@ export function InvoiceFormDialog({
   const occupancyId = watch('occupancyId');
   const items = watch('items');
 
-  // Load active occupancies when dialog opens
+  // Pre-populate form when editing
   useEffect(() => {
-    if (open) {
+    if (invoice && open) {
+      setValue('occupancyId', invoice.occupancyId);
+      setValue('invoiceDate', new Date(invoice.invoiceDate).toISOString().split('T')[0]);
+      setValue('dueDate', new Date(invoice.dueDate).toISOString().split('T')[0]);
+      setValue('notes', invoice.notes || '');
+
+      // Transform lineItems to match form structure
+      const formItems = invoice.lineItems.map((item: any) => ({
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        amount: item.amount,
+        itemType: item.type || 'other',
+      }));
+      setValue('items', formItems);
+
+      // Set selected occupancy if we have it
+      if (invoice.occupancy) {
+        setSelectedOccupancy(invoice.occupancy);
+      }
+    }
+  }, [invoice, open, setValue]);
+
+  // Load active occupancies when dialog opens (only in create mode)
+  useEffect(() => {
+    if (open && !isEditing) {
       loadOccupancies();
     }
-  }, [open]);
+  }, [open, isEditing]);
+
+  // Auto-calculate amount for each line item when quantity or unitPrice changes
+  useEffect(() => {
+    items.forEach((item, index) => {
+      const calculatedAmount = item.quantity * item.unitPrice;
+      if (item.amount !== calculatedAmount) {
+        setValue(`items.${index}.amount`, calculatedAmount);
+      }
+    });
+  }, [items, setValue]);
 
   // Update selected occupancy and pre-fill first item with monthly rent
   useEffect(() => {
@@ -181,7 +220,9 @@ export function InvoiceFormDialog({
     try {
       setSubmitting(true);
 
-      if (!selectedOccupancy) {
+      // Validate occupancy based on mode
+      const occupancyToValidate = isEditing ? invoice?.occupancy : selectedOccupancy;
+      if (!occupancyToValidate) {
         toast({
           title: 'Error',
           description: 'Please select an occupancy',
@@ -201,37 +242,65 @@ export function InvoiceFormDialog({
 
       // Calculate totals
       const subtotal = lineItems.reduce((sum, item) => sum + item.amount, 0);
-      const taxAmount = 0; // TODO: Add tax support if needed
+      const taxAmount = 0;
       const totalAmount = subtotal + taxAmount;
 
-      // Generate invoice number (simple format: INV-YYYY-MM-XXXXX)
-      await invoicesService.create({
-        occupancyId: data.occupancyId,
-        invoiceDate: new Date(data.invoiceDate).toISOString().split('T')[0],
-        dueDate: new Date(data.dueDate).toISOString().split('T')[0],
-        items: lineItems.map(item => ({
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          itemType: item.type,
-        })),
-        notes: data.notes,
-      });
+      if (isEditing && invoice) {
+        // Update existing invoice
+        const updatePayload = {
+          invoiceDate: data.invoiceDate,
+          dueDate: data.dueDate,
+          lineItems: lineItems,
+          subtotal: subtotal,
+          taxAmount: taxAmount,
+          totalAmount: totalAmount,
+          notes: data.notes || '',
+        };
 
-      toast({
-        title: 'Success',
-        description: 'Invoice created successfully!',
-      });
+        await invoicesService.update(invoice.id, updatePayload);
+
+        toast({
+          title: 'Success',
+          description: 'Invoice updated successfully!',
+        });
+      } else {
+        // Create new invoice
+        // Generate invoice number (format: INV-YYYY-MM-XXXXX)
+        const now = new Date();
+        const invoiceNumber = `INV-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(Date.now()).slice(-5)}`;
+
+        const payload = {
+          invoiceNumber,
+          occupancyId: data.occupancyId,
+          tenantId: occupancyToValidate.tenantId,
+          invoiceDate: data.invoiceDate,
+          dueDate: data.dueDate,
+          lineItems: lineItems,
+          subtotal: subtotal,
+          taxAmount: taxAmount,
+          totalAmount: totalAmount,
+          status: 'draft' as const,
+          notes: data.notes || '',
+        };
+
+        await invoicesService.create(payload);
+
+        toast({
+          title: 'Success',
+          description: 'Invoice created successfully!',
+        });
+      }
 
       reset();
       setSelectedOccupancy(null);
       onOpenChange(false);
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create invoice:', error);
+      console.error('Error response:', error?.response?.data);
       toast({
         title: 'Error',
-        description: getApiErrorMessage(error),
+        description: error?.response?.data?.message || getApiErrorMessage(error),
         variant: 'destructive',
       });
     } finally {
@@ -243,9 +312,9 @@ export function InvoiceFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create Invoice</DialogTitle>
+          <DialogTitle>{isEditing ? 'Edit Invoice' : 'Create Invoice'}</DialogTitle>
           <DialogDescription>
-            Create a new invoice for an occupancy
+            {isEditing ? 'Update invoice details and line items' : 'Create a new invoice for an occupancy'}
           </DialogDescription>
         </DialogHeader>
 
@@ -254,23 +323,37 @@ export function InvoiceFormDialog({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="occupancyId">Occupancy *</Label>
-              <select
-                {...register('occupancyId')}
-                id="occupancyId"
-                disabled={loadingOccupancies || submitting}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">
-                  {loadingOccupancies ? 'Loading...' : 'Select occupancy'}
-                </option>
-                {occupancies.map((occ) => (
-                  <option key={occ.id} value={occ.id}>
-                    {occ.apartment?.unitNumber} - {occ.tenant?.firstName} {occ.tenant?.lastName}
-                  </option>
-                ))}
-              </select>
-              {errors.occupancyId && (
-                <span className="text-sm text-destructive">{errors.occupancyId.message}</span>
+              {isEditing ? (
+                <Input
+                  value={
+                    invoice?.occupancy
+                      ? `${invoice.occupancy.apartment?.unitNumber || 'N/A'} - ${invoice.occupancy.tenant?.firstName || ''} ${invoice.occupancy.tenant?.lastName || ''}`
+                      : 'Loading...'
+                  }
+                  disabled
+                  className="bg-muted"
+                />
+              ) : (
+                <>
+                  <select
+                    {...register('occupancyId')}
+                    id="occupancyId"
+                    disabled={loadingOccupancies || submitting}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="">
+                      {loadingOccupancies ? 'Loading...' : 'Select occupancy'}
+                    </option>
+                    {occupancies.map((occ) => (
+                      <option key={occ.id} value={occ.id}>
+                        {occ.apartment?.unitNumber} - {occ.tenant?.firstName} {occ.tenant?.lastName}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.occupancyId && (
+                    <span className="text-sm text-destructive">{errors.occupancyId.message}</span>
+                  )}
+                </>
               )}
             </div>
 

@@ -227,10 +227,12 @@ export default function SettingsPage() {
       return;
     }
 
-    if (passwordData.newPassword.length < 8) {
+    // Validate password strength (must match backend requirements)
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
+    if (passwordData.newPassword.length < 8 || !passwordRegex.test(passwordData.newPassword)) {
       toast({
-        title: 'Error',
-        description: 'Password must be at least 8 characters long',
+        title: 'Invalid Password',
+        description: 'Password must be at least 8 characters and include uppercase, lowercase, number, and special character (@$!%*?&)',
         variant: 'destructive',
       });
       return;
@@ -575,7 +577,11 @@ export default function SettingsPage() {
                     placeholder="Enter new password"
                   />
                   <p className="text-sm text-muted-foreground">
-                    Minimum 8 characters
+                    Must be at least 8 characters and include:
+                    <br />• Uppercase letter (A-Z)
+                    <br />• Lowercase letter (a-z)
+                    <br />• Number (0-9)
+                    <br />• Special character (@$!%*?&)
                   </p>
                 </div>
 

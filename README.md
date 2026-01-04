@@ -681,7 +681,9 @@ k6 run backend/test/load/basic-load.js
 
 ## Deployment
 
-### Development Deployment
+For complete deployment documentation including automated scripts, migration management, and environment configuration, see **[deploy/README.md](deploy/README.md)**.
+
+### Quick Start - Development
 
 **Using setup-and-run.sh (Recommended)**:
 ```bash
@@ -712,140 +714,81 @@ docker compose logs -f frontend
 docker compose down
 ```
 
-### Production Deployment
+### Quick Start - Production
 
-**1. Prepare Environment**
+**Automated Deployment (Recommended)**:
 ```bash
-# Create production environment file
-cp .env.example .env.production
+# Navigate to deployment scripts
+cd deploy/scripts
 
-# Edit with production values
-nano .env.production
+# Setup production environment
+./utils/setup-env.sh prod
 
-# Required changes:
-# - NODE_ENV=production
-# - Strong JWT secrets (openssl rand -base64 64)
-# - Production database credentials
-# - Production CORS origins (NO wildcards!)
-# - Real SMTP settings
+# Deploy to production
+./deploy.sh prod
 ```
 
-**2. Deploy with Scripts**
-```bash
-chmod +x scripts/deploy.sh
-
-# Deploy to production (uses .env.production)
-./scripts/deploy.sh prod
-```
-
-**Or Deploy Manually**:
+**Manual Deployment**:
 ```bash
 # Using specific env file
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d
 
-# Or copy to .env and use normally
-cp .env.production .env
-docker compose -f docker-compose.prod.yml up -d
-```
-
-**3. Verify**
-```bash
+# Verify deployment
 curl http://localhost:3000/api/v1/health
-curl http://localhost:3000/api/v1/metrics
 ```
 
-### Production Environment Variables
+### Deployment Documentation
+
+For comprehensive deployment guides, see:
+
+- **[Complete Deployment Guide](deploy/scripts/README.md)** - Full deployment automation, workflows, and troubleshooting
+- **[Migration Management](backend/scripts/migrations/README.md)** - Database migration tools and workflows
+- **[Environment Utilities](deploy/scripts/utils/README.md)** - Environment configuration and management
+- **[Schema Management](backend/docs/SCHEMA_MANAGEMENT.md)** - Database schema best practices
+
+### Deployment Features
+
+The automated deployment system includes:
+
+- ✅ **7 numbered deployment scripts** - Sequential deployment steps
+- ✅ **Master orchestrator** - Single command deployment
+- ✅ **2 deployment modes** - Development and production
+- ✅ **Environment management** - Setup, switch, compare environments
+- ✅ **Migration tools** - Generate, run, revert, validate migrations
+- ✅ **Database backups** - Automatic backups before deployment
+- ✅ **Health checks** - Comprehensive deployment verification
+- ✅ **Rollback support** - Database backup and container restart capabilities
+
+### Common Deployment Commands
 
 ```bash
-# Application
-NODE_ENV=production
-APP_URL=https://your-domain.com
-NEXT_PUBLIC_API_URL=https://api.your-domain.com
+# Setup environment (first time)
+cd deploy/scripts
+./utils/setup-env.sh dev
+./deploy.sh dev
 
-# Security (CRITICAL - Generate unique)
-JWT_SECRET=<64-char-hex>           # openssl rand -hex 32
-JWT_REFRESH_SECRET=<64-char-hex>   # openssl rand -hex 32
-SESSION_SECRET=<32-char-hex>       # openssl rand -hex 16
-CORS_ORIGINS=https://your-domain.com  # NO wildcards!
+# Regular deployment
+./deploy.sh dev
 
-# Database
-DATABASE_HOST=mysql
-DATABASE_NAME=ternantapp_production
-DATABASE_USER=app_user
-DATABASE_PASSWORD=<strong-unique-password>
+# Clean install (removes all data)
+./deploy.sh dev --clean
 
-# Redis
-REDIS_HOST=redis
-REDIS_PASSWORD=<strong-unique-password>
+# Production deployment
+./utils/setup-env.sh prod
+./deploy.sh prod
 
-# Rate Limiting
-THROTTLE_LIMIT=100
+# Verify deployment
+./07-verify-deployment.sh dev
 
-# Logging
-LOG_LEVEL=error
-LOG_FILE_PATH=./logs
+# Database backup
+./02-backup-database.sh prod
 
-# Monitoring
-METRICS_ENABLED=true
-
-# Swagger
-SWAGGER_PASSWORD=<strong-password>
+# Migration management
+cd ../../backend/scripts/migrations
+./generate.sh MyMigration dev
+./run.sh dev
+./validate.sh dev
 ```
-
-### Deployment Script Features
-
-The automated `./scripts/deploy.sh` includes:
-- ✅ Pre-flight checks (Docker, env files)
-- ✅ Database backup
-- ✅ Docker image builds
-- ✅ Service startup (MySQL, Redis, Backend, Frontend)
-- ✅ Database migrations
-- ✅ Health checks
-- ✅ Monitoring setup (Prometheus + Grafana)
-- ✅ Rollback capability
-
-### Manual Deployment
-
-**Docker Compose**:
-```bash
-# Production
-docker compose -f docker-compose.prod.yml up -d
-
-# Check services
-docker compose -f docker-compose.prod.yml ps
-
-# View logs
-docker compose -f docker-compose.prod.yml logs -f
-
-# Stop services
-docker compose -f docker-compose.prod.yml down
-```
-
-**Database Backup**:
-```bash
-./scripts/backup.sh prod
-# Creates: ./db-backup/backup_YYYYMMDD_HHMMSS.sql
-```
-
-**View Logs**:
-```bash
-./scripts/logs.sh backend -f
-./scripts/logs.sh frontend -f
-```
-
-### Deployment Checklist
-
-- [ ] Update `.env.production` with production values
-- [ ] Generate unique secrets (JWT, session)
-- [ ] Configure CORS_ORIGINS (no wildcards)
-- [ ] Set up SSL/TLS certificates
-- [ ] Configure firewall rules
-- [ ] Set up database backups (automated)
-- [ ] Enable monitoring (Prometheus + Grafana)
-- [ ] Configure log rotation
-- [ ] Set up health check monitoring
-- [ ] Test rollback procedure
-- [ ] Document rollback steps
 
 ### Monitoring
 

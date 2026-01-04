@@ -1,0 +1,61 @@
+# ================================================================
+# Redis Cache Service - Production
+# ================================================================
+# This compose file deploys Redis 7 for caching and queues
+# Deploy order: 2 (Second - no dependencies)
+#
+# Usage:
+#   docker compose --env-file .env.production -f deploy/compose/02-redis.yml up -d
+# ================================================================
+
+services:
+  # ================================
+  # Cache & Sessions - Redis 7
+  # ================================
+  redis:
+    image: redis:${REDIS_VERSION:-7-alpine}
+    container_name: ${REDIS_CONTAINER_NAME:-apartment-redis}
+    restart: ${RESTART_POLICY:-always}
+    environment:
+      TZ: ${TIMEZONE:-UTC}
+    command: >
+      redis-server
+      --appendonly ${REDIS_APPENDONLY:-yes}
+      --appendfsync ${REDIS_APPENDFSYNC:-everysec}
+      --maxmemory ${REDIS_MAXMEMORY:-2gb}
+      --maxmemory-policy ${REDIS_MAXMEMORY_POLICY:-noeviction}
+      --requirepass ${REDIS_PASSWORD}
+      --tcp-keepalive ${REDIS_TCP_KEEPALIVE:-300}
+      --timeout ${REDIS_TIMEOUT:-0}
+    # NO PORTS EXPOSED - internal only for security
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD}', 'ping']
+      interval: ${HEALTH_CHECK_INTERVAL:-10s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-5s}
+      retries: ${HEALTH_CHECK_RETRIES:-5}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-20s}
+    logging:
+      driver: ${LOG_DRIVER:-json-file}
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-3}
+    networks:
+      - apartment_network
+
+# ================================
+# Volumes
+# ================================
+volumes:
+  redis_data:
+    driver: local
+    name: ${REDIS_VOLUME_NAME:-apartment_redis_data}
+
+# ================================
+# Networks
+# ================================
+networks:
+  apartment_network:
+    external: true
+    name: ${NETWORK_NAME:-apartment_network}

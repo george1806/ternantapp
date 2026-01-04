@@ -37,7 +37,7 @@ export class CreateUserDto {
     })
     password: string;
 
-    @ApiProperty({ enum: UserRole, example: UserRole.WORKER })
+    @ApiProperty({ enum: UserRole, example: UserRole.STAFF })
     @IsEnum(UserRole)
     role: UserRole;
 

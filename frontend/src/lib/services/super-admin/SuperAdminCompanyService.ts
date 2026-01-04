@@ -79,6 +79,30 @@ export class SuperAdminCompanyService {
   }
 
   /**
+   * Get all compounds/properties for a company
+   */
+  public async getCompanyCompounds(id: string): Promise<any[]> {
+    const response = await api.get<any[]>(`${this.baseUrl}/${id}/compounds`);
+    return response.data;
+  }
+
+  /**
+   * Get all apartments for a company
+   */
+  public async getCompanyApartments(id: string): Promise<any[]> {
+    const response = await api.get<any[]>(`${this.baseUrl}/${id}/apartments`);
+    return response.data;
+  }
+
+  /**
+   * Get all tenants for a company
+   */
+  public async getCompanyTenants(id: string): Promise<any[]> {
+    const response = await api.get<any[]>(`${this.baseUrl}/${id}/tenants`);
+    return response.data;
+  }
+
+  /**
    * Get platform-wide statistics
    */
   public async getPlatformStats(): Promise<PlatformStats> {

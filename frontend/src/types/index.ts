@@ -5,7 +5,7 @@ import type { Currency } from '@/lib/currency';
  */
 export interface User {
   id: string;
-  companyId: string;
+  companyId: string | null; // null for super admins
   firstName: string;
   lastName: string;
   email: string;

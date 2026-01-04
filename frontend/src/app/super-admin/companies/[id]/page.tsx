@@ -26,6 +26,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { superAdminCompanyService } from '@/lib/services/super-admin/SuperAdminCompanyService';
 import type { Company, CompanyStats } from '@/types/super-admin/company.types';
 import Link from 'next/link';
@@ -39,6 +47,13 @@ export default function CompanyDetailsPage() {
   const [stats, setStats] = useState<CompanyStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [properties, setProperties] = useState<any[]>([]);
+  const [apartments, setApartments] = useState<any[]>([]);
+  const [tenants, setTenants] = useState<any[]>([]);
+  const [loadingProperties, setLoadingProperties] = useState(false);
+  const [loadingApartments, setLoadingApartments] = useState(false);
+  const [loadingTenants, setLoadingTenants] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
     if (companyId) {
@@ -46,6 +61,20 @@ export default function CompanyDetailsPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
+
+  // Load data when tab changes
+  useEffect(() => {
+    if (!companyId) return;
+
+    if (activeTab === 'properties' && properties.length === 0 && !loadingProperties) {
+      loadProperties();
+    } else if (activeTab === 'apartments' && apartments.length === 0 && !loadingApartments) {
+      loadApartments();
+    } else if (activeTab === 'tenants' && tenants.length === 0 && !loadingTenants) {
+      loadTenants();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, companyId]);
 
   const loadCompanyDetails = async () => {
     try {
@@ -75,6 +104,42 @@ export default function CompanyDetailsPage() {
       loadCompanyDetails();
     } catch (err: any) {
       alert(err.message || 'Failed to update company status');
+    }
+  };
+
+  const loadProperties = async () => {
+    try {
+      setLoadingProperties(true);
+      const data = await superAdminCompanyService.getCompanyCompounds(companyId);
+      setProperties(data);
+    } catch (err: any) {
+      console.error('Error loading properties:', err);
+    } finally {
+      setLoadingProperties(false);
+    }
+  };
+
+  const loadApartments = async () => {
+    try {
+      setLoadingApartments(true);
+      const data = await superAdminCompanyService.getCompanyApartments(companyId);
+      setApartments(data);
+    } catch (err: any) {
+      console.error('Error loading apartments:', err);
+    } finally {
+      setLoadingApartments(false);
+    }
+  };
+
+  const loadTenants = async () => {
+    try {
+      setLoadingTenants(true);
+      const data = await superAdminCompanyService.getCompanyTenants(companyId);
+      setTenants(data);
+    } catch (err: any) {
+      console.error('Error loading tenants:', err);
+    } finally {
+      setLoadingTenants(false);
     }
   };
 
@@ -150,7 +215,7 @@ export default function CompanyDetailsPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview" className="space-y-6">
+      <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="border-b border-purple-200">
           <TabsTrigger value="overview" className="data-[state=active]:border-purple-500">
             <TrendingUp className="h-4 w-4 mr-2" />
@@ -313,18 +378,47 @@ export default function CompanyDetailsPage() {
         <TabsContent value="properties">
           <Card className="border-purple-200">
             <CardHeader>
-              <CardTitle>Properties</CardTitle>
+              <CardTitle>Properties ({stats?.totalProperties || 0})</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-12">
-                <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Properties Tab
-                </h3>
-                <p className="text-gray-600">
-                  This tab will display all properties (compounds) for this company.
-                </p>
-              </div>
+              {loadingProperties ? (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">Loading properties...</p>
+                </div>
+              ) : properties.length === 0 ? (
+                <div className="text-center py-12">
+                  <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    No Properties
+                  </h3>
+                  <p className="text-gray-600">
+                    This company hasn't created any properties yet.
+                  </p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Total Units</TableHead>
+                      <TableHead>Created</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {properties.map((property) => (
+                      <TableRow key={property.id}>
+                        <TableCell className="font-medium">{property.name}</TableCell>
+                        <TableCell>{property.location || 'N/A'}</TableCell>
+                        <TableCell>{property.totalUnits || 0}</TableCell>
+                        <TableCell>
+                          {new Date(property.createdAt).toLocaleDateString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -333,18 +427,53 @@ export default function CompanyDetailsPage() {
         <TabsContent value="apartments">
           <Card className="border-purple-200">
             <CardHeader>
-              <CardTitle>Apartments</CardTitle>
+              <CardTitle>Apartments ({stats?.totalApartments || 0})</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-12">
-                <Home className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Apartments Tab
-                </h3>
-                <p className="text-gray-600">
-                  This tab will display all apartments across all properties.
-                </p>
-              </div>
+              {loadingApartments ? (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">Loading apartments...</p>
+                </div>
+              ) : apartments.length === 0 ? (
+                <div className="text-center py-12">
+                  <Home className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    No Apartments
+                  </h3>
+                  <p className="text-gray-600">
+                    This company hasn't created any apartments yet.
+                  </p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Unit Number</TableHead>
+                      <TableHead>Property</TableHead>
+                      <TableHead>Bedrooms</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Rent</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {apartments.map((apt) => (
+                      <TableRow key={apt.id}>
+                        <TableCell className="font-medium">{apt.unitNumber}</TableCell>
+                        <TableCell>{apt.compound?.name || 'N/A'}</TableCell>
+                        <TableCell>{apt.bedrooms || 0}</TableCell>
+                        <TableCell>
+                          <Badge variant={apt.status === 'occupied' ? 'default' : 'outline'}>
+                            {apt.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {company?.currency} {Number(apt.rent || 0).toFixed(2)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -353,18 +482,55 @@ export default function CompanyDetailsPage() {
         <TabsContent value="tenants">
           <Card className="border-purple-200">
             <CardHeader>
-              <CardTitle>Tenants</CardTitle>
+              <CardTitle>Tenants ({stats?.totalTenants || 0})</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-12">
-                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Tenants Tab
-                </h3>
-                <p className="text-gray-600">
-                  This tab will display all tenants and their lease information.
-                </p>
-              </div>
+              {loadingTenants ? (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">Loading tenants...</p>
+                </div>
+              ) : tenants.length === 0 ? (
+                <div className="text-center py-12">
+                  <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    No Tenants
+                  </h3>
+                  <p className="text-gray-600">
+                    This company hasn't added any tenants yet.
+                  </p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Created</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tenants.map((tenant) => (
+                      <TableRow key={tenant.id}>
+                        <TableCell className="font-medium">
+                          {tenant.firstName} {tenant.lastName}
+                        </TableCell>
+                        <TableCell>{tenant.email}</TableCell>
+                        <TableCell>{tenant.phone || 'N/A'}</TableCell>
+                        <TableCell>
+                          <Badge variant={tenant.status === 'active' ? 'default' : 'outline'}>
+                            {tenant.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {new Date(tenant.createdAt).toLocaleDateString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

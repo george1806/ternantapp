@@ -18,6 +18,8 @@ import { Tenant } from '../../tenants/entities/tenant.entity';
 import { Payment } from '../../payments/entities/payment.entity';
 import { Company } from '../../companies/entities/company.entity';
 import { DashboardService } from '../../dashboard/dashboard.service';
+import { EmailService } from '../../../common/email/services/email.service';
+import { InvoiceEmailLogService } from './invoice-email-log.service';
 
 /**
  * Invoices Service
@@ -45,7 +47,9 @@ export class InvoicesService {
         @Inject(forwardRef(() => DashboardService))
         private dashboardService: DashboardService,
         @Inject(CACHE_MANAGER)
-        private cacheManager: Cache
+        private cacheManager: Cache,
+        private emailService: EmailService,
+        private invoiceEmailLogService: InvoiceEmailLogService
     ) {}
 
     /**
@@ -392,6 +396,7 @@ export class InvoicesService {
             relations: [
                 'tenant',
                 'occupancy',
+                'occupancy.tenant',
                 'occupancy.apartment',
                 'occupancy.apartment.compound'
             ]
@@ -527,10 +532,232 @@ export class InvoicesService {
     }
 
     /**
-     * Mark invoice as sent
+     * Mark invoice as sent and send email to tenant
      */
     async markAsSent(id: string, companyId: string): Promise<Invoice> {
-        return this.updateStatus(id, 'sent', companyId);
+        const invoice = await this.findOne(id, companyId);
+
+        if (!invoice) {
+            throw new NotFoundException('Invoice not found');
+        }
+
+        if (!invoice.tenant?.email) {
+            throw new BadRequestException('Tenant email not found. Cannot send invoice.');
+        }
+
+        const subject = `Invoice ${invoice.invoiceNumber} from ${invoice.tenant.firstName || 'Your Landlord'}`;
+
+        try {
+            // Generate PDF
+            const pdfBuffer = await this.downloadPdf(id, companyId);
+
+            // Send email with PDF attachment
+            const emailResult = await this.emailService.sendMail({
+                to: invoice.tenant.email,
+                subject,
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <h2 style="color: #333;">Invoice ${invoice.invoiceNumber}</h2>
+                        <p>Dear ${invoice.tenant.firstName} ${invoice.tenant.lastName},</p>
+                        <p>Please find attached your invoice for ${invoice.occupancy?.apartment?.unitNumber || 'your rental unit'}.</p>
+                        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                            <p style="margin: 5px 0;"><strong>Invoice Number:</strong> ${invoice.invoiceNumber}</p>
+                            <p style="margin: 5px 0;"><strong>Invoice Date:</strong> ${new Date(invoice.invoiceDate).toLocaleDateString()}</p>
+                            <p style="margin: 5px 0;"><strong>Due Date:</strong> ${new Date(invoice.dueDate).toLocaleDateString()}</p>
+                            <p style="margin: 5px 0;"><strong>Total Amount:</strong> $${invoice.totalAmount}</p>
+                        </div>
+                        <p>Please review the attached PDF for complete details.</p>
+                        <p>If you have any questions, please don't hesitate to contact us.</p>
+                        <p style="margin-top: 30px;">Best regards,<br/>Property Management</p>
+                    </div>
+                `,
+                text: `
+Invoice ${invoice.invoiceNumber}
+
+Dear ${invoice.tenant.firstName} ${invoice.tenant.lastName},
+
+Please find attached your invoice for ${invoice.occupancy?.apartment?.unitNumber || 'your rental unit'}.
+
+Invoice Number: ${invoice.invoiceNumber}
+Invoice Date: ${new Date(invoice.invoiceDate).toLocaleDateString()}
+Due Date: ${new Date(invoice.dueDate).toLocaleDateString()}
+Total Amount: $${invoice.totalAmount}
+
+Please review the attached PDF for complete details.
+
+If you have any questions, please don't hesitate to contact us.
+
+Best regards,
+Property Management
+                `,
+                attachments: [
+                    {
+                        filename: `invoice-${invoice.invoiceNumber}.pdf`,
+                        content: pdfBuffer,
+                        contentType: 'application/pdf'
+                    }
+                ]
+            });
+
+            // Log successful send
+            await this.invoiceEmailLogService.logSent(
+                companyId,
+                id,
+                invoice.tenant.email,
+                subject,
+                emailResult?.messageId || `msg-${Date.now()}`,
+                false, // isResend = false for first send
+                {
+                    invoiceNumber: invoice.invoiceNumber,
+                    tenantId: invoice.tenant.id,
+                    tenantName: `${invoice.tenant.firstName} ${invoice.tenant.lastName}`,
+                    amount: invoice.totalAmount,
+                    dueDate: typeof invoice.dueDate === 'string' ? invoice.dueDate : invoice.dueDate.toISOString(),
+                    provider: 'brevo',
+                    hasPdfAttachment: true,
+                }
+            );
+
+            // Update status to sent
+            return this.updateStatus(id, 'sent', companyId);
+        } catch (error) {
+            // Log failed send
+            await this.invoiceEmailLogService.logFailed(
+                companyId,
+                id,
+                invoice.tenant.email,
+                subject,
+                error.message,
+                false, // isResend = false
+                {
+                    invoiceNumber: invoice.invoiceNumber,
+                    tenantId: invoice.tenant.id,
+                    tenantName: `${invoice.tenant.firstName} ${invoice.tenant.lastName}`,
+                    amount: invoice.totalAmount,
+                    dueDate: typeof invoice.dueDate === 'string' ? invoice.dueDate : invoice.dueDate.toISOString(),
+                }
+            );
+
+            throw new BadRequestException(`Failed to send invoice: ${error.message}`);
+        }
+    }
+
+    /**
+     * Resend invoice email to tenant (for already sent invoices)
+     */
+    async resendInvoice(id: string, companyId: string): Promise<Invoice> {
+        const invoice = await this.findOne(id, companyId);
+
+        if (!invoice) {
+            throw new NotFoundException('Invoice not found');
+        }
+
+        if (!invoice.tenant?.email) {
+            throw new BadRequestException('Tenant email not found. Cannot resend invoice.');
+        }
+
+        // Can resend invoices that are sent, overdue, or paid (for record-keeping)
+        if (!['sent', 'overdue', 'paid'].includes(invoice.status)) {
+            throw new BadRequestException(`Cannot resend invoice with status: ${invoice.status}. Please send it first.`);
+        }
+
+        const subject = `Invoice ${invoice.invoiceNumber} from ${invoice.tenant.firstName || 'Your Landlord'}`;
+
+        try {
+            // Generate PDF
+            const pdfBuffer = await this.downloadPdf(id, companyId);
+
+            // Send email with PDF attachment
+            const emailResult = await this.emailService.sendMail({
+                to: invoice.tenant.email,
+                subject,
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <h2 style="color: #333;">Invoice ${invoice.invoiceNumber}</h2>
+                        <p>Dear ${invoice.tenant.firstName} ${invoice.tenant.lastName},</p>
+                        <p>As requested, please find attached your invoice for ${invoice.occupancy?.apartment?.unitNumber || 'your rental unit'}.</p>
+                        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                            <p style="margin: 5px 0;"><strong>Invoice Number:</strong> ${invoice.invoiceNumber}</p>
+                            <p style="margin: 5px 0;"><strong>Invoice Date:</strong> ${new Date(invoice.invoiceDate).toLocaleDateString()}</p>
+                            <p style="margin: 5px 0;"><strong>Due Date:</strong> ${new Date(invoice.dueDate).toLocaleDateString()}</p>
+                            <p style="margin: 5px 0;"><strong>Total Amount:</strong> $${invoice.totalAmount}</p>
+                            ${invoice.status === 'paid' ? `<p style="margin: 5px 0; color: green;"><strong>Status:</strong> PAID</p>` : ''}
+                        </div>
+                        <p>Please review the attached PDF for complete details.</p>
+                        <p>If you have any questions, please don't hesitate to contact us.</p>
+                        <p style="margin-top: 30px;">Best regards,<br/>Property Management</p>
+                    </div>
+                `,
+                text: `
+Invoice ${invoice.invoiceNumber}
+
+Dear ${invoice.tenant.firstName} ${invoice.tenant.lastName},
+
+As requested, please find attached your invoice for ${invoice.occupancy?.apartment?.unitNumber || 'your rental unit'}.
+
+Invoice Number: ${invoice.invoiceNumber}
+Invoice Date: ${new Date(invoice.invoiceDate).toLocaleDateString()}
+Due Date: ${new Date(invoice.dueDate).toLocaleDateString()}
+Total Amount: $${invoice.totalAmount}
+${invoice.status === 'paid' ? 'Status: PAID' : ''}
+
+Please review the attached PDF for complete details.
+
+If you have any questions, please don't hesitate to contact us.
+
+Best regards,
+Property Management
+                `,
+                attachments: [
+                    {
+                        filename: `invoice-${invoice.invoiceNumber}.pdf`,
+                        content: pdfBuffer,
+                        contentType: 'application/pdf'
+                    }
+                ]
+            });
+
+            // Log successful resend
+            await this.invoiceEmailLogService.logSent(
+                companyId,
+                id,
+                invoice.tenant.email,
+                subject,
+                emailResult?.messageId || `msg-${Date.now()}`,
+                true, // isResend = true for resends
+                {
+                    invoiceNumber: invoice.invoiceNumber,
+                    tenantId: invoice.tenant.id,
+                    tenantName: `${invoice.tenant.firstName} ${invoice.tenant.lastName}`,
+                    amount: invoice.totalAmount,
+                    dueDate: typeof invoice.dueDate === 'string' ? invoice.dueDate : invoice.dueDate.toISOString(),
+                    provider: 'brevo',
+                    hasPdfAttachment: true,
+                }
+            );
+
+            // Don't update invoice status - keep it as is
+            return invoice;
+        } catch (error) {
+            // Log failed resend
+            await this.invoiceEmailLogService.logFailed(
+                companyId,
+                id,
+                invoice.tenant.email,
+                subject,
+                error.message,
+                true, // isResend = true
+                {
+                    invoiceNumber: invoice.invoiceNumber,
+                    tenantId: invoice.tenant.id,
+                    tenantName: `${invoice.tenant.firstName} ${invoice.tenant.lastName}`,
+                    amount: invoice.totalAmount,
+                    dueDate: typeof invoice.dueDate === 'string' ? invoice.dueDate : invoice.dueDate.toISOString(),
+                }
+            );
+
+            throw new BadRequestException(`Failed to resend invoice: ${error.message}`);
+        }
     }
 
     /**

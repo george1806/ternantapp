@@ -1,0 +1,69 @@
+# ================================================================
+# MySQL Database Service - Production
+# ================================================================
+# This compose file deploys MySQL 8.0 database
+# Deploy order: 1 (First - no dependencies)
+#
+# Usage:
+#   docker compose --env-file .env.production -f deploy/compose/01-mysql.yml up -d
+# ================================================================
+
+services:
+  # ================================
+  # Database - MySQL 8.0
+  # ================================
+  mysql:
+    image: mysql:${MYSQL_VERSION:-8.0}
+    container_name: ${MYSQL_CONTAINER_NAME:-apartment-mysql}
+    restart: ${RESTART_POLICY:-always}
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DATABASE_NAME}
+      MYSQL_USER: ${DATABASE_USER}
+      MYSQL_PASSWORD: ${DATABASE_PASSWORD}
+      TZ: ${TIMEZONE:-UTC}
+    # NO PORTS EXPOSED - internal only for security
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ${MYSQL_CONFIG_DIR:-./mysql/conf.d}:/etc/mysql/conf.d:ro
+      - ${BACKUP_DIR:-./deploy/backups}:/backups
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --max_connections=${MYSQL_MAX_CONNECTIONS:-1000}
+      --innodb_buffer_pool_size=${MYSQL_BUFFER_POOL_SIZE:-2G}
+      --innodb_log_file_size=${MYSQL_LOG_FILE_SIZE:-512M}
+      --innodb_flush_log_at_trx_commit=${MYSQL_FLUSH_LOG:-1}
+      --slow_query_log=${MYSQL_SLOW_QUERY_LOG:-1}
+      --long_query_time=${MYSQL_LONG_QUERY_TIME:-2}
+      --skip-name-resolve
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-p${MYSQL_ROOT_PASSWORD}']
+      interval: ${HEALTH_CHECK_INTERVAL:-10s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-5s}
+      retries: ${HEALTH_CHECK_RETRIES:-5}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-30s}
+    logging:
+      driver: ${LOG_DRIVER:-json-file}
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILE:-3}
+    networks:
+      - apartment_network
+
+# ================================
+# Volumes
+# ================================
+volumes:
+  mysql_data:
+    driver: local
+    name: ${MYSQL_VOLUME_NAME:-apartment_mysql_data}
+
+# ================================
+# Networks
+# ================================
+networks:
+  apartment_network:
+    driver: bridge
+    name: ${NETWORK_NAME:-apartment_network}

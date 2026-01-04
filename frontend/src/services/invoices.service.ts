@@ -12,15 +12,22 @@ import type { Invoice, PaginatedResponse, PaginationParams } from '@/types';
  */
 
 export interface CreateInvoiceDto {
+  invoiceNumber: string;
   occupancyId: string;
+  tenantId: string;
   invoiceDate: string;
   dueDate: string;
-  items: {
+  lineItems: {
     description: string;
     quantity: number;
     unitPrice: number;
-    itemType: 'rent' | 'utility' | 'maintenance' | 'other';
+    amount: number;
+    type?: 'rent' | 'utility' | 'maintenance' | 'other';
   }[];
+  subtotal: number;
+  taxAmount?: number;
+  totalAmount: number;
+  status?: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   notes?: string;
 }
 
@@ -109,6 +116,30 @@ export const invoicesService = {
    */
   send: (id: string, data?: { message?: string }) => {
     return api.post<{ success: boolean; sentAt: string }>(`/invoices/${id}/send`, data || {});
+  },
+
+  /**
+   * Resend invoice to tenant
+   */
+  resend: (id: string) => {
+    return api.post<Invoice>(`/invoices/${id}/resend`, {});
+  },
+
+  /**
+   * Get email send history for an invoice
+   */
+  getEmailLogs: (id: string) => {
+    return api.get<{
+      id: string;
+      invoiceId: string;
+      recipient: string;
+      subject: string;
+      status: 'queued' | 'sent' | 'failed' | 'bounced' | 'delivered';
+      isResend: boolean;
+      sentAt: string | null;
+      failureReason: string | null;
+      createdAt: string;
+    }[]>(`/invoices/${id}/email-logs`);
   },
 
   /**

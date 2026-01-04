@@ -11,6 +11,7 @@ export interface Company {
   phone: string | null;
   currency: string;
   timezone: string;
+  country: string | null;
   isActive: boolean;
   emailSettings: EmailSettings | null;
   reminderPreferences: ReminderPreferences | null;
@@ -119,6 +120,7 @@ export interface CreateCompanyDto {
   phone?: string;
   currency?: string;
   timezone?: string;
+  country?: string;
   ownerFirstName: string;
   ownerLastName: string;
   ownerEmail: string;
@@ -132,6 +134,7 @@ export interface UpdateCompanyDto {
   phone?: string;
   currency?: string;
   timezone?: string;
+  country?: string;
 }
 
 export interface CompanyFilters {

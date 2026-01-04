@@ -139,6 +139,12 @@ async function bootstrap() {
             transform: true,
             transformOptions: {
                 enableImplicitConversion: true
+            },
+            exceptionFactory: (errors) => {
+                console.error('=== VALIDATION ERRORS ===');
+                console.error(JSON.stringify(errors, null, 2));
+                console.error('========================');
+                return new ValidationPipe().createExceptionFactory()(errors);
             }
         })
     );

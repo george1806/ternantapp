@@ -124,7 +124,7 @@ export function PaymentFormDialog({
       const invoice = invoices.find((inv) => inv.id === invoiceId);
       setSelectedInvoice(invoice || null);
       if (invoice) {
-        const remainingAmount = invoice.totalAmount - invoice.amountPaid;
+        const remainingAmount = Number(invoice.totalAmount) - Number(invoice.amountPaid);
         setValue('amount', remainingAmount);
       }
     }
@@ -142,7 +142,7 @@ export function PaymentFormDialog({
       if (response.data?.data) {
         // Filter invoices that still have unpaid amount
         const unpaidInvoices = response.data.data.filter(
-          (inv) => inv.totalAmount > inv.amountPaid
+          (inv) => Number(inv.totalAmount) > Number(inv.amountPaid)
         );
         setInvoices(unpaidInvoices);
 
@@ -219,11 +219,13 @@ export function PaymentFormDialog({
 
   const getInvoiceInfo = () => {
     if (!selectedInvoice) return null;
-    const remaining = selectedInvoice.totalAmount - selectedInvoice.amountPaid;
+    const totalAmount = Number(selectedInvoice.totalAmount);
+    const amountPaid = Number(selectedInvoice.amountPaid);
+    const remaining = totalAmount - amountPaid;
     return {
       invoiceNumber: selectedInvoice.invoiceNumber,
-      totalAmount: selectedInvoice.totalAmount,
-      paidAmount: selectedInvoice.amountPaid,
+      totalAmount,
+      paidAmount: amountPaid,
       remaining,
     };
   };
@@ -264,7 +266,7 @@ export function PaymentFormDialog({
                   {loadingInvoices ? 'Loading invoices...' : 'Select an invoice'}
                 </option>
                 {invoices.map((invoice) => {
-                  const remaining = invoice.totalAmount - invoice.amountPaid;
+                  const remaining = Number(invoice.totalAmount) - Number(invoice.amountPaid);
                   return (
                     <option key={invoice.id} value={invoice.id}>
                       {invoice.invoiceNumber} - {remaining.toFixed(2)} {currency} due

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Download, Mail, DollarSign, Calendar, FileText } from 'lucide-react';
+import { ArrowLeft, Download, Mail, DollarSign, Calendar, FileText, Edit } from 'lucide-react';
 import { invoicesService } from '@/services/invoices.service';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api';
 import { format } from 'date-fns';
 import type { Invoice } from '@/types';
+import { InvoiceFormDialog } from '@/components/invoices/invoice-form-dialog';
 
 /**
  * Invoice Detail Page
@@ -32,6 +33,9 @@ export default function InvoiceDetailPage() {
   const { toast } = useToast();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [emailLogs, setEmailLogs] = useState<any[]>([]);
+  const [loadingEmailLogs, setLoadingEmailLogs] = useState(false);
 
   useEffect(() => {
     if (params.id) {
@@ -86,6 +90,89 @@ export default function InvoiceDetailPage() {
       });
     }
   };
+
+  const handleSendInvoice = async () => {
+    if (!invoice) return;
+
+    // Confirm before sending
+    if (!confirm(`Send invoice ${invoice.invoiceNumber} to ${invoice.tenant?.email || 'tenant'}?`)) {
+      return;
+    }
+
+    try {
+      toast({
+        title: 'Sending...',
+        description: 'Sending invoice to tenant...',
+      });
+
+      await invoicesService.send(invoice.id);
+
+      toast({
+        title: 'Success',
+        description: 'Invoice sent successfully!',
+      });
+
+      // Reload invoice and email logs
+      loadInvoice(invoice.id);
+      loadEmailLogs(invoice.id);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: getApiErrorMessage(error),
+      });
+    }
+  };
+
+  const handleResendInvoice = async () => {
+    if (!invoice) return;
+
+    // Confirm before resending
+    if (!confirm(`Resend invoice ${invoice.invoiceNumber} to ${invoice.tenant?.email || 'tenant'}?`)) {
+      return;
+    }
+
+    try {
+      toast({
+        title: 'Resending...',
+        description: 'Resending invoice to tenant...',
+      });
+
+      await invoicesService.resend(invoice.id);
+
+      toast({
+        title: 'Success',
+        description: 'Invoice resent successfully!',
+      });
+
+      // Reload email logs to show the new send
+      loadEmailLogs(invoice.id);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: getApiErrorMessage(error),
+      });
+    }
+  };
+
+  const loadEmailLogs = async (id: string) => {
+    try {
+      setLoadingEmailLogs(true);
+      const response = await invoicesService.getEmailLogs(id);
+      setEmailLogs(response.data || []);
+    } catch (error) {
+      console.error('Failed to load email logs:', error);
+    } finally {
+      setLoadingEmailLogs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (invoice && ['sent', 'overdue', 'paid'].includes(invoice.status)) {
+      loadEmailLogs(invoice.id);
+    }
+  }, [invoice?.id, invoice?.status]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -150,6 +237,39 @@ export default function InvoiceDetailPage() {
           >
             {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
           </span>
+          {(invoice.status === 'draft' || invoice.status === 'sent') && (
+            <>
+              <Button variant="outline" onClick={() => setEditDialogOpen(true)} className="hidden sm:flex">
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
+              <Button variant="outline" size="icon" onClick={() => setEditDialogOpen(true)} className="sm:hidden">
+                <Edit className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          {invoice.status === 'draft' && (
+            <>
+              <Button onClick={handleSendInvoice} className="hidden sm:flex">
+                <Mail className="mr-2 h-4 w-4" />
+                Send Invoice
+              </Button>
+              <Button size="icon" onClick={handleSendInvoice} className="sm:hidden">
+                <Mail className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          {['sent', 'overdue', 'paid'].includes(invoice.status) && (
+            <>
+              <Button variant="outline" onClick={handleResendInvoice} className="hidden sm:flex">
+                <Mail className="mr-2 h-4 w-4" />
+                Resend Invoice
+              </Button>
+              <Button variant="outline" size="icon" onClick={handleResendInvoice} className="sm:hidden">
+                <Mail className="h-4 w-4" />
+              </Button>
+            </>
+          )}
           <Button variant="outline" onClick={handleDownloadPdf} className="hidden sm:flex">
             <Download className="mr-2 h-4 w-4" />
             Download PDF
@@ -349,6 +469,82 @@ export default function InvoiceDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Email Send History */}
+      {['sent', 'overdue', 'paid'].includes(invoice.status) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Email Send History</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingEmailLogs ? (
+              <div className="text-center py-4">
+                <p className="text-sm text-muted-foreground">Loading send history...</p>
+              </div>
+            ) : emailLogs.length === 0 ? (
+              <div className="text-center py-4">
+                <p className="text-sm text-muted-foreground">No email send history available.</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Recipient</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Type</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {emailLogs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell>
+                        {log.sentAt ? format(new Date(log.sentAt), 'PPp') : 'N/A'}
+                      </TableCell>
+                      <TableCell>{log.recipient}</TableCell>
+                      <TableCell>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            log.status === 'sent' || log.status === 'delivered'
+                              ? 'bg-green-100 text-green-800'
+                              : log.status === 'failed' || log.status === 'bounced'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}
+                        >
+                          {log.status.charAt(0).toUpperCase() + log.status.slice(1)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            log.isResend
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-purple-100 text-purple-800'
+                          }`}
+                        >
+                          {log.isResend ? 'Resend' : 'First Send'}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Edit Dialog */}
+      <InvoiceFormDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onSuccess={() => {
+          loadInvoice(params.id as string);
+          setEditDialogOpen(false);
+        }}
+        invoice={invoice}
+      />
     </div>
   );
 }
