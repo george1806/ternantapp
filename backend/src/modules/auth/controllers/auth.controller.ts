@@ -292,10 +292,20 @@ export class AuthController {
     @ApiOperation({ summary: 'Get all active sessions for current user' })
     @ApiResponse({ status: 200, description: 'Sessions retrieved successfully' })
     async getUserSessions(@CurrentUser() user: any) {
-        const sessions = await this.authService.getUserSessions(user.userId);
+        const sessions = await this.authService.getUserSessions(user.userId || user.id);
+
+        // Mark the current session
+        const currentSessionId = user.sessionId;
+        const sessionsWithCurrent = sessions.map(session => ({
+            ...session,
+            isCurrent: session.id === currentSessionId
+        }));
+
         return {
-            sessionCount: sessions.length,
-            sessions
+            data: sessionsWithCurrent,
+            meta: {
+                sessionCount: sessions.length
+            }
         };
     }
 }

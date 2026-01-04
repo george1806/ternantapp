@@ -268,8 +268,27 @@ export class AuthService {
     /**
      * Get user active sessions
      */
-    async getUserSessions(userId: string): Promise<string[]> {
-        return this.sessionService.getUserActiveSessions(userId);
+    async getUserSessions(userId: string): Promise<any[]> {
+        const sessionIds = await this.sessionService.getUserActiveSessions(userId);
+
+        const sessionsWithDetails = [];
+
+        for (const sessionId of sessionIds) {
+            const session = await this.sessionService.getAccessSession(sessionId);
+            if (session) {
+                sessionsWithDetails.push({
+                    id: sessionId,
+                    userId: session.userId,
+                    deviceInfo: session.userAgent || 'Unknown Device',
+                    ipAddress: session.ipAddress || 'Unknown',
+                    lastActive: new Date(session.expiresAt - 900000).toISOString(), // Approximation
+                    createdAt: new Date(session.createdAt).toISOString(),
+                    isCurrent: false // Will be set by controller
+                });
+            }
+        }
+
+        return sessionsWithDetails;
     }
 
     /**
