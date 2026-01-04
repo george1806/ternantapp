@@ -296,16 +296,9 @@ export class AuthController {
 
         // Mark the current session
         const currentSessionId = user.sessionId;
-        const sessionsWithCurrent = sessions.map(session => ({
+        return sessions.map(session => ({
             ...session,
             isCurrent: session.id === currentSessionId
         }));
-
-        return {
-            data: sessionsWithCurrent,
-            meta: {
-                sessionCount: sessions.length
-            }
-        };
     }
 }
