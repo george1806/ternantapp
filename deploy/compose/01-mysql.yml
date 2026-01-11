@@ -16,13 +16,14 @@ services:
     image: mysql:${MYSQL_VERSION:-8.0}
     container_name: ${MYSQL_CONTAINER_NAME:-apartment-mysql}
     restart: ${RESTART_POLICY:-always}
+    ports:
+      - "${MYSQL_EXTERNAL_PORT:-3307}:3306"
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${DATABASE_NAME}
       MYSQL_USER: ${DATABASE_USER}
       MYSQL_PASSWORD: ${DATABASE_PASSWORD}
       TZ: ${TIMEZONE:-UTC}
-    # NO PORTS EXPOSED - internal only for security
     volumes:
       - mysql_data:/var/lib/mysql
       - ${MYSQL_CONFIG_DIR:-./mysql/conf.d}:/etc/mysql/conf.d:ro

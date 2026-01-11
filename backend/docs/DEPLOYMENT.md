@@ -28,10 +28,13 @@
 
 ```
 TernantApp Production Stack
-├── MySQL 8.0          (Port 3306) - Primary database
-├── Redis 7.0          (Port 6379) - Cache & sessions
-├── Backend API        (Port 3000) - NestJS application
-└── Frontend App       (Port 3001) - Next.js 15 SSR
+├── MySQL 8.0          (Port 3307*) - Primary database
+├── Redis 7.0          (Port 6380*) - Cache & sessions
+├── Backend API        (Port 3000)  - NestJS application
+└── Frontend App       (Port 3001)  - Next.js 15 SSR
+
+* External ports configurable via environment variables
+  Internal container ports remain standard (3306/6379)
 ```
 
 ### Deployment Approach
@@ -183,12 +186,12 @@ NETWORK_NAME=apartment_network
 # --------------------------------
 MYSQL_CONTAINER_NAME=apartment-mysql
 DATABASE_HOST=mysql
-DATABASE_PORT=3306
+DATABASE_PORT=3306                # Internal Docker port (always 3306)
 DATABASE_NAME=apartment_management
 DATABASE_USER=apartment_user
 DATABASE_PASSWORD=<CHANGE-ME-STRONG-PASSWORD-32-CHARS>
 MYSQL_ROOT_PASSWORD=<CHANGE-ME-ROOT-PASSWORD-32-CHARS>
-MYSQL_EXTERNAL_PORT=3306
+MYSQL_EXTERNAL_PORT=3307          # External host port (use 3307 if MySQL already on 3306)
 
 # Database Configuration
 DB_POOL_SIZE=20
@@ -202,11 +205,11 @@ DB_LOGGING=false
 # --------------------------------
 REDIS_CONTAINER_NAME=apartment-redis
 REDIS_HOST=redis
-REDIS_PORT=6379
+REDIS_PORT=6379                   # Internal Docker port (always 6379)
 REDIS_PASSWORD=<CHANGE-ME-REDIS-PASSWORD-32-CHARS>
 REDIS_DB=0
 REDIS_TTL=3600
-REDIS_EXTERNAL_PORT=6379
+REDIS_EXTERNAL_PORT=6380          # External host port (use 6380 if Redis already on 6379)
 
 # --------------------------------
 # Backend API
@@ -331,6 +334,64 @@ done
 - ✅ All passwords must be 32+ characters
 - ✅ Never reuse secrets across environments
 - ✅ Store secrets in secure vault (not in git)
+
+### 5. Port Configuration Strategy
+
+**Default External Ports:**
+- MySQL: `3307` (internal: 3306)
+- Redis: `6380` (internal: 6379)
+- Backend: `3000`
+- Frontend: `3001`
+
+**Why Non-Standard Ports for MySQL/Redis?**
+
+The default configuration uses **3307** for MySQL and **6380** for Redis to avoid conflicts with existing database installations on the host server. This allows you to:
+
+1. ✅ Run TernantApp alongside existing MySQL/Redis instances
+2. ✅ Maintain separate database instances for security and isolation
+3. ✅ Avoid port conflicts during deployment
+
+**Port Mapping Explanation:**
+
+```bash
+# MySQL Port Mapping
+MYSQL_EXTERNAL_PORT=3307    # Host machine port (what you connect to)
+DATABASE_PORT=3306          # Container internal port (Docker network)
+
+# Redis Port Mapping
+REDIS_EXTERNAL_PORT=6380    # Host machine port (what you connect to)
+REDIS_PORT=6379             # Container internal port (Docker network)
+```
+
+**Important:**
+- **External ports** are what you use to connect from the host (e.g., `mysql -h localhost -P 3307`)
+- **Internal ports** are used by containers to communicate within the Docker network
+- The application backend connects using **internal ports** (3306/6379) via the Docker network
+- Only change `MYSQL_EXTERNAL_PORT` and `REDIS_EXTERNAL_PORT` in `.env.production`
+- **Never change** `DATABASE_PORT` or `REDIS_PORT` (always 3306/6379)
+
+**Example Scenarios:**
+
+1. **Server with existing MySQL on 3306:**
+   ```bash
+   MYSQL_EXTERNAL_PORT=3307   # Use alternative port
+   ```
+
+2. **Dedicated server (no conflicts):**
+   ```bash
+   MYSQL_EXTERNAL_PORT=3306   # Can use standard port
+   ```
+
+3. **Multiple TernantApp instances:**
+   ```bash
+   # Instance 1
+   MYSQL_EXTERNAL_PORT=3307
+   REDIS_EXTERNAL_PORT=6380
+
+   # Instance 2
+   MYSQL_EXTERNAL_PORT=3308
+   REDIS_EXTERNAL_PORT=6381
+   ```
 
 ---
 

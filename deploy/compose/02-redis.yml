@@ -16,6 +16,8 @@ services:
     image: redis:${REDIS_VERSION:-7-alpine}
     container_name: ${REDIS_CONTAINER_NAME:-apartment-redis}
     restart: ${RESTART_POLICY:-always}
+    ports:
+      - "${REDIS_EXTERNAL_PORT:-6380}:6379"
     environment:
       TZ: ${TIMEZONE:-UTC}
     command: >
@@ -27,7 +29,6 @@ services:
       --requirepass ${REDIS_PASSWORD}
       --tcp-keepalive ${REDIS_TCP_KEEPALIVE:-300}
       --timeout ${REDIS_TIMEOUT:-0}
-    # NO PORTS EXPOSED - internal only for security
     volumes:
       - redis_data:/data
     healthcheck:
