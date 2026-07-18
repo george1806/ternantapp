@@ -1,10 +1,32 @@
+# ================================================================
+# TernantApp - Dynamic Docker Compose Configuration
+# ================================================================
+# Deployment Profiles:
+#   - full-stack: Deploy ALL services (MySQL, Redis, Mailpit, Backend, Frontend)
+#   - apps-only:  Deploy ONLY applications (Backend, Frontend) - assumes external DB/Redis
+#   - infra:      Deploy ONLY infrastructure (MySQL, Redis, Mailpit)
+#   - tools:      Deploy optional admin tools (phpMyAdmin, Redis Commander)
+#
+# Usage Examples:
+#   docker compose --profile full-stack up -d           # Full deployment
+#   docker compose --profile apps-only up -d            # Apps only (external MySQL/Redis)
+#   docker compose --profile infra up -d                # Infrastructure only
+#   docker compose --profile full-stack --profile tools up -d  # Full + admin tools
+#
+# Environment Variables:
+#   Set DEPLOY_PROFILE=full-stack|apps-only in .env for default behavior
+# ================================================================
+
 services:
   # ================================
-  # Database - MySQL 8.0
+  # INFRASTRUCTURE SERVICES
   # ================================
+
+  # Database - MySQL 8.0
   mysql:
     image: mysql:${MYSQL_VERSION:-8.0}
     container_name: ${MYSQL_CONTAINER_NAME:-apartment-mysql}
+    profiles: ["full-stack", "infra"]
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password_dev}
@@ -15,6 +37,8 @@ services:
       - '${MYSQL_PORT:-3307}:3306'
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./mysql/conf.d:/etc/mysql/conf.d:ro
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
     command: >
       --default-authentication-plugin=mysql_native_password
       --character-set-server=utf8mb4
@@ -34,18 +58,21 @@ services:
     networks:
       - apartment_network
 
-  # ================================
   # Cache & Sessions - Redis 7
-  # ================================
   redis:
     image: redis:${REDIS_VERSION:-7-alpine}
     container_name: ${REDIS_CONTAINER_NAME:-apartment-redis}
+    profiles: ["full-stack", "infra"]
     restart: unless-stopped
     ports:
       - '${REDIS_PORT_EXTERNAL:-6380}:6379'
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
@@ -55,12 +82,11 @@ services:
     networks:
       - apartment_network
 
-  # ================================
-  # Email Testing - Mailpit
-  # ================================
+  # Email Testing - Mailpit (Development)
   mailpit:
     image: axllent/mailpit:${MAILPIT_VERSION:-latest}
     container_name: ${MAILPIT_CONTAINER_NAME:-apartment-mailpit}
+    profiles: ["full-stack", "infra"]
     restart: unless-stopped
     ports:
       - '${MAILPIT_SMTP_PORT:-1025}:1025'  # SMTP
@@ -82,14 +108,17 @@ services:
       - apartment_network
 
   # ================================
-  # Backend API - NestJS
+  # APPLICATION SERVICES
   # ================================
+
+  # Backend API - NestJS
   backend:
     build:
       context: .
       dockerfile: ./backend/Dockerfile
       target: ${BUILD_TARGET:-development}
     container_name: ${BACKEND_CONTAINER_NAME:-apartment-backend}
+    profiles: ["full-stack", "apps-only"]
     restart: unless-stopped
     ports:
       - '${BACKEND_PORT:-3000}:3000'
@@ -102,7 +131,7 @@ services:
       BASE_URL: ${BASE_URL:-http://localhost:3000}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3001}
 
-      # Database - Use service names for container networking
+      # Database - Supports both internal (docker) and external MySQL
       DB_TYPE: mysql
       DB_HOST: ${DB_HOST:-mysql}
       DB_PORT: ${DB_PORT:-3306}
@@ -120,14 +149,14 @@ services:
       DB_POOL_IDLE_TIMEOUT: ${DB_POOL_IDLE_TIMEOUT:-10000}
       DB_POOL_MAX_REUSES: ${DB_POOL_MAX_REUSES:-100}
 
-      # Redis - Use service name
+      # Redis - Supports both internal (docker) and external Redis
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT_INTERNAL:-6379}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       REDIS_DB: ${REDIS_DB:-0}
       REDIS_TTL: ${REDIS_TTL:-3600}
 
-      # JWT - SECURITY: Use environment variables or .env file for secrets
+      # JWT - SECURITY: Use environment variables for secrets
       JWT_SECRET: ${JWT_SECRET:-INSECURE_DEV_SECRET_CHANGE_ME}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-INSECURE_DEV_REFRESH_SECRET_CHANGE_ME}
@@ -139,10 +168,10 @@ services:
       REFRESH_SESSION_PREFIX: ${REFRESH_SESSION_PREFIX:-refresh:}
       REFRESH_SESSION_TTL: ${REFRESH_SESSION_TTL:-604800}
 
-      # Email Configuration (Provider-based architecture)
-      # Options: mailpit (development), brevo (recommended), sendgrid, gmail
-      # See backend/docs/EMAIL_SETUP.md for detailed setup instructions
+      # Email Configuration
       MAIL_PROVIDER: ${MAIL_PROVIDER:-mailpit}
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
       MAIL_USER: ${MAIL_USER:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Apartment Management}
@@ -152,7 +181,7 @@ services:
       THROTTLE_TTL: ${THROTTLE_TTL:-60}
       THROTTLE_LIMIT: ${THROTTLE_LIMIT:-100}
 
-      # Queue (BullMQ) - Use service name
+      # Queue (BullMQ)
       QUEUE_REDIS_HOST: ${QUEUE_REDIS_HOST:-redis}
       QUEUE_REDIS_PORT: ${QUEUE_REDIS_PORT:-6379}
       QUEUE_REDIS_PASSWORD: ${QUEUE_REDIS_PASSWORD:-}
@@ -183,19 +212,16 @@ services:
       FEATURE_AUDIT_LOG: ${FEATURE_AUDIT_LOG:-true}
       FEATURE_QUEUE_ENABLED: ${FEATURE_QUEUE_ENABLED:-true}
     volumes:
-      # Mount source code for hot-reload in development
+      # Source code mounting (development only)
       - ./backend/src:/app/backend/src:cached
       - ./backend/package.json:/app/backend/package.json:cached
-      # Preserve node_modules - these MUST come after source mounts
+      # Preserve node_modules
       - /app/backend/node_modules
       - /app/node_modules
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      mailpit:
-        condition: service_healthy
+      # Logs directory (persistent)
+      - backend_logs:/app/backend/logs
+      # Uploads directory (persistent)
+      - uploads_data:/app/backend/uploads
     healthcheck:
       test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:3000/api/v1/health']
       interval: 30s
@@ -205,9 +231,7 @@ services:
     networks:
       - apartment_network
 
-  # ================================
   # Frontend UI - Next.js 15
-  # ================================
   frontend:
     build:
       context: .
@@ -216,6 +240,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api/v1}
     container_name: ${FRONTEND_CONTAINER_NAME:-apartment-frontend}
+    profiles: ["full-stack", "apps-only"]
     restart: unless-stopped
     ports:
       - '${FRONTEND_PORT:-3001}:3001'
@@ -225,7 +250,7 @@ services:
       PORT: 3001
       HOSTNAME: "0.0.0.0"
     volumes:
-      # Mount source code for hot-reload in development
+      # Source code mounting (development only)
       - ./frontend/src:/app/frontend/src:cached
       - ./frontend/public:/app/frontend/public:cached
       - ./frontend/package.json:/app/frontend/package.json:cached
@@ -234,13 +259,10 @@ services:
       - ./frontend/tailwind.config.ts:/app/frontend/tailwind.config.ts:cached
       - ./frontend/postcss.config.mjs:/app/frontend/postcss.config.mjs:cached
       - ./frontend/eslint.config.mjs:/app/frontend/eslint.config.mjs:cached
-      # Preserve node_modules and .next - these MUST come after source mounts
+      # Preserve node_modules and .next
       - /app/frontend/node_modules
       - /app/frontend/.next
       - /app/node_modules
-    depends_on:
-      backend:
-        condition: service_healthy
     healthcheck:
       test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:3001']
       interval: 30s
@@ -251,11 +273,14 @@ services:
       - apartment_network
 
   # ================================
-  # Optional: MySQL Admin UI
+  # OPTIONAL ADMIN TOOLS
   # ================================
+
+  # MySQL Admin UI - phpMyAdmin
   phpmyadmin:
     image: phpmyadmin:${PHPMYADMIN_VERSION:-latest}
     container_name: ${PHPMYADMIN_CONTAINER_NAME:-apartment-phpmyadmin}
+    profiles: ["tools"]
     restart: unless-stopped
     environment:
       PMA_HOST: ${DB_HOST:-mysql}
@@ -265,42 +290,47 @@ services:
       UPLOAD_LIMIT: ${PHPMYADMIN_UPLOAD_LIMIT:-100M}
     ports:
       - '${PHPMYADMIN_PORT:-8082}:80'
-    depends_on:
-      mysql:
-        condition: service_healthy
     networks:
       - apartment_network
 
-  # ================================
-  # Optional: Redis Commander
-  # ================================
+  # Redis Admin UI - Redis Commander
   redis-commander:
     image: rediscommander/redis-commander:${REDIS_COMMANDER_VERSION:-latest}
     container_name: ${REDIS_COMMANDER_CONTAINER_NAME:-apartment-redis-commander}
+    profiles: ["tools"]
     restart: unless-stopped
     environment:
-      REDIS_HOSTS: local:${REDIS_HOST:-redis}:${REDIS_PORT_INTERNAL:-6379}
+      REDIS_HOSTS: local:${REDIS_HOST:-redis}:${REDIS_PORT_INTERNAL:-6379}${REDIS_PASSWORD:+:${REDIS_PASSWORD}}
     ports:
       - '${REDIS_COMMANDER_PORT:-8081}:8081'
-    depends_on:
-      redis:
-        condition: service_healthy
     networks:
       - apartment_network
 
 # ================================
-# Volumes
+# VOLUMES - Persistent Data Storage
 # ================================
 volumes:
+  # Infrastructure volumes
   mysql_data:
     driver: local
+    name: ${PROJECT_NAME:-ternantapp}_mysql_data
   redis_data:
     driver: local
+    name: ${PROJECT_NAME:-ternantapp}_redis_data
   mailpit_data:
     driver: local
+    name: ${PROJECT_NAME:-ternantapp}_mailpit_data
+
+  # Application volumes
+  backend_logs:
+    driver: local
+    name: ${PROJECT_NAME:-ternantapp}_backend_logs
+  uploads_data:
+    driver: local
+    name: ${PROJECT_NAME:-ternantapp}_uploads_data
 
 # ================================
-# Networks
+# NETWORKS
 # ================================
 networks:
   apartment_network:
